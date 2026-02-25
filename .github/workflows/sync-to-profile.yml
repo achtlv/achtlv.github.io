@@ -3,10 +3,10 @@ name: Sync to profile repo (achtlv)
 on:
   push:
     branches:
-      - main   # 如果默认分支是 master 就改成 master
+      - main          # 如果你的默认分支是 master，改成 master
 
 permissions:
-  contents: write   # 显式声明写权限（对源仓库有用）
+  contents: write
 
 jobs:
   sync:
@@ -17,32 +17,41 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Checkout target repo (achtlv) using PAT
-        uses: actions/checkout@v4
-        with:
-          repository: achtlv/achtlv
-          path: target
-          token: ${{ secrets.PROFILE_REPO_TOKEN }}   # ← 这里关键！用 PAT checkout 目标仓库
-          fetch-depth: 0
-
-      - name: Mirror files from source to target
+      - name: Prepare and push to target repo (achtlv)
+        env:
+          TARGET_TOKEN: ${{ secrets.PROFILE_REPO_TOKEN }}
+          TARGET_REPO: achtlv/achtlv
         run: |
-          rsync -av --delete --exclude='.git' --exclude='.github' ./ target/
-          # ↑ 把源仓库所有文件（除 .git 和 .github）覆盖到 target 里
-          # 如果你只想同步特定文件，改成：
-          # cp -f README.md target/README.md
-          # 或 rsync -av ./docs/ target/docs/ 等
-
-      - name: Commit and push to target if changed
-        working-directory: target
-        run: |
-          git config user.name "GitHub Actions"
+          # 创建一个临时目录来操作目标仓库
+          mkdir target-repo
+          cd target-repo
+          
+          # 初始化空仓库
+          git init
+          
+          # 添加远程，使用 PAT 认证
+          git remote add origin "https://x-access-token:\( {TARGET_TOKEN}@github.com/ \){TARGET_REPO}.git"
+          
+          # 从源仓库复制所有文件（排除 .git 和 .github 以避免冲突）
+          rsync -av --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            ../* ./
+          
+          # 配置 git 用户（必须的）
+          git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
           
+          # 添加所有文件
           git add -A
+          
+          # 如果有变化才 commit（第一次一定是全新的）
           if git diff --staged --quiet; then
-            echo "No changes to commit"
+            echo "No changes, skipping commit"
           else
-            git commit -m "Auto sync from achtlv.github.io [$(date +'%Y-%m-%d %H:%M')]"
-            git push origin HEAD:main   # ← 这里用 origin，就是用 PAT 认证的 remote
+            git commit -m "Initial sync + auto update from achtlv.github.io ($(date +'%Y-%m-%d %H:%M'))"
+            
+            # 第一次 push 需要创建分支（用 -u 设置 upstream）
+            # 后续 push 正常
+            git push -u origin HEAD:main
           fi

@@ -1,57 +1,32 @@
-name: Sync to profile repo (achtlv)
-
-on:
-  push:
-    branches:
-      - main          # 如果你的默认分支是 master，改成 master
-
-permissions:
-  contents: write
-
-jobs:
-  sync:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout source repo (achtlv.github.io)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Prepare and push to target repo (achtlv)
+- name: Prepare and push to target repo (achtlv)
         env:
           TARGET_TOKEN: ${{ secrets.PROFILE_REPO_TOKEN }}
-          TARGET_REPO: achtlv/achtlv
         run: |
-          # 创建一个临时目录来操作目标仓库
-          mkdir target-repo
+          mkdir -p target-repo
           cd target-repo
           
-          # 初始化空仓库
           git init
           
-          # 添加远程，使用 PAT 认证
-          git remote add origin "https://x-access-token:\( {TARGET_TOKEN}@github.com/ \){TARGET_REPO}.git"
+          # 硬编码 remote URL，避免变量展开出错
+          git remote add origin "https://x-access-token:${TARGET_TOKEN}@github.com/achtlv/achtlv.git"
           
-          # 从源仓库复制所有文件（排除 .git 和 .github 以避免冲突）
+          # 复制源文件（排除 .git/.github）
           rsync -av --delete \
             --exclude='.git' \
             --exclude='.github' \
             ../* ./
           
-          # 配置 git 用户（必须的）
-          git config user.name "GitHub Actions Bot"
+          git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           
-          # 添加所有文件
           git add -A
           
-          # 如果有变化才 commit（第一次一定是全新的）
           if git diff --staged --quiet; then
-            echo "No changes, skipping commit"
+            echo "No changes detected"
           else
-            git commit -m "Initial sync + auto update from achtlv.github.io ($(date +'%Y-%m-%d %H:%M'))"
+            git commit -m "Auto sync from achtlv.github.io ($(date '+%Y-%m-%d %H:%M:%S'))"
             
-            # 第一次 push 需要创建分支（用 -u 设置 upstream）
-            # 后续 push 正常
-            git push -u origin HEAD:main
+            # 强制 push（因为是 mirror 风格，且目标可能是空/新分支）
+            git push --force origin HEAD:main
+            # 如果你不想 force，可以先试 git push origin HEAD:main，如果失败再 force
           fi

@@ -1,0 +1,21 @@
+name: Sync to achtlv
+
+on:
+  push:
+    branches: [ main ]   # 如果你用的是 master，请改为 master
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to target repository
+        env:
+          TARGET_REPO: https://achtlv:${{ secrets.PAT }}@github.com/achtlv/achtlv.git
+        run: |
+          git remote add target $TARGET_REPO
+          git push -f target main

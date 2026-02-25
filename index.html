@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ACHTLV</title>
+    <title>ACHTLV资源导航</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <style>
         * {
             margin: 0;
@@ -13,8 +14,8 @@
         }
         
         body {
-            background: #FFFFFF; /* 白色背景 */
-            color: #333333; /* 深灰色文字，确保对比度 */
+            background: #FFFFFF;
+            color: #333333;
             min-height: 100vh;
             padding: 40px 20px;
             display: flex;
@@ -34,14 +35,14 @@
         }
         
         h1 {
-            font-size: 3rem;
+            font-size: 5rem;
             margin-bottom: 15px;
-            color: #1E90FF; /* 更浅的企业蓝 */
+            color: #1E90FF;
             font-weight: 700;
         }
         
         .subtitle {
-            font-size: 1.2rem;
+            font-size: 1rem;
             max-width: 800px;
             margin: 20px auto 0;
             line-height: 1.6;
@@ -56,17 +57,17 @@
         }
         
         .category {
-            background: #FFFFFF; /* 白色背景 */
+            background: #FFFFFF;
             border-radius: 10px;
             overflow: hidden;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* 轻微阴影 */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             transition: transform 0.3s ease, box-shadow 0.3s ease;
-            border: 1px solid #E0E0E0; /* 浅灰边框 */
+            border: 1px solid #E0E0E0;
         }
         
         .category:hover {
             transform: translateY(-5px);
-            box-shadow: 0 8px 20px rgba(30, 144, 255, 0.2); /* 更浅的企业蓝色阴影 */
+            box-shadow: 0 8px 20px rgba(30, 144, 255, 0.2);
         }
         
         .category-header {
@@ -77,7 +78,7 @@
         .category-header h2 {
             font-size: 1.6rem;
             font-weight: 600;
-            color: #1E90FF; /* 更浅的企业蓝 */
+            color: #1E90FF;
         }
         
         .category-description {
@@ -85,7 +86,7 @@
             font-size: 0.9rem;
             color: #666666;
             line-height: 1.5;
-            background: #F8F9FA; /* 浅灰背景区分描述区域 */
+            background: #F8F9FA;
         }
         
         .category-content {
@@ -96,14 +97,15 @@
             padding: 12px;
             border-radius: 8px;
             margin-bottom: 10px;
-            background: #F8F9FA; /* 浅灰背景 */
+            background: #F8F9FA;
             transition: all 0.3s ease;
             border: 1px solid transparent;
+            user-select: none;
         }
         
         .link-item:hover {
-            border-color: #1E90FF; /* 更浅的企业蓝边框 */
-            background: #E6F0FA; /* 浅蓝色高亮 */
+            border-color: #1E90FF;
+            background: #E6F0FA;
             transform: translateX(3px);
         }
         
@@ -134,30 +136,71 @@
             border-top: 1px solid #E0E0E0;
         }
         
-        .search-box {
+        .search-container {
+            display: flex;
+            justify-content: center;
+            width: 100%;
             max-width: 600px;
             margin: 20px auto;
-            position: relative;
         }
-        
-        .search-box input {
-            width: 100%;
-            padding: 12px 20px;
-            border-radius: 25px;
-            border: 1px solid #E0E0E0;
+
+        .search-wrapper {
+            display: flex;
+            align-items: center;
             background: #FFFFFF;
-            color: #333333;
+            border: 1px solid #E0E0E0;
+            border-radius: 25px;
+            width: 100%;
+            padding: 4px 10px;
+        }
+
+        .search-wrapper select {
+            border: none;
+            background: transparent;
+            padding: 10px;
             font-size: 1rem;
-            transition: all 0.3s ease;
+            color: #333333;
+            border-right: 1px solid #E0E0E0;
+            margin-right: 10px;
+            appearance: none;
         }
-        
-        .search-box input:focus {
+
+        .search-wrapper select:focus {
             outline: none;
-            border-color: #1E90FF; /* 更浅的企业蓝 */
-            box-shadow: 0 0 10px rgba(30, 144, 255, 0.2);
+        }
+
+        .search-wrapper input {
+            flex: 1;
+            border: none;
+            padding: 10px;
+            font-size: 1rem;
+            background: transparent;
+            color: #333333;
+        }
+
+        .search-wrapper input:focus {
+            outline: none;
+        }
+
+        input[type="search"]::-webkit-search-decoration,
+        input[type="search"]::-webkit-search-cancel-button,
+        input[type="search"]::-webkit-search-results-button,
+        input[type="search"]::-webkit-search-results-decoration {
+            display: none;
+        }
+
+        input::-ms-clear,
+        input::-ms-reveal {
+            display: none;
+            width: 0;
+            height: 0;
+        }
+
+        input[type="search"] {
+            -webkit-appearance: none;
+            appearance: none;
         }
         
-        /* Animation */
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
@@ -175,10 +218,9 @@
         .category:nth-child(5) { animation-delay: 1.0s; }
         .category:nth-child(6) { animation-delay: 1.2s; }
         
-        /* Responsive */
         @media (max-width: 768px) {
-            h1 { font-size: 2rem; }
-            .subtitle { font-size: 1rem; }
+            h1 { font-size: 4rem; }
+            .subtitle { font-size: 0.85rem; }
             .categories { grid-template-columns: 1fr; }
             .category-header h2 { font-size: 1.4rem; }
             .category-description { font-size: 0.85rem; }
@@ -188,11 +230,22 @@
 <body>
     <div class="container">
         <header>
-            <h1>ACHTLV资源导航</h1>
-            <p class="subtitle">精选互联网优质资源，按类别分类整理。</p>
+            <h1 id="current-time"></h1>
+            <p class="subtitle" id="current-date"></p>
             
-            <div class="search-box">
-                <input type="text" placeholder="搜索资源..." aria-label="搜索资源">
+            <div class="search-container">
+                <div class="search-wrapper">
+                    <select id="search-engine">
+                        <option value="https://www.bing.com/search?q=" selected>Bing</option>
+                        <option value="site">站内搜索</option>
+                        <option value="https://www.sogou.com/web?query=">搜狗</option>
+                        <option value="https://www.google.com/search?q=">Google</option>
+                        <option value="https://www.youtube.com/results?search_query=">YouTube</option>
+                        <option value="https://github.com/search?q=">GitHub</option>
+                        <option value="https://en.wikipedia.org/w/index.php?search=">Wikipedia</option>
+                    </select>
+                    <input type="search" id="search-input" placeholder="回车键搜索">
+                </div>
             </div>
         </header>
         
@@ -209,7 +262,7 @@
                     <a href="https://bin9.top/" target="_blank">
                         <div class="link-item">
                             <div class="link-text">
-                                <h3>冻死企鹅导AI航站</h3>
+                                <h3>冻死企鹅AI导航站</h3>
                                 <p>一个常用AI导航。</p>
                             </div>
                         </div>
@@ -230,11 +283,11 @@
                             </div>
                         </div>
                     </a>
-                    <a href="https://freegpt.es/" target="_blank">
+                    <a href="https://site.tinycms.xyz/" target="_blank">
                         <div class="link-item">
                             <div class="link-text">
-                                <h3>智能AI助手</h3>
-                                <p>无需登录，免费使用GPT-4o(可画图、上传文件)、Deepseek、Grok、Gemini等模型。</p>
+                                <h3>免费ChatGPT</h3>
+                                <p>无需登录，免费使用ChatGPT Plus(可画图、上传文件)、Deepseek、Grok、Gemini等模型。</p>
                             </div>
                         </div>
                     </a>
@@ -250,19 +303,19 @@
                     对于那些需要会员的视频、音乐或图片，使用这些解析就可以免费观看、听或下载。
                 </div>
                 <div class="category-content">
-                    <a href="https://aidouer.cc/" target="_blank">
+                    <a href="http://v9j.net/?url=" target="_blank">
                         <div class="link-item">
                             <div class="link-text">
-                                <h3>走过大荒</h3>
-                                <p>视频解析，多接口，无广告</p>
+                                <h3>智能VIP云解析多线路</h3>
+                                <p>视频解析，多接口，有广告</p>
                             </div>
                         </div>
                     </a>
-                    <a href="https://jx.xmflv.com/?url=" target="_blank">
+                    <a href="https://jiexi.789jiexi.com/?url=" target="_blank">
                         <div class="link-item">
                             <div class="link-text">
-                                <h3>虾米解析</h3>
-                                <p>最稳定的视频解析，支持的网站最多，有广告。</p>
+                                <h3>789解析</h3>
+                                <p>视频解析，极速纯净无广告</p>
                             </div>
                         </div>
                     </a>
@@ -290,55 +343,87 @@
                             </div>
                         </div>
                     </a>
+                    <a href="https://downmp3.yt/" target="_blank">
+                        <div class="link-item">
+                            <div class="link-text">
+                                <h3>YouTube to MP3</h3>
+                                <p>Youtube音视频解析下载。</p>
+                            </div>
+                        </div>
+                    </a>
                 </div>
             </div>
             
-            <!-- 镜像网站 -->
+            <!-- 镜像站、网站加速 -->
             <div class="category">
                 <div class="category-header">
-                    <h2 id="category3">镜像网站</h2>
+                    <h2 id="category3">镜像站、网站加速</h2>
                 </div>
                 <div class="category-description" aria-describedby="category3">
-                    许多国外网站在国内无法访问，可以通过镜像站访问。
+                    许多网站部分地区无法访问，可以访问其镜像站，或使用其加速服务。
                 </div>
                 <div class="category-content">
                     <a href="https://scholar.lanfanshu.cn/" target="_blank">
                         <div class="link-item">
                             <div class="link-text">
                                 <h3>学术资源搜索</h3>
-                                <p>最稳定的谷歌学术搜索镜像站，可以搜索全球文献。</p>
+                                <p>最稳定的谷歌学术镜像，可以搜索全球文献。</p>
                             </div>
                         </div>
                     </a>
-                    <a href="https://www.sci-hub.se/" target="_blank">
+                    <a href="https://zhwk.kkwiki.win/" target="_blank">
                         <div class="link-item">
                             <div class="link-text">
-                                <h3>Sci-Hub</h3>
+                                <h3>中文维基百科境象</h3>
+                                <p>全世界最大的网络百科全书。</p>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="https://annas-archive.li/" target="_blank">
+                        <div class="link-item">
+                            <div class="link-text">
+                                <h3>Anna's Archive官方镜像</h3>
+                                <p>一家自由、非营利的影子图书馆元搜索引擎，由匿名的文件员团队所创（即安娜和/或盗版图书馆镜像团队）。</p>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="https://sci-hub.ru/" target="_blank">
+                        <div class="link-item">
+                            <div class="link-text">
+                                <h3>Sci-Hub官方镜像</h3>
                                 <p>将知识带给每个人！Sci-Hub是知名的全球文献检索网站，这是其官方镜像。</p>
                             </div>
                         </div>
                     </a>
-                    <a href="https://bgithub.xyz/" target="_blank">
+                    <a href="https://gh-proxy.com/" target="_blank">
                         <div class="link-item">
                             <div class="link-text">
-                                <h3>Github镜像站</h3>
-                                <p>Github是全球最大的代码托管网站。但其上不只有代码，还有各种其他资源。</p>
+                                <h3>Github下载加速</h3>
+                                <p>将GitHub链接转换为多区域加速链接，解决GitHub访问慢、下载失败等问题。</p>
                             </div>
                         </div>
                     </a>
                     <a href="https://libgen.gl/" target="_blank">
                         <div class="link-item">
                             <div class="link-text">
-                                <h3>Library Genesis镜像站</h3>
+                                <h3>Library Genesis官方镜像</h3>
                                 <p>Library Genesis（简称LibGen）是一个“影子图书馆”，可以在该网站上免费获取数百万本电子书、期刊论文等资源，涵盖了全世界多种语言。</p>
                             </div>
                         </div>
                     </a>
-                    <a href="https://zlib.pl/" target="_blank">
+                    <a href="https://zlib.wwwnav.com/" target="_blank">
                         <div class="link-item">
                             <div class="link-text">
-                                <h3>Z-Library镜像站</h3>
-                                <p>世界上最大的电子图书馆。</p>
+                                <h3>Z-Library第三方客户端</h3>
+                                <p>比镜像站更稳定。</p>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="https://www.7ed.net/" target="_blank">
+                        <div class="link-item">
+                            <div class="link-text">
+                                <h3>7ED</h3>
+                                <p>私有静态资源加速服务。</p>
                             </div>
                         </div>
                     </a>
@@ -366,7 +451,15 @@
                         <div class="link-item">
                             <div class="link-text">
                                 <h3>李跳跳</h3>
-                                <p>用来跳过广告的软件，主要用于跳过开屏广告，战绩可查，使用方法上网搜。</p>
+                                <p>用来跳过广告的软件，主要用于跳过开屏广告，使用方法上网搜。</p>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="https://gkd.li/guide/l" target="_blank">
+                        <div class="link-item">
+                            <div class="link-text">
+                                <h3>GKD</h3>
+                                <p>李跳跳停止维护后新出现的自定义屏幕点击应用，基于无障碍+选择器+订阅规则，可搭配Shizuku，可作为跳广告软件使用。</p>
                             </div>
                         </div>
                     </a>
@@ -374,7 +467,7 @@
                         <div class="link-item">
                             <div class="link-text">
                                 <h3>Clash</h3>
-                                <p>最好的代理软件，使用方法上网搜。需要机场服务使用。</p>
+                                <p>最好的代理软件，使用方法上网搜。需要搭配机场服务使用。</p>
                             </div>
                         </div>
                     </a>
@@ -383,6 +476,22 @@
                             <div class="link-text">
                                 <h3>VMOS</h3>
                                 <p>免费安卓虚拟机，也有付费云手机。</p>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="https://www.yxssp.com/download.php?author=东东&btitle=异星软件空间&id=27520" target="_blank">
+                        <div class="link-item">
+                            <div class="link-text">
+                                <h3>MacroDroid Pro破解版</h3>
+                                <p>一个强大的任务自动化应用程序，破解版无广告无限制。</p>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="https://wwzo.lanzoub.com/b01vhobni" target="_blank">
+                        <div class="link-item">
+                            <div class="link-text">
+                                <h3>Auto.js（密码：1233）</h3>
+                                <p>Auto.js是一款无需root权限的JavaScript自动化软件。也可搭配李跳跳，识别控件信息（ID、Bounds等）。</p>
                             </div>
                         </div>
                     </a>
@@ -395,22 +504,22 @@
                     <h2 id="category5">科学上网</h2>
                 </div>
                 <div class="category-description" aria-describedby="category5">
-                    俗称翻墙，分为VPN（也叫加速器）、机场和网页代理。 VPN可下载软件直接使用，而机场需要搭配Clash使用。网页代理的话，只需要输入网址即可访问国外网站。如果你有VPN或机场的话，就不需要使用镜像站了。
+                    也叫翻墙。
                 </div>
                 <div class="category-content">
-                    <a href="https://flyvpn88.top/" target="_blank">
+                    <a href="https://www.kzwr.com/api/v1/object?fid=53e429e6d97d4988b1.apk" target="_blank">
                         <div class="link-item">
                             <div class="link-text">
-                                <h3>高速稳定机场推荐</h3>
-                                <p>有很多高速稳定机场，都是付费的。</p>
+                                <h3>绿茶VPN_2.6.7破解版</h3>
+                                <p>免费VPN只推荐这一个。</p>
                             </div>
                         </div>
                     </a>
-                    <a href="https://github.com/ermaozi/get_subscribe" target="_blank">
+                    <a href="https://clashx.pro/" target="_blank">
                         <div class="link-item">
                             <div class="link-text">
-                                <h3>白嫖免费机场 / 免费VPN</h3>
-                                <p>字面意思。</p>
+                                <h3>茶波博客</h3>
+                                <p>我用的最多的机场推荐，客观，有测速图。</p>
                             </div>
                         </div>
                     </a>
@@ -422,11 +531,11 @@
                             </div>
                         </div>
                     </a>
-                    <a href="https://jichangtuijian.com/" target="_blank">
+                    <a href="https://vpnbay.com/" target="_blank">
                         <div class="link-item">
                             <div class="link-text">
-                                <h3>VPN和机场推荐</h3>
-                                <p>有推荐和测评。</p>
+                                <h3>VPNBay</h3>
+                                <p>很早就有的机场推荐。</p>
                             </div>
                         </div>
                     </a>
@@ -439,14 +548,22 @@
                     <h2 id="category6">资源库、工具箱</h2>
                 </div>
                 <div class="category-description" aria-describedby="category6">
-                    也是一些类似这样的导航。
+                    也是一些类似这样的资源。
                 </div>
                 <div class="category-content">
-                    <a href="https://www.lovejay.top/" target="_blank">
+                    <a href="https://www.yxssp.com/" target="_blank">
                         <div class="link-item">
                             <div class="link-text">
-                                <h3>Jay的资源库</h3>
-                                <p>内容很多，眼花缭乱。</p>
+                                <h3>异星软件空间</h3>
+                                <p>超多破解软件。</p>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="https://www.ghxi.com/" target="_blank">
+                        <div class="link-item">
+                            <div class="link-text">
+                                <h3>果核剥壳</h3>
+                                <p>也是很多破解软件。</p>
                             </div>
                         </div>
                     </a>
@@ -463,25 +580,41 @@
         </div>
         
         <div class="footer">
-            <p>© 2023 achtlv</p>
+            <p>Copyright © 2025 achtlv</p>
         </div>
     </div>
 
     <script>
-        // 搜索功能
-        document.querySelector('.search-box input').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
+        // Search functionality
+        const searchInput = document.getElementById('search-input');
+        const searchEngine = document.getElementById('search-engine');
+
+        function siteSearch(term) {
+            const searchTerm = term.trim().toLowerCase();
             const categories = document.querySelectorAll('.category');
-            
+
+            // If search term is empty, show all categories and links
+            if (!searchTerm) {
+                categories.forEach(category => {
+                    category.style.display = 'block';
+                    const links = category.querySelectorAll('.link-item');
+                    links.forEach(link => {
+                        link.style.display = 'block';
+                    });
+                });
+                return;
+            }
+
+            // Perform search
             categories.forEach(category => {
                 const links = category.querySelectorAll('.link-item');
-                const description = category.querySelector('.category-description').textContent.toLowerCase();
+                const description = category.querySelector('.category-description')?.textContent.toLowerCase() || "";
                 let hasVisibleLinks = false;
-                
+
                 links.forEach(link => {
-                    const title = link.querySelector('h3').textContent.toLowerCase();
-                    const linkDescription = link.querySelector('p').textContent.toLowerCase();
-                    
+                    const title = link.querySelector('h3')?.textContent.toLowerCase() || "";
+                    const linkDescription = link.querySelector('p')?.textContent.toLowerCase() || "";
+
                     if (title.includes(searchTerm) || linkDescription.includes(searchTerm) || description.includes(searchTerm)) {
                         link.style.display = 'block';
                         hasVisibleLinks = true;
@@ -489,8 +622,66 @@
                         link.style.display = 'none';
                     }
                 });
-                
+
                 category.style.display = hasVisibleLinks || description.includes(searchTerm) ? 'block' : 'none';
+            });
+        }
+
+        // Trigger search on input change or Enter key
+        searchInput.addEventListener('input', (e) => {
+            if (searchEngine.value === 'site') {
+                siteSearch(e.target.value);
+            }
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const engine = searchEngine.value;
+                const term = searchInput.value.trim();
+                
+                if (engine === 'site') {
+                    siteSearch(term);
+                } else if (term) {
+                    const url = engine + encodeURIComponent(term);
+                    window.open(url, '_blank');
+                }
+            }
+        });
+
+        // Dynamic time and date display
+        function updateTimeDate() {
+            const now = new Date();
+            
+            // Format time in 24-hour format (e.g., 17:31)
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const timeString = `${hours}:${minutes}`;
+            
+            // Format date as "2000 Jan 1st"
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const year = now.getFullYear();
+            const month = months[now.getMonth()];
+            const day = now.getDate();
+            const dayWithSuffix = day + (day % 10 === 1 && day !== 11 ? 'st' : day % 10 === 2 && day !== 12 ? 'nd' : day % 10 === 3 && day !== 13 ? 'rd' : 'th');
+            const dateString = `${year} ${month} ${dayWithSuffix}`;
+            
+            // Format weekday as "Mon"
+            const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const weekday = weekdays[now.getDay()];
+            
+            // Update DOM
+            document.getElementById('current-time').textContent = timeString;
+            document.getElementById('current-date').textContent = `${dateString}, ${weekday}`;
+        }
+
+        // Initial call and update every second
+        updateTimeDate();
+        setInterval(updateTimeDate, 1000);
+
+        // Disable right-click context menu for category links
+        document.querySelectorAll('.category-content a').forEach(link => {
+            link.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
             });
         });
     </script>

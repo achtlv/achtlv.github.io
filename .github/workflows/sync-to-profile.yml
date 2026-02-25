@@ -1,32 +1,31 @@
-- name: Prepare and push to target repo (achtlv)
+name: Sync to profile repo
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to achtlv repo
         env:
-          TARGET_TOKEN: ${{ secrets.PROFILE_REPO_TOKEN }}
+          TOKEN: ${{ secrets.PROFILE_REPO_TOKEN }}
         run: |
-          mkdir -p target-repo
-          cd target-repo
-          
+          mkdir temp-target
+          cd temp-target
           git init
-          
-          # 硬编码 remote URL，避免变量展开出错
-          git remote add origin "https://x-access-token:${TARGET_TOKEN}@github.com/achtlv/achtlv.git"
-          
-          # 复制源文件（排除 .git/.github）
-          rsync -av --delete \
-            --exclude='.git' \
-            --exclude='.github' \
-            ../* ./
-          
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          
+          git remote add origin https://x-access-token:$TOKEN@github.com/achtlv/achtlv.git
+          rsync -av --delete --exclude=.git --exclude=.github ../* ./
+          git config user.name "Actions Bot"
+          git config user.email "bot@github.com"
           git add -A
-          
-          if git diff --staged --quiet; then
-            echo "No changes detected"
-          else
-            git commit -m "Auto sync from achtlv.github.io ($(date '+%Y-%m-%d %H:%M:%S'))"
-            
-            # 强制 push（因为是 mirror 风格，且目标可能是空/新分支）
-            git push --force origin HEAD:main
-            # 如果你不想 force，可以先试 git push origin HEAD:main，如果失败再 force
-          fi
+          git diff --staged --quiet || git commit -m "Auto sync from achtlv.github.io"
+          git push --force origin HEAD:main

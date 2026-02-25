@@ -1,0 +1,28 @@
+name: Sync to profile repo (achtlv)
+
+on:
+  push:
+    branches:
+      - main          # 如果你的默认分支是 master，改成 master
+    # paths:            # 可选：只在某些路径变化时才同步
+    #   - 'README.md'
+    #   - 'projects/**'
+
+permissions:
+  contents: write
+
+jobs:
+  mirror-to-profile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout A (source repo)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # 必须带完整历史，不然 mirror 会失败
+
+      - name: Mirror push to B (achtlv)
+        env:
+          TARGET_TOKEN: ${{ secrets.PROFILE_REPO_TOKEN }}
+        run: |
+          git remote add target "https://x-access-token:${TARGET_TOKEN}@github.com/achtlv/achtlv.git"
+          git push --mirror target

@@ -38,7 +38,7 @@
             line-height: 1.6;
             color: #555;
             border-radius: 0 4px 4px 0;
-            white-space: pre-line; /* 保留换行符 */
+            white-space: pre-line;
         }
         .description .title {
             font-weight: bold;
@@ -58,7 +58,7 @@
             width: 100%;
             box-sizing: border-box;
             text-decoration: none;
-            -webkit-tap-highlight-color: transparent; /* 移除移动端点击高亮 */
+            -webkit-tap-highlight-color: transparent;
         }
         .button:hover {
             background: #0056b3;
@@ -77,27 +77,12 @@
             font-size: 0.9rem;
             margin-top: 5px;
         }
-
-        /* 小屏幕优化 */
         @media (max-width: 600px) {
-            .container {
-                padding: 1.5rem;
-            }
-            h1 {
-                font-size: 1.5rem;
-            }
-            .description {
-                font-size: 0.95rem;
-                padding: 0.8rem;
-            }
-            .button {
-                font-size: 16px;
-                padding: 12px 20px; /* 增大触摸区域 */
-            }
-            .chapter-input {
-                font-size: 16px;
-                padding: 12px;
-            }
+            .container { padding: 1.5rem; }
+            h1 { font-size: 1.5rem; }
+            .description { font-size: 0.95rem; padding: 0.8rem; }
+            .button { font-size: 16px; padding: 12px 20px; }
+            .chapter-input { font-size: 16px; padding: 12px; }
         }
     </style>
 </head>
@@ -173,31 +158,30 @@
             return '第' + chinesePart + '章';
         }
 
+        // === 修正后的数字转中文函数 ===
         function numberToChinese(num) {
             if (num < 1 || num > 9999) return num.toString();
             const chineseNums = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
-            const units = ['', '十', '百', '千'];
-            if (num < 10) return chineseNums[num];
+            const units = ['', '十', '百', '千', '万'];
+            const str = num.toString();
             let result = '';
-            let unitIndex = 0;
-            let temp = num;
-            let zeroFlag = false;
-            while (temp > 0) {
-                const digit = temp % 10;
+            let zeroFlag = false; // 标记是否需要插入“零”
+            for (let i = 0; i < str.length; i++) {
+                const digit = parseInt(str[i]);
+                const unit = units[str.length - 1 - i];
                 if (digit === 0) {
                     zeroFlag = true;
                 } else {
                     if (zeroFlag) {
-                        result = chineseNums[0] + result;
+                        result += '零';
                         zeroFlag = false;
                     }
-                    result = chineseNums[digit] + units[unitIndex] + result;
+                    result += chineseNums[digit] + unit;
                 }
-                temp = Math.floor(temp / 10);
-                unitIndex++;
             }
-            if (num >= 10 && num < 20) {
-                result = result.replace(/^一/, '');
+            // 处理“一十”开头的特殊情况（如12→十二）
+            if (result.startsWith('一十')) {
+                result = result.replace('一十', '十');
             }
             return result;
         }

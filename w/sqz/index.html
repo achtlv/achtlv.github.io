@@ -106,7 +106,8 @@
             　　看上去，他似乎正在讲什么久远的故事，上来，就用到了二十年前这样的词呢……
         </div>
 
-        <a href="sqz.html" class="button">开始阅读</a>
+        <!-- 修改点1：开始阅读链接改为绝对路径 -->
+        <a href="/w/sqz/sqz.html" class="button">开始阅读</a>
 
         <input type="text" id="chapterInput" class="chapter-input" placeholder="请输入章节数">
         <div class="hint">支持格式：第100章、第一百章、100、一百</div>
@@ -121,7 +122,8 @@
                 return;
             }
             const standardTitle = normalizeChapter(input);
-            window.location.href = `sqz.html?chapter=${encodeURIComponent(standardTitle)}`;
+            // 修改点2：跳转路径改为绝对路径
+            window.location.href = `/w/sqz/sqz.html?chapter=${encodeURIComponent(standardTitle)}`;
         }
 
         function normalizeChapter(input) {
@@ -158,14 +160,13 @@
             return '第' + chinesePart + '章';
         }
 
-        // === 修正后的数字转中文函数 ===
         function numberToChinese(num) {
             if (num < 1 || num > 9999) return num.toString();
             const chineseNums = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
             const units = ['', '十', '百', '千', '万'];
             const str = num.toString();
             let result = '';
-            let zeroFlag = false; // 标记是否需要插入“零”
+            let zeroFlag = false;
             for (let i = 0; i < str.length; i++) {
                 const digit = parseInt(str[i]);
                 const unit = units[str.length - 1 - i];
@@ -179,7 +180,6 @@
                     result += chineseNums[digit] + unit;
                 }
             }
-            // 处理“一十”开头的特殊情况（如12→十二）
             if (result.startsWith('一十')) {
                 result = result.replace('一十', '十');
             }

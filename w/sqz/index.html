@@ -26,7 +26,6 @@
             color: #333;
             margin-bottom: 1rem;
         }
-        /* 小说介绍样式 */
         .description {
             background-color: #f9f9f9;
             border-left: 4px solid #007bff;
@@ -37,9 +36,7 @@
             line-height: 1.6;
             color: #555;
             border-radius: 0 4px 4px 0;
-        }
-        .description p {
-            margin: 0.5rem 0;
+            white-space: pre-line; /* 关键：保留换行符，支持多行简介 */
         }
         .description .title {
             font-weight: bold;
@@ -81,29 +78,24 @@
 </head>
 <body>
     <div class="container">
-        <!-- 书名（可替换） -->
         <h1>淫奇抄 之 锁情咒</h1>
 
-        <!-- ===== 小说介绍区域 ===== -->
-        <!-- 你可以自由修改下面的文字内容 -->
+        <!-- 小说介绍区域：直接粘贴多行文本，换行会自动保留 -->
         <div class="description">
-            <div class="title">📖 简介</div>
-            <p>　　渴求爱的人有很多。
-　　渴求爱的方式也有很多种。
-　　的确，在感情之中，爱情算是最为宝贵几种之一，为了得到一个死心塌地至死不渝的爱人，许多人甘心付出很多，牺牲很大。
-　　但爱情的珍贵，究竟是因为难得，还是它真的无比重要呢？
-　　假如可以轻易让异性对你痴情眷恋，在你的眼中，曾经的梦中女神还会具有那么强烈的吸引力吗？
-　　这答案……似乎不是很容易探究出结果的样子。
-　　那就算了，还是去看看咖啡馆里，那个面色苍白的憔悴男人正在和对面年轻可爱的美女聊着什么吧。
-　　看上去，他似乎正在讲什么久远的故事，上来，就用到了二十年前这样的词呢……</p>
-            <p>作者：雪凡<br>类型：言情<br>状态：已完结</p>
+            <div class="title">📖 书籍简介</div>
+            作者：雪凡
+            　　渴求爱的人有很多。
+            　　渴求爱的方式也有很多种。
+            　　的确，在感情之中，爱情算是最为宝贵几种之一，为了得到一个死心塌地至死不渝的爱人，许多人甘心付出很多，牺牲很大。
+            　　但爱情的珍贵，究竟是因为难得，还是它真的无比重要呢？
+            　　假如可以轻易让异性对你痴情眷恋，在你的眼中，曾经的梦中女神还会具有那么强烈的吸引力吗？
+            　　这答案……似乎不是很容易探究出结果的样子。
+            　　那就算了，还是去看看咖啡馆里，那个面色苍白的憔悴男人正在和对面年轻可爱的美女聊着什么吧。
+            　　看上去，他似乎正在讲什么久远的故事，上来，就用到了二十年前这样的词呢……
         </div>
-        <!-- ===== 介绍结束 ===== -->
 
-        <!-- 开始阅读按钮 -->
         <a href="sqz.html" class="button">开始阅读</a>
 
-        <!-- 章节跳转功能 -->
         <input type="text" id="chapterInput" class="chapter-input" placeholder="请输入章节数">
         <div class="hint">支持格式：第100章、第一百章、100、一百</div>
         <button class="button" onclick="goToChapter()">跳转到指定章节</button>
@@ -118,16 +110,10 @@
                 return;
             }
 
-            // 标准化输入为标准章节标题，如“第一章”、“第一百章”
             const standardTitle = normalizeChapter(input);
-            
-            // 跳转到 sqz.html，并在 URL 中传递章节名
-            window。location。href = `sqz.html?chapter=${encodeURIComponent(standardTitle)}`;
+            window.location.href = `sqz.html?chapter=${encodeURIComponent(standardTitle)}`;
         }
 
-        /**
-         * 将用户输入转换为标准章节标题（“第X章”，X为汉字数字）
-         */
         function normalizeChapter(input) {
             input = input.trim();
             let part = null;
@@ -170,9 +156,6 @@
             return '第' + chinesePart + '章';
         }
 
-        /**
-         * 将阿拉伯数字（1-9999）转换为中文数字
-         */
         function numberToChinese(num) {
             if (num < 1 || num > 9999) return num.toString();
             const chineseNums = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];

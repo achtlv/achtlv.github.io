@@ -2,6 +2,7 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>淫奇抄 之 锁情咒</title>
     <style>
         body {
@@ -25,6 +26,7 @@
         h1 {
             color: #333;
             margin-bottom: 1rem;
+            font-size: 1.8rem;
         }
         .description {
             background-color: #f9f9f9;
@@ -36,7 +38,7 @@
             line-height: 1.6;
             color: #555;
             border-radius: 0 4px 4px 0;
-            white-space: pre-line; /* 保留换行符，支持多行简介 */
+            white-space: pre-line; /* 保留换行符 */
         }
         .description .title {
             font-weight: bold;
@@ -56,6 +58,7 @@
             width: 100%;
             box-sizing: border-box;
             text-decoration: none;
+            -webkit-tap-highlight-color: transparent; /* 移除移动端点击高亮 */
         }
         .button:hover {
             background: #0056b3;
@@ -74,13 +77,34 @@
             font-size: 0.9rem;
             margin-top: 5px;
         }
+
+        /* 小屏幕优化 */
+        @media (max-width: 600px) {
+            .container {
+                padding: 1.5rem;
+            }
+            h1 {
+                font-size: 1.5rem;
+            }
+            .description {
+                font-size: 0.95rem;
+                padding: 0.8rem;
+            }
+            .button {
+                font-size: 16px;
+                padding: 12px 20px; /* 增大触摸区域 */
+            }
+            .chapter-input {
+                font-size: 16px;
+                padding: 12px;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>淫奇抄 之 锁情咒</h1>
 
-        <!-- 小说介绍区域：直接粘贴多行文本，换行会自动保留 -->
         <div class="description">
             <div class="title">📖 书籍简介</div>
             作者：雪凡
@@ -105,14 +129,12 @@
     </div>
 
     <script>
-        // 主函数：处理输入并跳转
         function goToChapter() {
             const input = document.getElementById('chapterInput').value.trim();
             if (!input) {
                 alert('请输入章节数');
                 return;
             }
-
             const standardTitle = normalizeChapter(input);
             window.location.href = `sqz.html?chapter=${encodeURIComponent(standardTitle)}`;
         }
@@ -120,26 +142,20 @@
         function normalizeChapter(input) {
             input = input.trim();
             let part = null;
-
-            // 模式1: 第...章
             let match = input.match(/^第([零一二三四五六七八九十百千万\d]+)章$/);
             if (match) part = match[1];
-            // 模式2: ...章
             if (!part) {
                 match = input.match(/^([零一二三四五六七八九十百千万\d]+)章$/);
                 if (match) part = match[1];
             }
-            // 模式3: 第...
             if (!part) {
                 match = input.match(/^第([零一二三四五六七八九十百千万\d]+)$/);
                 if (match) part = match[1];
             }
-            // 模式4: 纯数字或纯汉字
             if (!part) {
                 match = input.match(/^([零一二三四五六七八九十百千万\d]+)$/);
                 if (match) part = match[1];
             }
-
             if (!part) {
                 if (input.startsWith('第') && input.endsWith('章')) {
                     return input;
@@ -147,7 +163,6 @@
                     return '第' + input + '章';
                 }
             }
-
             let chinesePart;
             if (/^\d+$/.test(part)) {
                 const num = parseInt(part, 10);
@@ -155,7 +170,6 @@
             } else {
                 chinesePart = part;
             }
-
             return '第' + chinesePart + '章';
         }
 
@@ -163,14 +177,11 @@
             if (num < 1 || num > 9999) return num.toString();
             const chineseNums = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
             const units = ['', '十', '百', '千'];
-
             if (num < 10) return chineseNums[num];
-
             let result = '';
             let unitIndex = 0;
             let temp = num;
             let zeroFlag = false;
-
             while (temp > 0) {
                 const digit = temp % 10;
                 if (digit === 0) {
@@ -185,7 +196,6 @@
                 temp = Math.floor(temp / 10);
                 unitIndex++;
             }
-
             if (num >= 10 && num < 20) {
                 result = result.replace(/^一/, '');
             }

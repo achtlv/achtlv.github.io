@@ -2,21 +2,108 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>小说导航</title>
+    <title>淫奇抄 之 锁情咒</title>
     <style>
-        body { font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #f5f5f5; margin: 0; }
-        .container { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; max-width: 400px; width: 90%; }
-        h1 { color: #333; margin-bottom: 2rem; }
-        .button { display: inline-block; background: #007bff; color: white; padding: 10px 20px; margin: 10px 0; border: none; border-radius: 0; font-size: 18px; cursor: pointer; width: 100%; box-sizing: border-box; text-decoration: none; }
-        .button:hover { background: #0056b3; }
-        .chapter-input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 16px; }
-        .hint { color: #666; font-size: 0.9rem; margin-top: 5px; }
+        body {
+            font-family: sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 1rem;
+        }
+        /* 小说介绍样式 */
+        .description {
+            background-color: #f9f9f9;
+            border-left: 4px solid #007bff;
+            padding: 1rem;
+            margin: 1.5rem 0;
+            text-align: left;
+            font-size: 1rem;
+            line-height: 1.6;
+            color: #555;
+            border-radius: 0 4px 4px 0;
+        }
+        .description p {
+            margin: 0.5rem 0;
+        }
+        .description .title {
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 0.5rem;
+        }
+        .button {
+            display: inline-block;
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 0;
+            font-size: 18px;
+            cursor: pointer;
+            width: 100%;
+            box-sizing: border-box;
+            text-decoration: none;
+        }
+        .button:hover {
+            background: #0056b3;
+        }
+        .chapter-input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        .hint {
+            color: #666;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- 书名（可替换） -->
         <h1>淫奇抄 之 锁情咒</h1>
+
+        <!-- ===== 小说介绍区域 ===== -->
+        <!-- 你可以自由修改下面的文字内容 -->
+        <div class="description">
+            <div class="title">📖 简介</div>
+            <p>　　渴求爱的人有很多。
+　　渴求爱的方式也有很多种。
+　　的确，在感情之中，爱情算是最为宝贵几种之一，为了得到一个死心塌地至死不渝的爱人，许多人甘心付出很多，牺牲很大。
+　　但爱情的珍贵，究竟是因为难得，还是它真的无比重要呢？
+　　假如可以轻易让异性对你痴情眷恋，在你的眼中，曾经的梦中女神还会具有那么强烈的吸引力吗？
+　　这答案……似乎不是很容易探究出结果的样子。
+　　那就算了，还是去看看咖啡馆里，那个面色苍白的憔悴男人正在和对面年轻可爱的美女聊着什么吧。
+　　看上去，他似乎正在讲什么久远的故事，上来，就用到了二十年前这样的词呢……</p>
+            <p>作者：雪凡<br>类型：言情<br>状态：已完结</p>
+        </div>
+        <!-- ===== 介绍结束 ===== -->
+
+        <!-- 开始阅读按钮 -->
         <a href="sqz.html" class="button">开始阅读</a>
+
+        <!-- 章节跳转功能 -->
         <input type="text" id="chapterInput" class="chapter-input" placeholder="请输入章节数">
         <div class="hint">支持格式：第100章、第一百章、100、一百</div>
         <button class="button" onclick="goToChapter()">跳转到指定章节</button>
@@ -35,91 +122,68 @@
             const standardTitle = normalizeChapter(input);
             
             // 跳转到 sqz.html，并在 URL 中传递章节名
-            window.location.href = `sqz.html?chapter=${encodeURIComponent(standardTitle)}`;
+            window。location。href = `sqz.html?chapter=${encodeURIComponent(standardTitle)}`;
         }
 
         /**
          * 将用户输入转换为标准章节标题（“第X章”，X为汉字数字）
-         * 支持输入格式：
-         *   - “第100章” → “第一百章”
-         *   - “第一百章” → “第一百章”
-         *   - “100” → “第一百章”
-         *   - “一百” → “第一百章”
-         *   - 其他类似格式也能智能处理
          */
         function normalizeChapter(input) {
-            // 去除空格
             input = input.trim();
-            
-            // 定义正则匹配各种模式
             let part = null;
 
-            // 模式1: 第...章 (例如 “第100章” 或 “第一百章”)
+            // 模式1: 第...章
             let match = input.match(/^第([零一二三四五六七八九十百千万\d]+)章$/);
-            if (match) {
-                part = match[1];
-            }
-            // 模式2: ...章 (例如 “100章” 或 “一百章”)
+            if (match) part = match[1];
+            // 模式2: ...章
             if (!part) {
                 match = input.match(/^([零一二三四五六七八九十百千万\d]+)章$/);
                 if (match) part = match[1];
             }
-            // 模式3: 第... (例如 “第100” 或 “第一百”)
+            // 模式3: 第...
             if (!part) {
                 match = input.match(/^第([零一二三四五六七八九十百千万\d]+)$/);
                 if (match) part = match[1];
             }
-            // 模式4: 纯数字或纯汉字 (例如 “100” 或 “一百”)
+            // 模式4: 纯数字或纯汉字
             if (!part) {
                 match = input.match(/^([零一二三四五六七八九十百千万\d]+)$/);
                 if (match) part = match[1];
             }
 
-            // 如果以上都不匹配，则直接返回原输入（防止出错）
             if (!part) {
-                // 保底：如果输入包含数字或汉字，尽可能提取；否则直接原样返回
-                // 这里简单处理：如果原输入以“第”开头且以“章”结尾，就原样返回
                 if (input.startsWith('第') && input.endsWith('章')) {
                     return input;
                 } else {
-                    // 否则假设用户输入的是纯章节名，加上“第”和“章”
                     return '第' + input + '章';
                 }
             }
 
-            // 判断 part 是阿拉伯数字还是汉字数字
             let chinesePart;
             if (/^\d+$/.test(part)) {
-                // 阿拉伯数字，转为汉字数字
                 const num = parseInt(part, 10);
                 chinesePart = numberToChinese(num);
             } else {
-                // 已经是汉字数字，直接使用（但需确保是标准汉字数字，如“一百”）
                 chinesePart = part;
             }
 
-            // 返回标准格式：“第” + 汉字数字 + “章”
             return '第' + chinesePart + '章';
         }
 
         /**
          * 将阿拉伯数字（1-9999）转换为中文数字
-         * 支持到九千九百九十九，如需更大可扩展
          */
         function numberToChinese(num) {
-            if (num < 1 || num > 9999) return num.toString(); // 超出范围返回原数字（可自行扩展）
-
+            if (num < 1 || num > 9999) return num.toString();
             const chineseNums = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
             const units = ['', '十', '百', '千'];
 
-            if (num < 10) {
-                return chineseNums[num];
-            }
+            if (num < 10) return chineseNums[num];
 
             let result = '';
             let unitIndex = 0;
             let temp = num;
-            let zeroFlag = false; // 是否需要补零（如 一百零一）
+            let zeroFlag = false;
 
             while (temp > 0) {
                 const digit = temp % 10;
@@ -136,11 +200,9 @@
                 unitIndex++;
             }
 
-            // 处理十位数为1的情况，如 12 -> “十二” 而不是 “一十二”
             if (num >= 10 && num < 20) {
                 result = result.replace(/^一/, '');
             }
-
             return result;
         }
     </script>

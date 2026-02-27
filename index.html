@@ -240,12 +240,9 @@
                         <option value="site">站内搜索</option>
                         <option value="https://www.sogou.com/web?query=">搜狗</option>
                         <option value="https://www.google.com/search?q=">Google</option>
-                        <option value="https://yandex.com/search/touch/?text=">Yandex</option>
-                        <option value="https://ahmia.fi/search/?q=&15a32f=12ca71">Ahmia</option>
-                        <option value="https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/?q=">DuckDuckGo Onion</option>
                         <option value="https://www.youtube.com/results?search_query=">YouTube</option>
-                        <option value="https://en.wikipedia.org/w/index.php?search=">Wikipedia</option>
                         <option value="https://github.com/search?q=">GitHub</option>
+                        <option value="https://en.wikipedia.org/w/index.php?search=">Wikipedia</option>
                     </select>
                     <input type="search" id="search-input" placeholder="回车键搜索">
                 </div>
@@ -662,6 +659,7 @@
     </div>
 
     <script>
+        // Search functionality
         const searchInput = document.getElementById('search-input');
         const searchEngine = document.getElementById('search-engine');
 
@@ -669,15 +667,19 @@
             const searchTerm = term.trim().toLowerCase();
             const categories = document.querySelectorAll('.category');
 
+            // If search term is empty, show all categories and links
             if (!searchTerm) {
                 categories.forEach(category => {
                     category.style.display = 'block';
                     const links = category.querySelectorAll('.link-item');
-                    links.forEach(link => link.style.display = 'block');
+                    links.forEach(link => {
+                        link.style.display = 'block';
+                    });
                 });
                 return;
             }
 
+            // Perform search
             categories.forEach(category => {
                 const links = category.querySelectorAll('.link-item');
                 const description = category.querySelector('.category-description')?.textContent.toLowerCase() || "";
@@ -699,6 +701,7 @@
             });
         }
 
+        // Trigger search on input change or Enter key
         searchInput.addEventListener('input', (e) => {
             if (searchEngine.value === 'site') {
                 siteSearch(e.target.value);
@@ -719,67 +722,42 @@
             }
         });
 
+        // Dynamic time and date display
         function updateTimeDate() {
             const now = new Date();
+            
+            // Format time in 24-hour format (e.g., 17:31)
             const hours = String(now.getHours()).padStart(2, '0');
             const minutes = String(now.getMinutes()).padStart(2, '0');
             const timeString = `${hours}:${minutes}`;
             
-            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            // Format date as "2000 Jan 1st"
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             const year = now.getFullYear();
             const month = months[now.getMonth()];
             const day = now.getDate();
             const dayWithSuffix = day + (day % 10 === 1 && day !== 11 ? 'st' : day % 10 === 2 && day !== 12 ? 'nd' : day % 10 === 3 && day !== 13 ? 'rd' : 'th');
             const dateString = `${year} ${month} ${dayWithSuffix}`;
             
-            const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+            // Format weekday as "Mon"
+            const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
             const weekday = weekdays[now.getDay()];
             
+            // Update DOM
             document.getElementById('current-time').textContent = timeString;
             document.getElementById('current-date').textContent = `${dateString}, ${weekday}`;
         }
 
+        // Initial call and update every second
         updateTimeDate();
         setInterval(updateTimeDate, 1000);
 
+        // Disable right-click context menu for category links
         document.querySelectorAll('.category-content a').forEach(link => {
             link.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
             });
         });
-
-        const COOKIE_NAME = "preferredSearchEngine";
-        const COOKIE_DAYS = 400;
-
-        function setCookie(name, value, days) {
-            const date = new Date();
-            date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-            const expires = "; expires=" + date.toUTCString();
-            document.cookie = name + "=" + (value || "") + expires + "; path=/; Secure; SameSite=Lax";
-        }
-
-        function getCookie(name) {
-            const nameEQ = name + "=";
-            const ca = document.cookie.split(';');
-            for(let i = 0; i < ca.length; i++) {
-                let c = ca[i];
-                while (c.charAt(0) === ' ') c = c.substring(1, c.length);
-                if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
-            }
-            return null;
-        }
-
-        const savedEngine = getCookie(COOKIE_NAME);
-        if (savedEngine) {
-            if (Array.from(searchEngine.options).some(opt => opt.value === savedEngine)) {
-                searchEngine.value = savedEngine;
-            }
-        }
-
-        searchEngine.addEventListener('change', (e) => {
-            setCookie(COOKIE_NAME, e.target.value, COOKIE_DAYS);
-        });
-
     </script>
 </body>
 </html>

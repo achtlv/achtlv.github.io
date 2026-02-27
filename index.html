@@ -662,7 +662,6 @@
     </div>
 
     <script>
-        // Search functionality
         const searchInput = document.getElementById('search-input');
         const searchEngine = document.getElementById('search-engine');
 
@@ -674,9 +673,7 @@
                 categories.forEach(category => {
                     category.style.display = 'block';
                     const links = category.querySelectorAll('.link-item');
-                    links.forEach(link => {
-                        link.style.display = 'block';
-                    });
+                    links.forEach(link => link.style.display = 'block');
                 });
                 return;
             }
@@ -722,22 +719,20 @@
             }
         });
 
-        // Dynamic time and date display
         function updateTimeDate() {
             const now = new Date();
-            
             const hours = String(now.getHours()).padStart(2, '0');
             const minutes = String(now.getMinutes()).padStart(2, '0');
             const timeString = `\( {hours}: \){minutes}`;
             
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
             const year = now.getFullYear();
             const month = months[now.getMonth()];
             const day = now.getDate();
             const dayWithSuffix = day + (day % 10 === 1 && day !== 11 ? 'st' : day % 10 === 2 && day !== 12 ? 'nd' : day % 10 === 3 && day !== 13 ? 'rd' : 'th');
             const dateString = `${year} ${month} ${dayWithSuffix}`;
             
-            const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
             const weekday = weekdays[now.getDay()];
             
             document.getElementById('current-time').textContent = timeString;
@@ -747,34 +742,26 @@
         updateTimeDate();
         setInterval(updateTimeDate, 1000);
 
-        // Disable right-click context menu for category links
         document.querySelectorAll('.category-content a').forEach(link => {
             link.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
             });
         });
 
-        // ────────────────────────────────────────────────
-        // 新增：记住用户上次选择的搜索引擎（使用 cookie）
-        // ────────────────────────────────────────────────
-
         const COOKIE_NAME = "preferredSearchEngine";
-        const COOKIE_DAYS = 400;  // 接近浏览器最大允许值（Chrome 等为 400 天）
+        const COOKIE_DAYS = 400;
 
-        // 设置 cookie
         function setCookie(name, value, days) {
             const date = new Date();
             date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
             const expires = "; expires=" + date.toUTCString();
-            // path=/ 确保全站有效；Secure 因为 GitHub Pages / Cloudflare Pages 是 HTTPS
             document.cookie = name + "=" + (value || "") + expires + "; path=/; Secure; SameSite=Lax";
         }
 
-        // 读取 cookie
         function getCookie(name) {
             const nameEQ = name + "=";
             const ca = document.cookie.split(';');
-            for (let i = 0; i < ca.length; i++) {
+            for(let i = 0; i < ca.length; i++) {
                 let c = ca[i];
                 while (c.charAt(0) === ' ') c = c.substring(1, c.length);
                 if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
@@ -782,18 +769,13 @@
             return null;
         }
 
-        // 页面加载时恢复上次选择
-        window.addEventListener('DOMContentLoaded', () => {
-            const savedEngine = getCookie(COOKIE_NAME);
-            if (savedEngine) {
-                // 安全检查：确保这个 value 确实存在于下拉选项中
-                if (Array.from(searchEngine.options).some(opt => opt.value === savedEngine)) {
-                    searchEngine.value = savedEngine;
-                }
+        const savedEngine = getCookie(COOKIE_NAME);
+        if (savedEngine) {
+            if (Array.from(searchEngine.options).some(opt => opt.value === savedEngine)) {
+                searchEngine.value = savedEngine;
             }
-        });
+        }
 
-        // 用户更改选择时保存到 cookie
         searchEngine.addEventListener('change', (e) => {
             setCookie(COOKIE_NAME, e.target.value, COOKIE_DAYS);
         });

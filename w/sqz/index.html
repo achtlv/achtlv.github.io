@@ -86,20 +86,22 @@
         .description .title {
             font-weight: 600;
             color: var(--md-sys-color-primary);
-            /* ▼ 将原来的 margin-bottom 从 0.75rem 减小为 0.25rem，缩小标题与下方内容的间距 */
+            /* 标题字体加大 (从 1.15rem 增加到 1.4rem) */
+            font-size: 1.4rem;
+            /* 保持较小的下边距，避免与内容间距过大 */
             margin-bottom: 0.25rem;
-            font-size: 1.15rem;
+            line-height: 1.3; /* 适应大字号 */
             letter-spacing: 0.02em;
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 6px; /* 稍微增加图标与文字间距 */
         }
 
-        /* 保留原有的 emoji 风格 */
+        /* 保留原有的 emoji 风格，并适当放大以匹配标题 */
         .description .title::before {
             content: "📖";
-            margin-right: 6px;
-            font-size: 1.3rem;
+            margin-right: 2px;  /* 微调 */
+            font-size: 1.6rem;  /* 图标也相应增大一点 */
         }
 
         /* 按钮基座 */
@@ -215,6 +217,12 @@
             .description {
                 padding: 1rem 1.25rem;
                 font-size: 0.95rem;
+            }
+            .description .title {
+                font-size: 1.3rem;  /* 移动端稍小一点，但仍比原来大 */
+            }
+            .description .title::before {
+                font-size: 1.5rem;
             }
             .button {
                 height: 3rem;

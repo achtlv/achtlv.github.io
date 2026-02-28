@@ -48,7 +48,7 @@
             padding: 16px;
         }
 
-        。container {
+        .container {
             background-color: var(--md-sys-color-surface);
             padding: 2rem;
             border-radius: var(--md-sys-shape-corner-medium);
@@ -70,24 +70,24 @@
         }
 
         /* 简介卡片 — surface变体 + 柔和圆角 */
-        。description {
+        .description {
             background-color: var(--md-sys-color-surface-variant);
             border-radius: var(--md-sys-shape-corner-medium);
             padding: 1.25rem 1.5rem;
             margin: 1.75rem 0 1.5rem 0;
             color: var(--md-sys-color-on-surface-variant);
             font-size: 1rem;
-            line-height: 1.4; /* 调小行高，减少行间空隙 */
+            line-height: 1.4; /* 保持紧凑的行高 */
             white-space: pre-line;
             box-shadow: var(--md-sys-elevation-level1);
             border-left: none;
         }
 
-        。description .title {
+        .description .title {
             font-weight: 600;
             color: var(--md-sys-color-primary);
             margin-bottom: 0.75rem;
-            font-size: 1.15rem;
+            font-size: 1.3rem;
             letter-spacing: 0.02em;
             display: flex;
             align-items: center;
@@ -95,7 +95,7 @@
         }
 
         /* 保留原有的 emoji 风格 */
-        。description .title::before {
+        .description .title::before {
             content: "📖";
             margin-right: 6px;
             font-size: 1.3rem;
@@ -181,7 +181,7 @@
             outline-offset: 0;
         }
 
-        。chapter-input::placeholder {
+        .chapter-input::placeholder {
             color: #9A9BA6;
             font-weight: 300;
             opacity: 1;
@@ -275,7 +275,7 @@
         }
 
         /* 阴影深度变化 (可选) */
-        。container:hover {
+        .container:hover {
             box-shadow: var(--md-sys-elevation-level2);
         }
     </style>
@@ -283,8 +283,7 @@
 <body>
     <div class="container">
         <h1>淫奇抄 之 锁情咒</h1>
-        <div class="description">
-            <div class="title">📖 书籍简介</div>作者：雪凡
+        <div class="description"><div class="title">书籍简介</div>作者：雪凡
             类型：言情
             状态：已完结
             序言：

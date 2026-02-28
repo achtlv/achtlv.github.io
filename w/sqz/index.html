@@ -77,10 +77,10 @@
             margin: 1.75rem 0 1.5rem 0;
             color: var(--md-sys-color-on-surface-variant);
             font-size: 1rem;
-            line-height: 1.6;
+            line-height: 1.4; /* 调小行高，减少行间空隙 */
             white-space: pre-line;
             box-shadow: var(--md-sys-elevation-level1);
-            border-left: none;  /* 移除旧蓝条，改用主色标题点缀 */
+            border-left: none;
         }
 
         .description .title {
@@ -123,15 +123,15 @@
         }
 
         /* 主要填充按钮 (开始阅读) — 使用主色 */
-        a.button {  /* 对应「开始阅读」链接 */
+        a.button {
             background-color: var(--md-sys-color-primary);
             color: var(--md-sys-color-on-primary);
             border: none;
-            margin-bottom: 1.25rem;   /* 与输入框间距 */
+            margin-bottom: 1.25rem;
         }
 
         a.button:hover {
-            background-color: #0b3d89;  /* 手动加深 */
+            background-color: #0b3d89;
             box-shadow: 0 2px 8px 0 rgba(13, 71, 161, 0.3);
         }
 
@@ -150,7 +150,7 @@
         }
 
         button.button:hover {
-            background-color: rgba(13, 71, 161, 0.08); /* M3 hover 状态层 */
+            background-color: rgba(13, 71, 161, 0.08);
             border-color: var(--md-sys-color-primary);
         }
 
@@ -162,7 +162,7 @@
         /* 输入框 — outlined 风格 */
         .chapter-input {
             width: 100%;
-            padding: 0.875rem 1rem;      /* 14px 上下，16px 左右 */
+            padding: 0.875rem 1rem;
             margin: 0.5rem 0 0.25rem 0;
             border: 1px solid var(--md-sys-color-outline);
             border-radius: var(--md-sys-shape-corner-small);
@@ -190,7 +190,7 @@
         /* 辅助提示文字 */
         .hint {
             color: var(--md-sys-color-on-surface-variant);
-            font-size: 0.8125rem;   /* 13px */
+            font-size: 0.8125rem;
             margin-top: 0.25rem;
             margin-bottom: 0.5rem;
             line-height: 1.4;
@@ -216,7 +216,7 @@
                 font-size: 0.95rem;
             }
             .button {
-                height: 3rem;           /* 48px */
+                height: 3rem;
                 line-height: 3rem;
                 font-size: 1rem;
             }

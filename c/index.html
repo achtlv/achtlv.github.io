@@ -88,6 +88,7 @@
       transition: all 0.24s cubic-bezier(0.4, 0, 0.2, 1);
       border: 1px solid var(--md-sys-color-outline);
       position: relative;
+      cursor: pointer;
     }
 
     .link-card:hover {
@@ -120,7 +121,6 @@
       word-break: break-all; 
     }
 
-    /* 复制提示 */
     .copy-toast {
       position: fixed;
       bottom: 32px;
@@ -146,30 +146,29 @@
 
   <div class="card">
     <div class="profile-header">
-      <!-- 头像路径：根据你的部署结构 -->
       <img src="/c/i.jpg" alt="头像" class="avatar"/>
       <h1 class="nickname">achtlv</h1>
       <p class="bio">
-        探索代码与生活的边界<br>喜欢折腾、学习、偶尔emo
+        不敢为天下先
       </p>
     </div>
 
     <div class="links">
-      <!-- 邮箱：点击复制到剪贴板 -->
+      <!-- 邮箱：点击复制 -->
       <div class="link-card" onclick="copyToClipboard('GanZhou@outlook.SG', '邮箱已复制到剪贴板！')">
         <span class="material-icons link-icon">mail</span>
         <span class="link-name">邮箱</span>
         <span class="link-username">GanZhou@outlook.SG</span>
       </div>
 
-      <!-- 微信：点击复制微信号 -->
+      <!-- 微信：点击复制 -->
       <div class="link-card" onclick="copyToClipboard('achtlv', '微信号已复制到剪贴板！')">
         <span class="material-icons link-icon">qr_code_scanner</span>
         <span class="link-name">微信</span>
         <span class="link-username">achtlv</span>
       </div>
 
-      <!-- QQ：点击复制QQ号 -->
+      <!-- QQ：点击复制 -->
       <div class="link-card" onclick="copyToClipboard('3636646211', 'QQ号已复制到剪贴板！')">
         <span class="material-icons link-icon">chat</span>
         <span class="link-name">QQ</span>
@@ -183,8 +182,8 @@
         <span class="link-username">@Tuachtlv</span>
       </a>
 
-      <!-- Bilibili -->
-      <a href="https://space.bilibili.com/你的B站UID" target="_blank" rel="noopener noreferrer" class="link-card">
+      <!-- Bilibili：已更新为你的真实 UID -->
+      <a href="https://space.bilibili.com/3493271623961083" target="_blank" rel="noopener noreferrer" class="link-card">
         <span class="material-icons link-icon">play_circle</span>
         <span class="link-name">Bilibili</span>
         <span class="link-username">achtlv</span>
@@ -192,11 +191,10 @@
     </div>
   </div>
 
-  <!-- 复制成功的提示 -->
+  <!-- 复制提示 -->
   <div id="copyToast" class="copy-toast"></div>
 
   <script>
-    // Material You 动态主题
     const { argbFromHex, themeFromSourceColor, applyTheme } = materialColorUtilities;
     const seedHex = '#1E40AF';  // 企业蓝
 
@@ -214,7 +212,7 @@
     updateTheme(media.matches);
     media.addEventListener('change', e => updateTheme(e.matches));
 
-    // 复制到剪贴板函数
+    // 复制函数
     function copyToClipboard(text, message) {
       navigator.clipboard.writeText(text).then(() => {
         showToast(message);
@@ -224,7 +222,6 @@
       });
     }
 
-    // 显示提示
     function showToast(msg) {
       const toast = document.getElementById('copyToast');
       toast.textContent = msg;

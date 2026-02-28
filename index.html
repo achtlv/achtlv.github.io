@@ -37,7 +37,7 @@
         h1 {
             font-size: 5rem;
             margin-bottom: 15px;
-            color: #1E90FF;
+            color: #0D47A1;
             font-weight: 700;
         }
         
@@ -67,7 +67,7 @@
         
         .category:hover {
             transform: translateY(-5px);
-            box-shadow: 0 8px 20px rgba(30, 144, 255, 0.2);
+            box-shadow: 0 8px 20px rgba(13, 71, 161, 0.25);
         }
         
         .category-header {
@@ -78,7 +78,7 @@
         .category-header h2 {
             font-size: 1.6rem;
             font-weight: 600;
-            color: #1E90FF;
+            color: #0D47A1;
         }
         
         .category-description {
@@ -104,8 +104,8 @@
         }
         
         .link-item:hover {
-            border-color: #1E90FF;
-            background: #E6F0FA;
+            border-color: #0D47A1;
+            background: #E8F0FA;
             transform: translateX(3px);
         }
         
@@ -137,11 +137,9 @@
         }
         
         .search-container {
-            display: flex;
-            justify-content: center;
             width: 100%;
             max-width: 600px;
-            margin: 20px auto;
+            margin: 25px auto;
         }
 
         .search-wrapper {
@@ -150,34 +148,30 @@
             background: #FFFFFF;
             border: 1px solid #E0E0E0;
             border-radius: 25px;
-            width: 100%;
             padding: 4px 10px;
         }
 
-        .search-wrapper select {
+        .search-wrapper select,
+        .search-wrapper input {
             border: none;
             background: transparent;
-            padding: 10px;
+            padding: 12px 10px;
             font-size: 1rem;
             color: #333333;
+        }
+
+        .search-wrapper select {
             border-right: 1px solid #E0E0E0;
             margin-right: 10px;
             appearance: none;
-        }
-
-        .search-wrapper select:focus {
-            outline: none;
+            min-width: 110px;
         }
 
         .search-wrapper input {
             flex: 1;
-            border: none;
-            padding: 10px;
-            font-size: 1rem;
-            background: transparent;
-            color: #333333;
         }
 
+        .search-wrapper select:focus,
         .search-wrapper input:focus {
             outline: none;
         }
@@ -218,12 +212,33 @@
         .category:nth-child(5) { animation-delay: 1.0s; }
         .category:nth-child(6) { animation-delay: 1.2s; }
         
+        /* 移动端：搜索框两行布局 */
         @media (max-width: 768px) {
             h1 { font-size: 4rem; }
             .subtitle { font-size: 0.85rem; }
             .categories { grid-template-columns: 1fr; }
             .category-header h2 { font-size: 1.4rem; }
             .category-description { font-size: 0.85rem; }
+
+            .search-wrapper {
+                flex-direction: column;
+                border-radius: 16px;
+                padding: 8px;
+            }
+            
+            .search-wrapper select {
+                border-right: none;
+                border-bottom: 1px solid #E0E0E0;
+                margin-right: 0;
+                margin-bottom: 8px;
+                width: 100%;
+                text-align: center;
+            }
+            
+            .search-wrapper input {
+                width: 100%;
+                text-align: center;
+            }
         }
     </style>
 </head>
@@ -796,7 +811,7 @@
                     </a>
                 </div>
             </div>
-            
+                
         </div>
         
         <div class="footer">
@@ -922,7 +937,6 @@
         searchEngine.addEventListener('change', (e) => {
             setCookie(COOKIE_NAME, e.target.value, COOKIE_DAYS);
         });
-
     </script>
 </body>
 </html>

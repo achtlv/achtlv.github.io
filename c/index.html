@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>achtlv - 个人主页</title>
+
+  <!-- 字体：国内镜像 -->
+  <link href="https://fonts.font.im/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+
+  <!-- Material Icons：国内镜像 -->
+  <link href="https://fonts.font.im/icon?family=Material+Icons" rel="stylesheet"/>
+
+  <!-- Material Color Utilities -->
+  <script src="https://unpkg.com/@material/material-color-utilities@0.4.0/dist/material-color-utilities.min.js"></script>
+
+  <style id="theme-styles"></style>
+
+  <style>
+    body {
+      font-family: 'Roboto', system-ui, sans-serif;
+      min-height: 100dvh;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      transition: background 0.5s, color 0.5s;
+      color-scheme: light dark;
+    }
+
+    .card {
+      background: var(--md-sys-color-surface);
+      color: var(--md-sys-color-on-surface);
+      border-radius: 32px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      width: 100%;
+      max-width: 420px;
+      overflow: hidden;
+    }
+
+    .profile-header {
+      text-align: center;
+      padding: 48px 24px 32px;
+    }
+
+    .avatar {
+      width: 120px;
+      height: 120px;
+      border-radius: 32px;
+      object-fit: cover;
+      border: 6px solid var(--md-sys-color-primary-container);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      margin-bottom: 24px;
+      transition: transform 0.3s ease;
+    }
+
+    .avatar:hover { transform: scale(1.08); }
+
+    .nickname {
+      font-size: 2.5rem;
+      font-weight: 400;
+      margin-bottom: 8px;
+    }
+
+    .bio {
+      font-size: 1rem;
+      color: var(--md-sys-color-on-surface-variant);
+      line-height: 1.5;
+      max-width: 320px;
+      margin: 0 auto;
+    }
+
+    .links {
+      padding: 0 24px 40px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 16px;
+    }
+
+    .link-card {
+      background: var(--md-sys-color-surface-variant);
+      color: var(--md-sys-color-on-surface-variant);
+      border-radius: 28px;
+      padding: 20px 16px;
+      text-align: center;
+      text-decoration: none;
+      transition: all 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 1px solid var(--md-sys-color-outline);
+      position: relative;
+    }
+
+    .link-card:hover {
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      transform: translateY(-4px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+    }
+
+    .link-icon {
+      font-size: 48px !important;
+      margin-bottom: 12px;
+      color: var(--md-sys-color-primary);
+    }
+
+    .link-card:hover .link-icon {
+      color: var(--md-sys-color-on-primary-container);
+    }
+
+    .link-name { 
+      font-size: 1.1rem; 
+      font-weight: 500; 
+      display: block; 
+      margin-bottom: 4px; 
+    }
+
+    .link-username { 
+      font-size: 0.875rem; 
+      opacity: 0.7; 
+      word-break: break-all; 
+    }
+
+    /* 复制提示 */
+    .copy-toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 12px 24px;
+      border-radius: 24px;
+      font-size: 0.95rem;
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+
+    .copy-toast.show {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <div class="profile-header">
+      <!-- 头像路径：根据你的部署结构 -->
+      <img src="/c/i.jpg" alt="头像" class="avatar"/>
+      <h1 class="nickname">achtlv</h1>
+      <p class="bio">
+        探索代码与生活的边界<br>喜欢折腾、学习、偶尔emo
+      </p>
+    </div>
+
+    <div class="links">
+      <!-- 邮箱：点击复制到剪贴板 -->
+      <div class="link-card" onclick="copyToClipboard('GanZhou@outlook.SG', '邮箱已复制到剪贴板！')">
+        <span class="material-icons link-icon">mail</span>
+        <span class="link-name">邮箱</span>
+        <span class="link-username">GanZhou@outlook.SG</span>
+      </div>
+
+      <!-- 微信：点击复制微信号 -->
+      <div class="link-card" onclick="copyToClipboard('achtlv', '微信号已复制到剪贴板！')">
+        <span class="material-icons link-icon">qr_code_scanner</span>
+        <span class="link-name">微信</span>
+        <span class="link-username">achtlv</span>
+      </div>
+
+      <!-- QQ：点击复制QQ号 -->
+      <div class="link-card" onclick="copyToClipboard('3636646211', 'QQ号已复制到剪贴板！')">
+        <span class="material-icons link-icon">chat</span>
+        <span class="link-name">QQ</span>
+        <span class="link-username">3636646211</span>
+      </div>
+
+      <!-- X -->
+      <a href="https://x.com/Tuachtlv" target="_blank" rel="noopener noreferrer" class="link-card">
+        <span class="material-icons link-icon">travel_explore</span>
+        <span class="link-name">X</span>
+        <span class="link-username">@Tuachtlv</span>
+      </a>
+
+      <!-- Bilibili -->
+      <a href="https://space.bilibili.com/你的B站UID" target="_blank" rel="noopener noreferrer" class="link-card">
+        <span class="material-icons link-icon">play_circle</span>
+        <span class="link-name">Bilibili</span>
+        <span class="link-username">achtlv</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- 复制成功的提示 -->
+  <div id="copyToast" class="copy-toast"></div>
+
+  <script>
+    // Material You 动态主题
+    const { argbFromHex, themeFromSourceColor, applyTheme } = materialColorUtilities;
+    const seedHex = '#1E40AF';  // 企业蓝
+
+    function updateTheme(isDark) {
+      const source = argbFromHex(seedHex);
+      const theme = themeFromSourceColor(source, {
+        variant: 'TONAL_SPOT',
+        contrastLevel: 0.0,
+        isDark: isDark
+      });
+      applyTheme(theme);
+    }
+
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    updateTheme(media.matches);
+    media.addEventListener('change', e => updateTheme(e.matches));
+
+    // 复制到剪贴板函数
+    function copyToClipboard(text, message) {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast(message);
+      }).catch(err => {
+        console.error('复制失败:', err);
+        showToast('复制失败，请手动复制');
+      });
+    }
+
+    // 显示提示
+    function showToast(msg) {
+      const toast = document.getElementById('copyToast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 2000);
+    }
+  </script>
+
+</body>
+</html>

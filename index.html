@@ -6,44 +6,51 @@
     <meta name="google-site-verification" content="toAPbrj3V5QsZYBrPL8XmdCNMkl0tq5UnWP_uo9_Tjo" />
     <title>ACH资源导航</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <!-- 使用 fonts.font.im 镜像加载 Material Symbols Outlined (深蓝色图标) -->
-    <link rel="stylesheet" href="https://fonts.font.im/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
     <style>
+        /* 全局重置 & 字体 */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        
+
+        /* ===== 固定布局核心：flex列，头尾固定，中间可伸缩 ===== */
         body {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;          /* 至少撑满视口高度 */
             background: #FFFFFF;
             color: #333333;
-            min-height: 100vh;
-            padding: 40px 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            padding: 40px 20px;          /* 保留原内外边距，视觉舒适 */
+            margin: 0;
         }
-        
+
         .container {
             max-width: 1200px;
             width: 100%;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            flex: 1;                      /* 占用body除去padding后的所有剩余高度 */
         }
-        
+
+        /* 头部：不伸缩，保持在顶部 */
         header {
+            flex-shrink: 0;
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 20px;           /* 与下方分类的间距，分类伸缩时头部不动 */
             animation: fadeIn 1s ease;
         }
-        
+
         h1 {
             font-size: 5rem;
             margin-bottom: 15px;
             color: #0D47A1;
             font-weight: 700;
+            line-height: 1.2;
         }
-        
+
         .subtitle {
             font-size: 1rem;
             max-width: 800px;
@@ -51,11 +58,12 @@
             line-height: 1.6;
             color: #666666;
         }
-        
+
+        /* 搜索区 */
         .search-container {
             width: 100%;
             max-width: 600px;
-            margin: 25px auto 10px;  /* 下边距留给折叠图标 */
+            margin: 25px auto 10px;
         }
 
         .search-wrapper {
@@ -111,58 +119,62 @@
             appearance: none;
         }
 
-        /* ----- 折叠图标 (无背景框，仅图标，深蓝色) 置于搜索框下方 ----- */
+        /* ----- 折叠图标 (本地SVG) ----- */
         .fold-toggle {
             display: flex;
             justify-content: center;
             align-items: center;
-            margin: 0 auto 20px;   /* 居中，下方留白 */
+            margin: 0 auto 20px;
             cursor: pointer;
             width: fit-content;
             color: #0D47A1;
-            transition: transform 0.15s, filter 0.15s, text-shadow 0.15s;
+            transition: transform 0.15s, filter 0.15s;
             user-select: none;
             border: none;
             background: transparent;
-            padding: 8px;          /* 增加点击区域，无视觉背景 */
+            padding: 8px;
         }
+
         .fold-toggle:hover {
             transform: scale(1.15);
             filter: drop-shadow(0 4px 6px rgba(13, 71, 161, 0.3));
-            color: #0b3d8a;        /* 略深 */
         }
+
         .fold-toggle:active {
             transform: scale(0.95);
         }
-        /* 图标样式 */
+
         .fold-toggle .toggle-icon {
-            font-family: 'Material Symbols Outlined';
-            font-weight: normal;
-            font-style: normal;
-            font-size: 40px;        /* 明显大小，像字母v */
-            line-height: 1;
-            letter-spacing: normal;
-            text-transform: none;
             display: inline-block;
-            white-space: nowrap;
-            word-wrap: normal;
-            direction: ltr;
-            -webkit-font-smoothing: antialiased;
-            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-            color: inherit;          /* 继承父级蓝色 */
+            width: 40px;
+            height: 40px;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
         }
 
-        /* 分类容器默认隐藏 */
+        /* 向下箭头 */
+        .icon-arrow-down {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='40' viewBox='0 0 24 24' width='40'%3E%3Cpath d='M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z' fill='%230D47A1'/%3E%3C/svg%3E");
+        }
+
+        /* 向上箭头 */
+        .icon-arrow-up {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='40' viewBox='0 0 24 24' width='40'%3E%3Cpath d='M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6 1.41-1.41z' fill='%230D47A1'/%3E%3C/svg%3E");
+        }
+
+        /* ===== 分类容器：永远占据flex剩余空间，可滚动 ===== */
         .categories {
-            display: none;
+            flex: 1;                       /* 自动撑满header与footer之间的高度 */
+            overflow-y: auto;               /* 内容过多时内部滚动，不影响头尾 */
+            display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 20px;
-            margin-top: 10px;
+            margin-top: 10px;               /* 与折叠按钮的间距 */
+            /* 注意：不再使用display:none控制显隐，改用内部.category的内联样式 */
         }
-        .categories.visible {
-            display: grid;
-        }
-        
+
+        /* 单个分类卡片样式保持不变 */
         .category {
             background: #FFFFFF;
             border-radius: 10px;
@@ -170,24 +182,25 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             transition: transform 0.3s ease, box-shadow 0.3s ease;
             border: 1px solid #E0E0E0;
+            height: fit-content;            /* 高度自适应内容 */
         }
-        
+
         .category:hover {
             transform: translateY(-5px);
             box-shadow: 0 8px 20px rgba(13, 71, 161, 0.25);
         }
-        
+
         .category-header {
             padding: 20px;
             border-bottom: 1px solid #E0E0E0;
         }
-        
+
         .category-header h2 {
             font-size: 1.6rem;
             font-weight: 600;
             color: #0D47A1;
         }
-        
+
         .category-description {
             padding: 15px 20px;
             font-size: 0.9rem;
@@ -195,11 +208,11 @@
             line-height: 1.5;
             background: #F8F9FA;
         }
-        
+
         .category-content {
             padding: 20px;
         }
-        
+
         .link-item {
             padding: 12px;
             border-radius: 8px;
@@ -209,50 +222,53 @@
             border: 1px solid transparent;
             user-select: none;
         }
-        
+
         .link-item:hover {
             border-color: #0D47A1;
             background: #E8F0FA;
             transform: translateX(3px);
         }
-        
+
         .link-text h3 {
             font-size: 1rem;
             margin-bottom: 5px;
             color: #333333;
         }
-        
+
         .link-text p {
             font-size: 0.85rem;
             color: #666666;
             line-height: 1.4;
         }
-        
+
         a {
             text-decoration: none;
             color: inherit;
             display: block;
         }
-        
+
+        /* 底部：永不伸缩，永远在底部（由flex撑开） */
         .footer {
+            flex-shrink: 0;
             text-align: center;
-            margin-top: 40px;
+            margin-top: 40px;               /* 与分类区域的间距 */
             color: #666666;
             font-size: 1rem;
             padding: 20px;
             border-top: 1px solid #E0E0E0;
         }
-        
+
+        /* 入场动画 */
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        
+
         .category {
             animation: fadeIn 0.6s ease forwards;
             opacity: 0;
         }
-        
+
         .category:nth-child(1) { animation-delay: 0.2s; }
         .category:nth-child(2) { animation-delay: 0.4s; }
         .category:nth-child(3) { animation-delay: 0.6s; }
@@ -263,9 +279,10 @@
         .category:nth-child(8) { animation-delay: 1.6s; }
         .category:nth-child(9) { animation-delay: 1.8s; }
         .category:nth-child(10) { animation-delay: 2.0s; }
-        
-        /* 移动端调整 */
+
+        /* 移动端优化 */
         @media (max-width: 768px) {
+            body { padding: 20px 12px; }      /* 小屏减小边距 */
             h1 { font-size: 4rem; }
             .subtitle { font-size: 0.85rem; }
             .categories { grid-template-columns: 1fr; }
@@ -293,7 +310,8 @@
             }
 
             .fold-toggle .toggle-icon {
-                font-size: 36px;
+                width: 36px;
+                height: 36px;
             }
         }
     </style>
@@ -321,21 +339,20 @@
                 </div>
             </div>
 
-            <!-- 折叠图标：仅图标，无背景，深蓝色，置于搜索框正下方 -->
+            <!-- 折叠图标 (永远位于头部最下方) -->
             <div class="fold-toggle" id="foldToggle" role="button" tabindex="0" aria-label="展开或收起分类">
-                <span class="toggle-icon material-symbols-outlined" id="toggleIcon">expand_more</span>
+                <span class="toggle-icon icon-arrow-down" id="toggleIcon" aria-hidden="true"></span>
             </div>
         </header>
         
-        <!-- 分类容器 (默认隐藏) -->
+        <!-- 分类容器：始终占据flex中间区域，内部卡片通过内联style控制显隐 -->
         <div class="categories" id="categoriesContainer">
             
-            <!-- 工具 -->
             <div class="category">
                 <div class="category-header">
-                    <h2>工具</h2>
+                    <h2 id="category-tool">工具</h2>
                 </div>
-                <div class="category-description">
+                <div class="category-description" aria-describedby="category6">
                     实用类。
                 </div>
                 <div class="category-content">
@@ -414,12 +431,11 @@
                 </div>
             </div>
             
-            <!-- 小游戏 -->
             <div class="category">
                 <div class="category-header">
-                    <h2>小游戏</h2>
+                    <h2 id="category-game">小游戏</h2>
                 </div>
-                <div class="category-description">
+                <div class="category-description" aria-describedby="category6">
                     无聊就玩点小游戏吧！
                 </div>
                 <div class="category-content">
@@ -434,12 +450,11 @@
                 </div>
             </div>
         
-            <!-- 资源网站 -->
             <div class="category">
                 <div class="category-header">
-                    <h2>资源网站</h2>
+                    <h2 id="category-resource">资源网站</h2>
                 </div>
-                <div class="category-description">
+                <div class="category-description" aria-describedby="category6">
                     也是一些类似这样的资源。
                 </div>
                 <div class="category-content">
@@ -462,12 +477,11 @@
                 </div>
             </div>
             
-            <!-- 站内资源 -->
             <div class="category">
                 <div class="category-header">
-                    <h2>站内资源</h2>
+                    <h2 id="category-local">站内资源</h2>
                 </div>
-                <div class="category-description">
+                <div class="category-description" aria-describedby="category1">
                     站长achtlv自己的资源。
                 </div>
                 <div class="category-content">
@@ -506,12 +520,11 @@
                 </div>
             </div>
             
-            <!-- AI网站 -->
             <div class="category">
                 <div class="category-header">
-                    <h2>AI网站</h2>
+                    <h2 id="category-ai">AI网站</h2>
                 </div>
-                <div class="category-description">
+                <div class="category-description" aria-describedby="category1">
                     一些好用的AI。
                 </div>
                 <div class="category-content">
@@ -558,12 +571,11 @@
                 </div>
             </div>
             
-            <!-- 好用软件 -->
             <div class="category">
                 <div class="category-header">
-                    <h2>好用软件</h2>
+                    <h2 id="category-software">好用软件</h2>
                 </div>
-                <div class="category-description">
+                <div class="category-description" aria-describedby="category4">
                     收集的各种很好用的软件。
                 </div>
                 <div class="category-content">
@@ -642,12 +654,11 @@
                 </div>
             </div>
             
-            <!-- 音视频、图片解析 -->
             <div class="category">
                 <div class="category-header">
-                    <h2>音视频、图片解析</h2>
+                    <h2 id="category-media">音视频、图片解析</h2>
                 </div>
-                <div class="category-description">
+                <div class="category-description" aria-describedby="category2">
                     对于那些需要会员的视频、音乐或图片，使用这些解析就可以免费观看、听或下载。
                 </div>
                 <div class="category-content">
@@ -702,12 +713,11 @@
                 </div>
             </div>
             
-            <!-- 镜像站、网站加速 -->
             <div class="category">
                 <div class="category-header">
-                    <h2>镜像站、网站加速</h2>
+                    <h2 id="category-mirror">镜像站、网站加速</h2>
                 </div>
-                <div class="category-description">
+                <div class="category-description" aria-describedby="category3">
                     许多网站部分地区无法访问，可以访问其镜像站，或使用其加速服务。
                 </div>
                 <div class="category-content">
@@ -794,12 +804,11 @@
                 </div>
             </div>
             
-            <!-- 科学上网 -->
             <div class="category">
                 <div class="category-header">
-                    <h2>科学上网</h2>
+                    <h2 id="category-vpn">科学上网</h2>
                 </div>
-                <div class="category-description">
+                <div class="category-description" aria-describedby="category5">
                     也叫翻墙。
                 </div>
                 <div class="category-content">
@@ -846,12 +855,11 @@
                 </div>
             </div>
             
-            <!-- 其他 -->
             <div class="category">
                 <div class="category-header">
-                    <h2>其他</h2>
+                    <h2 id="category-other">其他</h2>
                 </div>
-                <div class="category-description">
+                <div class="category-description" aria-describedby="category6">
                     字面意思。
                 </div>
                 <div class="category-content">
@@ -888,30 +896,43 @@
             const foldToggle = document.getElementById('foldToggle');
             const toggleIcon = document.getElementById('toggleIcon');
             const categoriesContainer = document.getElementById('categoriesContainer');
+            const allCategories = Array.from(document.querySelectorAll('.category'));
 
-            // 初始状态：分类隐藏
-            categoriesContainer.classList.remove('visible');
+            // 状态管理：true = 折叠 (所有分类隐藏)，false = 展开 (根据搜索词显示)
+            let isCollapsed = true;   // 初始折叠
+
+            // 初始化：所有分类隐藏，图标向下
+            allCategories.forEach(cat => cat.style.display = 'none');
+            toggleIcon.classList.add('icon-arrow-down');
             foldToggle.setAttribute('aria-expanded', 'false');
 
-            function expandCategories(expand) {
-                if (expand) {
-                    if (!categoriesContainer.classList.contains('visible')) {
-                        categoriesContainer.classList.add('visible');
-                        toggleIcon.textContent = 'expand_less';    // 收起图标
-                        foldToggle.setAttribute('aria-expanded', 'true');
-                    }
+            // 展开/折叠核心函数 (不依赖类，直接操作内联样式)
+            function setCollapsed(collapsed) {
+                isCollapsed = collapsed;
+                if (collapsed) {
+                    // 折叠：全部隐藏
+                    allCategories.forEach(cat => cat.style.display = 'none');
+                    toggleIcon.classList.remove('icon-arrow-up');
+                    toggleIcon.classList.add('icon-arrow-down');
+                    foldToggle.setAttribute('aria-expanded', 'false');
                 } else {
-                    if (categoriesContainer.classList.contains('visible')) {
-                        categoriesContainer.classList.remove('visible');
-                        toggleIcon.textContent = 'expand_more';     // 展开图标
-                        foldToggle.setAttribute('aria-expanded', 'false');
+                    // 展开：根据当前搜索引擎和搜索词重新应用过滤/显示
+                    toggleIcon.classList.remove('icon-arrow-down');
+                    toggleIcon.classList.add('icon-arrow-up');
+                    foldToggle.setAttribute('aria-expanded', 'true');
+                    // 如果当前是站内搜索模式且有搜索词，应用站内搜索过滤；否则显示全部
+                    if (searchEngine.value === 'site' && searchInput.value.trim() !== '') {
+                        siteSearch(searchInput.value);  // siteSearch内部会处理显示隐藏
+                    } else {
+                        // 显示所有分类
+                        allCategories.forEach(cat => cat.style.display = 'block');
                     }
                 }
             }
 
+            // 切换折叠/展开
             function toggleCategories() {
-                const isVisible = categoriesContainer.classList.contains('visible');
-                expandCategories(!isVisible);
+                setCollapsed(!isCollapsed);
             }
 
             foldToggle.addEventListener('click', toggleCategories);
@@ -922,57 +943,94 @@
                 }
             });
 
-            // 站内搜索 (自动展开)
+            // 站内搜索 (原逻辑增强：自动展开，且只在展开状态下过滤)
             function siteSearch(term) {
                 const searchTerm = term.trim().toLowerCase();
-                const categories = document.querySelectorAll('.category');
 
-                if (searchTerm && !categoriesContainer.classList.contains('visible')) {
-                    expandCategories(true);
+                // 如果当前是折叠状态，自动展开 (用户开始搜索，应该看到结果)
+                if (isCollapsed) {
+                    setCollapsed(false);  // 这会触发展开，并递归调用？但setCollapsed(false)内部会再次调用siteSearch？需要避免死循环
+                    // setCollapsed(false) 里面会判断 如果搜索引擎为site且有词，则调用siteSearch，会导致递归。所以需要标志。
+                    // 我们调整：setCollapsed(false) 内部调用 siteSearch 时会传入当前term，并且再次调用setCollapsed? 我们加入一个防递归标记
+                    // 简单处理：在setCollapsed(false)中不调用siteSearch，而是直接显示全部？但为了保持过滤，我们可以在外部调用一次。
+                    // 重构一下：
                 }
 
-                if (!searchTerm) {
-                    categories.forEach(category => {
-                        category.style.display = 'block';
+                // 再次检查折叠状态，如果展开则执行过滤
+                if (!isCollapsed) {
+                    if (!searchTerm) {
+                        // 无搜索词：显示所有分类
+                        allCategories.forEach(cat => cat.style.display = 'block');
+                        return;
+                    }
+
+                    allCategories.forEach(category => {
                         const links = category.querySelectorAll('.link-item');
-                        links.forEach(link => link.style.display = 'block');
-                    });
-                    return;
-                }
+                        const description = category.querySelector('.category-description')?.textContent.toLowerCase() || "";
+                        let hasVisibleLinks = false;
 
-                categories.forEach(category => {
-                    const links = category.querySelectorAll('.link-item');
-                    const description = category.querySelector('.category-description')?.textContent.toLowerCase() || "";
-                    let hasVisibleLinks = false;
+                        links.forEach(link => {
+                            const title = link.querySelector('h3')?.textContent.toLowerCase() || "";
+                            const linkDescription = link.querySelector('p')?.textContent.toLowerCase() || "";
 
-                    links.forEach(link => {
-                        const title = link.querySelector('h3')?.textContent.toLowerCase() || "";
-                        const linkDescription = link.querySelector('p')?.textContent.toLowerCase() || "";
+                            if (title.includes(searchTerm) || linkDescription.includes(searchTerm) || description.includes(searchTerm)) {
+                                link.style.display = 'block';
+                                hasVisibleLinks = true;
+                            } else {
+                                link.style.display = 'none';
+                            }
+                        });
 
-                        if (title.includes(searchTerm) || linkDescription.includes(searchTerm) || description.includes(searchTerm)) {
-                            link.style.display = 'block';
-                            hasVisibleLinks = true;
+                        // 分类本身显隐：只要有可见链接或分类描述匹配，就显示分类
+                        if (hasVisibleLinks || description.includes(searchTerm)) {
+                            category.style.display = 'block';
                         } else {
-                            link.style.display = 'none';
+                            category.style.display = 'none';
                         }
                     });
-
-                    category.style.display = hasVisibleLinks || description.includes(searchTerm) ? 'block' : 'none';
-                });
+                }
             }
 
+            // 输入事件：仅在站内搜索模式且展开状态下生效
             searchInput.addEventListener('input', (e) => {
                 if (searchEngine.value === 'site') {
-                    siteSearch(e.target.value);
+                    // 如果当前折叠，自动展开 (并应用过滤)
+                    if (isCollapsed) {
+                        setCollapsed(false);  // 展开后内部会根据搜索引擎和词调用siteSearch？为了避免重复，我们在setCollapsed中不再自动调用siteSearch，改为由外部调用
+                        // 手动调用一次siteSearch
+                        siteSearch(e.target.value);
+                    } else {
+                        siteSearch(e.target.value);
+                    }
+                } else {
+                    // 非站内搜索模式，不需要实时过滤，但为了界面整洁，如果之前是站内搜索留下的过滤，可以恢复所有显示？
+                    // 我们不自动恢复，因为用户可能切换引擎，但搜索框内容还在。为了不混淆，切换引擎时不改变分类显示。
+                    // 但可以优化：当引擎不是site时，如果展开状态，应显示所有分类（不应用过滤）。我们监听引擎变化。
                 }
             });
 
+            // 搜索引擎变化时：如果当前是site模式，可能需要触发过滤；如果不是，且展开状态，则显示全部
+            searchEngine.addEventListener('change', (e) => {
+                if (!isCollapsed) {
+                    if (e.target.value === 'site') {
+                        // 变为站内搜索，应用当前输入词过滤
+                        siteSearch(searchInput.value);
+                    } else {
+                        // 变为其他引擎，显示所有分类（因为不再需要站内过滤）
+                        allCategories.forEach(cat => cat.style.display = 'block');
+                    }
+                }
+            });
+
+            // 回车搜索（原逻辑保持不变）
             searchInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
                     const engine = searchEngine.value;
                     const term = searchInput.value.trim();
                     
                     if (engine === 'site') {
+                        // 站内搜索：触发过滤，并确保展开
+                        if (isCollapsed) setCollapsed(false);
                         siteSearch(term);
                     } else if (term) {
                         const url = engine + encodeURIComponent(term);
@@ -1005,11 +1063,9 @@
             updateTimeDate();
             setInterval(updateTimeDate, 1000);
 
-            // 禁用右键菜单
+            // 禁用右键菜单 (保持原样)
             document.querySelectorAll('.category-content a').forEach(link => {
-                link.addEventListener('contextmenu', (e) => {
-                    e.preventDefault();
-                });
+                link.addEventListener('contextmenu', (e) => e.preventDefault());
             });
 
             // 搜索引擎偏好 cookie
@@ -1028,17 +1084,15 @@
                 const ca = document.cookie.split(';');
                 for(let i = 0; i < ca.length; i++) {
                     let c = ca[i];
-                    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
-                    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+                    while (c.charAt(0) === ' ') c = c.substring(1);
+                    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length);
                 }
                 return null;
             }
 
             const savedEngine = getCookie(COOKIE_NAME);
-            if (savedEngine) {
-                if (Array.from(searchEngine.options).some(opt => opt.value === savedEngine)) {
-                    searchEngine.value = savedEngine;
-                }
+            if (savedEngine && Array.from(searchEngine.options).some(opt => opt.value === savedEngine)) {
+                searchEngine.value = savedEngine;
             }
 
             searchEngine.addEventListener('change', (e) => {

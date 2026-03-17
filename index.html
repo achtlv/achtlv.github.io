@@ -7,6 +7,22 @@
     <link rel="canonical" href="https://ach.cc.cd/" />
     <title>ACH资源导航</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "ACH资源导航",
+      "url": "https://ach.cc.cd/",
+      "alternateName": ["ACH资源导航"],
+      "description": "ACH资源导航，提供各种实用网页。",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://ach.cc.cd/?s={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
     <style>
         /* 全局重置 & 字体 */
         * {
@@ -1017,7 +1033,43 @@
             toggleIcon.classList.add('icon-arrow-down');
             foldToggle.setAttribute('aria-expanded', 'false');
 
-            // 展开/折叠核心函数 (不依赖类，直接操作内联样式)
+            // ---------- 站内搜索过滤核心 (不再处理折叠状态，调用前需保证已展开) ----------
+            function siteSearch(term) {
+                const searchTerm = term.trim().toLowerCase();
+
+                if (!searchTerm) {
+                    // 空搜索词：显示所有分类
+                    allCategories.forEach(cat => cat.style.display = 'block');
+                    return;
+                }
+
+                allCategories.forEach(category => {
+                    const links = category.querySelectorAll('.link-item');
+                    const description = category.querySelector('.category-description')?.textContent.toLowerCase() || "";
+                    let hasVisibleLinks = false;
+
+                    links.forEach(link => {
+                        const title = link.querySelector('h3')?.textContent.toLowerCase() || "";
+                        const linkDescription = link.querySelector('p')?.textContent.toLowerCase() || "";
+
+                        if (title.includes(searchTerm) || linkDescription.includes(searchTerm) || description.includes(searchTerm)) {
+                            link.style.display = 'block';
+                            hasVisibleLinks = true;
+                        } else {
+                            link.style.display = 'none';
+                        }
+                    });
+
+                    // 分类本身显隐：只要有可见链接或分类描述匹配，就显示分类
+                    if (hasVisibleLinks || description.includes(searchTerm)) {
+                        category.style.display = 'block';
+                    } else {
+                        category.style.display = 'none';
+                    }
+                });
+            }
+
+            // ---------- 展开/折叠核心函数 ----------
             function setCollapsed(collapsed) {
                 isCollapsed = collapsed;
                 if (collapsed) {
@@ -1031,11 +1083,11 @@
                     toggleIcon.classList.remove('icon-arrow-down');
                     toggleIcon.classList.add('icon-arrow-up');
                     foldToggle.setAttribute('aria-expanded', 'true');
-                    // 如果当前是站内搜索模式且有搜索词，应用站内搜索过滤；否则显示全部
+                    
                     if (searchEngine.value === 'site' && searchInput.value.trim() !== '') {
-                        siteSearch(searchInput.value);  // siteSearch内部会处理显示隐藏
+                        siteSearch(searchInput.value);   // 有词则过滤
                     } else {
-                        // 显示所有分类
+                        // 非站内模式或无搜索词：显示所有分类
                         allCategories.forEach(cat => cat.style.display = 'block');
                     }
                 }
@@ -1054,103 +1106,52 @@
                 }
             });
 
-            // 站内搜索 (原逻辑增强：自动展开，且只在展开状态下过滤)
-            function siteSearch(term) {
-                const searchTerm = term.trim().toLowerCase();
-
-                // 如果当前是折叠状态，自动展开 (用户开始搜索，应该看到结果)
-                if (isCollapsed) {
-                    setCollapsed(false);  // 这会触发展开，并递归调用？但setCollapsed(false)内部会再次调用siteSearch？需要避免死循环
-                    // setCollapsed(false) 里面会判断 如果搜索引擎为site且有词，则调用siteSearch，会导致递归。所以需要标志。
-                    // 我们调整：setCollapsed(false) 内部调用 siteSearch 时会传入当前term，并且再次调用setCollapsed? 我们加入一个防递归标记
-                    // 简单处理：在setCollapsed(false)中不调用siteSearch，而是直接显示全部？但为了保持过滤，我们可以在外部调用一次。
-                    // 重构一下：
-                }
-
-                // 再次检查折叠状态，如果展开则执行过滤
-                if (!isCollapsed) {
-                    if (!searchTerm) {
-                        // 无搜索词：显示所有分类
-                        allCategories.forEach(cat => cat.style.display = 'block');
-                        return;
-                    }
-
-                    allCategories.forEach(category => {
-                        const links = category.querySelectorAll('.link-item');
-                        const description = category.querySelector('.category-description')?.textContent.toLowerCase() || "";
-                        let hasVisibleLinks = false;
-
-                        links.forEach(link => {
-                            const title = link.querySelector('h3')?.textContent.toLowerCase() || "";
-                            const linkDescription = link.querySelector('p')?.textContent.toLowerCase() || "";
-
-                            if (title.includes(searchTerm) || linkDescription.includes(searchTerm) || description.includes(searchTerm)) {
-                                link.style.display = 'block';
-                                hasVisibleLinks = true;
-                            } else {
-                                link.style.display = 'none';
-                            }
-                        });
-
-                        // 分类本身显隐：只要有可见链接或分类描述匹配，就显示分类
-                        if (hasVisibleLinks || description.includes(searchTerm)) {
-                            category.style.display = 'block';
-                        } else {
-                            category.style.display = 'none';
-                        }
-                    });
-                }
-            }
-
-            // 输入事件：仅在站内搜索模式且展开状态下生效
+            // ---------- 事件监听：输入、引擎切换、回车 ----------
             searchInput.addEventListener('input', (e) => {
                 if (searchEngine.value === 'site') {
-                    // 如果当前折叠，自动展开 (并应用过滤)
                     if (isCollapsed) {
-                        setCollapsed(false);  // 展开后内部会根据搜索引擎和词调用siteSearch？为了避免重复，我们在setCollapsed中不再自动调用siteSearch，改为由外部调用
-                        // 手动调用一次siteSearch
-                        siteSearch(e.target.value);
+                        setCollapsed(false);          // 展开并自动应用 siteSearch (内部调用)
                     } else {
-                        siteSearch(e.target.value);
+                        siteSearch(e.target.value);    // 已展开，直接过滤
                     }
-                } else {
-                    // 非站内搜索模式，不需要实时过滤，但为了界面整洁，如果之前是站内搜索留下的过滤，可以恢复所有显示？
-                    // 我们不自动恢复，因为用户可能切换引擎，但搜索框内容还在。为了不混淆，切换引擎时不改变分类显示。
-                    // 但可以优化：当引擎不是site时，如果展开状态，应显示所有分类（不应用过滤）。我们监听引擎变化。
                 }
+                // 非站内搜索模式：不改变分类显示（保持原样）
             });
 
-            // 搜索引擎变化时：如果当前是site模式，可能需要触发过滤；如果不是，且展开状态，则显示全部
             searchEngine.addEventListener('change', (e) => {
+                // 只有展开状态下才需要根据新引擎调整显示
                 if (!isCollapsed) {
                     if (e.target.value === 'site') {
-                        // 变为站内搜索，应用当前输入词过滤
+                        // 切换到站内搜索：应用当前输入词过滤
                         siteSearch(searchInput.value);
                     } else {
-                        // 变为其他引擎，显示所有分类（因为不再需要站内过滤）
+                        // 切换到其他引擎：显示所有分类
                         allCategories.forEach(cat => cat.style.display = 'block');
                     }
                 }
             });
 
-            // 回车搜索（原逻辑保持不变）
             searchInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
                     const engine = searchEngine.value;
                     const term = searchInput.value.trim();
                     
                     if (engine === 'site') {
-                        // 站内搜索：触发过滤，并确保展开
-                        if (isCollapsed) setCollapsed(false);
-                        siteSearch(term);
+                        // 站内搜索：展开并应用搜索（如果已折叠则展开，内部会触发过滤）
+                        if (isCollapsed) {
+                            setCollapsed(false);
+                        } else {
+                            siteSearch(term);
+                        }
                     } else if (term) {
+                        // 外部搜索引擎：打开新窗口
                         const url = engine + encodeURIComponent(term);
                         window.open(url, '_blank');
                     }
                 }
             });
 
-            // 时间日期更新
+            // ---------- 时间日期更新 ----------
             function updateTimeDate() {
                 const now = new Date();
                 const hours = String(now.getHours()).padStart(2, '0');
@@ -1179,7 +1180,7 @@
                 link.addEventListener('contextmenu', (e) => e.preventDefault());
             });
 
-            // 搜索引擎偏好 cookie
+            // ---------- 搜索引擎偏好 cookie ----------
             const COOKIE_NAME = "preferredSearchEngine";
             const COOKIE_DAYS = 400;
 
@@ -1209,6 +1210,20 @@
             searchEngine.addEventListener('change', (e) => {
                 setCookie(COOKIE_NAME, e.target.value, COOKIE_DAYS);
             });
+
+            // ---------- 新增：支持 URL 参数 ?s=关键词 进行站内搜索 ----------
+            const urlParams = new URLSearchParams(window.location.search);
+            const searchTermFromUrl = urlParams.get('s');
+            if (searchTermFromUrl !== null) {
+                const decodedTerm = searchTermFromUrl.trim();  // URLSearchParams 已自动解码
+                // 设置为站内搜索模式
+                searchEngine.value = 'site';
+                searchInput.value = decodedTerm;
+                // 同时将偏好 cookie 更新为 site
+                setCookie(COOKIE_NAME, 'site', COOKIE_DAYS);
+                // 展开并执行搜索（如果已经折叠，setCollapsed 内部会根据有词调用 siteSearch）
+                setCollapsed(false);
+            }
         })();
     </script>
 </body>

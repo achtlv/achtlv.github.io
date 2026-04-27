@@ -96,13 +96,12 @@
             margin: 0 auto;
             padding: 24px;
             width: 100%;
-            padding-top: 100px; /* 桌面版足够 */
+            padding-top: 100px;
         }
 
-        /* 移动端单独增加顶部留白 */
         @media (max-width: 780px) {
             .container {
-                padding-top: 110px; /* 增大移动端留白，避免遮挡 */
+                padding-top: 110px;
             }
         }
 
@@ -121,7 +120,7 @@
             padding: 20px 16px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.12);
             transition: box-shadow 0.2s;
-            overflow: visible; /* 避免裁剪 hover 效果 */
+            overflow: hidden;
             display: flex;
             flex-direction: column;
             max-height: calc(100vh - 140px);
@@ -174,14 +173,23 @@
             background: var(--md-sys-color-surface-variant);
             border-radius: 28px;
             cursor: pointer;
-            transition: background-color 0.2s, box-shadow 0.2s;
+            transition: background-color 0.2s, transform 0.2s, box-shadow 0.2s;
             word-break: break-word;
-            /* 移除 transform 避免被裁剪 */
+            position: relative;
+            z-index: 1;
         }
         .weekly-item:hover {
             background-color: var(--md-sys-color-primary-container);
             color: var(--md-sys-color-on-primary-container);
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transform: scale(1.02);
+            z-index: 2;
+        }
+        .weekly-item.active {
+            background-color: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
         .weekly-title {
             display: flex;
@@ -206,7 +214,6 @@
             box-shadow: 0 12px 32px rgba(0,0,0,0.16);
         }
 
-        /* Markdown 内容样式 */
         .markdown-body {
             line-height: 1.6;
             color: inherit;
@@ -285,7 +292,7 @@
             }
             .container {
                 padding: 16px;
-                padding-top: 110px; /* 加大移动端间距 */
+                padding-top: 110px;
             }
             .weekly-panel {
                 padding: 16px;
@@ -323,7 +330,10 @@
         const WORKER_URL = 'https://wp.achtlv.ccwu.cc';
 
         let allIssues = [];
+        let currentActiveItem = null;      // 当前高亮的DOM元素
+        let currentIssueNumber = null;      // 当前选中的期号
 
+        // 顶部栏滑动隐藏/显示
         let lastScrollTop = 0;
         const appBar = document.getElementById('appBar');
         window.addEventListener('scroll', function() {
@@ -336,6 +346,7 @@
             lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
         });
 
+        // 加载周刊列表
         async function loadWeeklyList() {
             const container = document.getElementById('weekly-list');
             try {
@@ -354,14 +365,42 @@
                     </div>
                 `).join('');
 
+                // 绑定点击事件（支持重复点击同一项收起）
                 document.querySelectorAll('.weekly-item').forEach(el => {
                     el.addEventListener('click', (e) => {
                         e.preventDefault();
+                        const issue = parseInt(el.dataset.issue);
                         const url = el.dataset.url;
                         const title = el.dataset.title;
-                        loadContent(url, title);
-                        const issue = el.dataset.issue;
-                        if (issue) {
+
+                        // 如果当前已经选中这一期，则收起内容，恢复样式，删除URL参数
+                        if (currentActiveItem === el && currentIssueNumber === issue) {
+                            // 收起内容
+                            const reader = document.getElementById('reader-content');
+                            reader.innerHTML = '✨ 选择一期周刊 ✨';
+                            // 移除高亮样式
+                            if (currentActiveItem) {
+                                currentActiveItem.classList.remove('active');
+                            }
+                            currentActiveItem = null;
+                            currentIssueNumber = null;
+                            // 删除 URL 中的 ?i=xxx 参数
+                            const newUrl = new URL(window.location);
+                            newUrl.searchParams.delete('i');
+                            window.history.pushState({}, '', newUrl);
+                        } else {
+                            // 否则加载新内容
+                            // 移除之前的高亮
+                            if (currentActiveItem) {
+                                currentActiveItem.classList.remove('active');
+                            }
+                            // 添加当前高亮
+                            el.classList.add('active');
+                            currentActiveItem = el;
+                            currentIssueNumber = issue;
+                            // 加载内容
+                            loadContent(url, title);
+                            // 更新 URL 参数
                             const newUrl = new URL(window.location);
                             newUrl.searchParams.set('i', issue);
                             window.history.pushState({}, '', newUrl);
@@ -369,6 +408,7 @@
                     });
                 });
 
+                // 处理 URL 参数 ?i=xxx（自动打开对应期刊）
                 const urlParams = new URLSearchParams(window.location.search);
                 const targetIssue = urlParams.get('i');
                 if (targetIssue) {
@@ -383,7 +423,7 @@
             }
         }
 
-        // 修改：不再额外添加标题，直接渲染 Markdown 内容（保留原文章标题）
+        // 加载文章内容
         async function loadContent(rawUrl, title) {
             const reader = document.getElementById('reader-content');
             reader.innerHTML = '<div class="loading">📖 加载中...</div>';
@@ -392,7 +432,7 @@
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const markdown = await res.text();
                 const html = marked.parse(markdown);
-                // 不再显示 .selected-title，只显示渲染后的正文（包含原标题）
+                // 直接显示渲染后的内容（包含文章原始标题）
                 reader.innerHTML = `<div class="markdown-body">${html}</div>`;
             } catch(e) {
                 reader.innerHTML = `<div class="error-state">❌ 加载失败: ${e.message}</div>`;
@@ -409,16 +449,35 @@
             });
         }
 
+        // 监听浏览器前进后退，同步高亮和内容
         window.addEventListener('popstate', () => {
             const urlParams = new URLSearchParams(window.location.search);
             const targetIssue = urlParams.get('i');
             if (targetIssue && allIssues.length) {
                 const targetItem = document.querySelector(`.weekly-item[data-issue="${targetIssue}"]`);
                 if (targetItem) {
-                    targetItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    // 先清除当前高亮
+                    if (currentActiveItem) {
+                        currentActiveItem.classList.remove('active');
+                    }
+                    // 触发点击（会内部设置高亮和内容）
                     targetItem.click();
+                } else {
+                    // 参数无效，回到主页状态
+                    if (currentActiveItem) {
+                        currentActiveItem.classList.remove('active');
+                        currentActiveItem = null;
+                        currentIssueNumber = null;
+                    }
+                    document.getElementById('reader-content').innerHTML = '✨ 选择一期周刊 ✨';
                 }
             } else if (!targetIssue) {
+                // 没有参数，清空状态
+                if (currentActiveItem) {
+                    currentActiveItem.classList.remove('active');
+                    currentActiveItem = null;
+                    currentIssueNumber = null;
+                }
                 document.getElementById('reader-content').innerHTML = '✨ 选择一期周刊 ✨';
             }
         });

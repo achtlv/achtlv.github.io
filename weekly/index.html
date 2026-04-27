@@ -3,12 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>TECH_WEEKLY</title>
+    <title>阮一峰 · 科技爱好者周刊</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,200&display=swap">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
         body {
             font-family: 'Roboto', sans-serif;
@@ -19,11 +23,16 @@
             width: 100%;
         }
 
+        /* 浅色主题变量 */
         :root {
             --md-sys-color-primary: #007134;
             --md-sys-color-on-primary: #ffffff;
             --md-sys-color-primary-container: #b3f0c2;
             --md-sys-color-on-primary-container: #00210e;
+            --md-sys-color-secondary: #2a6671;
+            --md-sys-color-on-secondary: #ffffff;
+            --md-sys-color-secondary-container: #b8ecf8;
+            --md-sys-color-on-secondary-container: #002025;
             --md-sys-color-surface: #fefef7;
             --md-sys-color-on-surface: #1a2f2a;
             --md-sys-color-surface-variant: #e2f2e0;
@@ -31,21 +40,30 @@
             --md-sys-color-outline: #7b9c8a;
         }
 
+        /* 深色主题变量 */
         @media (prefers-color-scheme: dark) {
             :root {
                 --md-sys-color-primary: #75faaf;
                 --md-sys-color-on-primary: #00331a;
                 --md-sys-color-primary-container: #005528;
                 --md-sys-color-on-primary-container: #b3f0c2;
+                --md-sys-color-secondary: #75faaf;
+                --md-sys-color-on-secondary: #00331a;
+                --md-sys-color-secondary-container: #1d4d56;
+                --md-sys-color-on-secondary-container: #b8ecf8;
                 --md-sys-color-surface: #121c17;
                 --md-sys-color-on-surface: #e2f0e8;
                 --md-sys-color-surface-variant: #1f3a2f;
                 --md-sys-color-on-surface-variant: #c0ddce;
                 --md-sys-color-outline: #5e7c6a;
             }
-            body { background-color: #121c17; color: #e2f0e8; }
+            body {
+                background-color: #121c17;
+                color: #e2f0e8;
+            }
         }
 
+        /* 顶部栏 */
         .app-bar {
             background-color: var(--md-sys-color-surface);
             padding: 16px 24px;
@@ -60,20 +78,42 @@
             z-index: 100;
             transform: translateY(0);
         }
-        .app-bar.hide { transform: translateY(-100%); }
-        .app-bar h1 { font-size: 1.5rem; font-weight: 500; color: var(--md-sys-color-primary); }
-        .app-bar .subhead { font-size: 0.875rem; color: var(--md-sys-color-on-surface-variant); margin-top: 4px; }
+        .app-bar.hide {
+            transform: translateY(-100%);
+        }
+        .app-bar h1 {
+            font-size: 1.5rem;
+            font-weight: 500;
+            color: var(--md-sys-color-primary);
+        }
+        .app-bar .subhead {
+            font-size: 0.875rem;
+            color: var(--md-sys-color-on-surface-variant);
+            margin-top: 4px;
+        }
 
+        /* 主容器 */
         .container {
             max-width: 1400px;
             margin: 0 auto;
             padding: 24px;
             padding-top: 100px;
         }
-        @media (max-width: 780px) { .container { padding-top: 110px; } }
+        @media (max-width: 780px) {
+            .container {
+                padding-top: 110px;
+            }
+        }
 
-        .dashboard { display: flex; gap: 28px; flex-wrap: wrap; width: 100%; }
+        /* 双栏布局 */
+        .dashboard {
+            display: flex;
+            gap: 28px;
+            flex-wrap: wrap;
+            width: 100%;
+        }
 
+        /* 左侧目录面板 */
         .weekly-panel {
             flex: 1;
             min-width: 280px;
@@ -94,8 +134,13 @@
             border-bottom: 1px solid var(--md-sys-color-outline);
             padding-bottom: 12px;
         }
-        .panel-header h2 { font-size: 1.5rem; font-weight: 500; color: var(--md-sys-color-primary); }
+        .panel-header h2 {
+            font-size: 1.5rem;
+            font-weight: 500;
+            color: var(--md-sys-color-primary);
+        }
 
+        /* 目录列表滚动 */
         .weekly-list {
             display: flex;
             flex-direction: column;
@@ -105,10 +150,19 @@
             padding-left: 0;
             padding-right: 0;
         }
-        .weekly-list::-webkit-scrollbar { width: 6px; }
-        .weekly-list::-webkit-scrollbar-track { background: var(--md-sys-color-surface-variant); border-radius: 10px; }
-        .weekly-list::-webkit-scrollbar-thumb { background: var(--md-sys-color-primary); border-radius: 10px; }
+        .weekly-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        .weekly-list::-webkit-scrollbar-track {
+            background: var(--md-sys-color-surface-variant);
+            border-radius: 10px;
+        }
+        .weekly-list::-webkit-scrollbar-thumb {
+            background: var(--md-sys-color-primary);
+            border-radius: 10px;
+        }
 
+        /* 列表项 */
         .weekly-item {
             display: flex;
             justify-content: space-between;
@@ -151,13 +205,14 @@
             font-size: 0.7rem;
             color: var(--md-sys-color-on-surface-variant);
             opacity: 0.7;
-            margin-left: 0;  /* 不再需要左边距，因为前面没有图标了 */
+            margin-left: 0;
         }
         .weekly-item.active .weekly-date {
             color: var(--md-sys-color-on-primary);
             opacity: 0.9;
         }
 
+        /* 右侧阅读面板 */
         .reader-panel {
             flex: 2;
             min-width: 400px;
@@ -167,14 +222,41 @@
             box-shadow: 0 8px 24px rgba(0,0,0,0.12);
             overflow-x: auto;
         }
-        .markdown-body { line-height: 1.6; max-width: 100%; overflow-x: auto; }
-        .markdown-body img { max-width: 100%; height: auto; border-radius: 12px; }
-        .markdown-body pre { background-color: var(--md-sys-color-surface-variant); padding: 16px; border-radius: 16px; }
-        .markdown-body code { background-color: var(--md-sys-color-surface-variant); padding: 2px 6px; border-radius: 8px; }
-        .markdown-body a { color: var(--md-sys-color-primary); cursor: pointer; text-decoration: underline; }
+        .markdown-body {
+            line-height: 1.6;
+            max-width: 100%;
+            overflow-x: auto;
+        }
+        .markdown-body img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+        }
+        .markdown-body pre {
+            background-color: var(--md-sys-color-surface-variant);
+            padding: 16px;
+            border-radius: 16px;
+        }
+        .markdown-body code {
+            background-color: var(--md-sys-color-surface-variant);
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-family: monospace;
+        }
+        .markdown-body a {
+            color: var(--md-sys-color-primary);
+            cursor: pointer;
+            text-decoration: underline;
+        }
 
-        .loading, .error-state { text-align: center; padding: 48px 20px; color: var(--md-sys-color-on-surface-variant); }
+        /* 加载和错误状态 */
+        .loading, .error-state {
+            text-align: center;
+            padding: 48px 20px;
+            color: var(--md-sys-color-on-surface-variant);
+        }
 
+        /* 页脚 */
         footer {
             text-align: center;
             padding: 32px;
@@ -183,16 +265,38 @@
             border-top: 1px solid var(--md-sys-color-outline);
             margin-top: 40px;
         }
-        footer a { color: var(--md-sys-color-primary); text-decoration: none; }
-
-        @media (max-width: 780px) {
-            .dashboard { flex-direction: column; }
-            .reader-panel { min-width: auto; padding: 20px; }
-            .weekly-panel { max-height: 45vh; }
-            .container { padding: 16px; padding-top: 110px; }
-            .weekly-date { font-size: 0.65rem; }
+        footer a {
+            color: var(--md-sys-color-primary);
+            text-decoration: none;
         }
-        html { scroll-behavior: smooth; }
+
+        /* 移动端适配 */
+        @media (max-width: 780px) {
+            .dashboard {
+                flex-direction: column;
+            }
+            .reader-panel {
+                min-width: auto;
+                padding: 20px;
+            }
+            .weekly-panel {
+                max-height: 45vh;
+            }
+            .container {
+                padding: 16px;
+                padding-top: 110px;
+            }
+            .weekly-panel {
+                padding: 16px;
+            }
+            .weekly-date {
+                font-size: 0.65rem;
+            }
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
     </style>
 </head>
 <body>
@@ -219,12 +323,13 @@
 
     <script>
         const BASE_PATH = '/weekly/';
-        const WORKER_URL = 'https://wp.achtlv.ccwu.cc';
+        const WORKER_URL = 'https://wp.achtlv.ccwu.cc'; // 请确保此处为你的 Worker 域名
 
         let allIssues = [];
         let currentActiveItem = null;
         let currentIssueNumber = null;
 
+        // 顶部栏滑动隐藏/显示
         let lastScrollTop = 0;
         const appBar = document.getElementById('appBar');
         window.addEventListener('scroll', () => {
@@ -234,27 +339,31 @@
             lastScrollTop = st <= 0 ? 0 : st;
         });
 
+        // 加载周刊目录
         async function loadWeeklyList() {
             const container = document.getElementById('weekly-list');
             try {
                 const res = await fetch(`${WORKER_URL}/api/issues/list`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const issues = await res.json();
-                if (!issues.length) { container.innerHTML = '<div class="error-state">暂无数据</div>'; return; }
+                if (!issues.length) {
+                    container.innerHTML = '<div class="error-state">暂无数据</div>';
+                    return;
+                }
                 allIssues = issues;
                 container.innerHTML = issues.map(issue => `
                     <div class="weekly-item" data-url="${escapeHtml(issue.rawUrl)}" data-title="${escapeHtml(issue.title)}" data-issue="${issue.issue}">
                         <div class="weekly-title">
                             <div class="weekly-title-main">
-                                <!-- 已移除 description 图标 -->
                                 <span>${escapeHtml(issue.title)}</span>
                             </div>
-                            ${issue.date ? `<div class="weekly-date">📅 ${escapeHtml(issue.date)}</div>` : '<div class="weekly-date">📅 日期待查</div>'}
+                            ${issue.date ? `<div class="weekly-date">📅 ${escapeHtml(issue.date)}</div>` : ''}
                         </div>
                         <span class="material-symbols-outlined">chevron_right</span>
                     </div>
                 `).join('');
 
+                // 绑定点击事件
                 document.querySelectorAll('.weekly-item').forEach(el => {
                     el.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -262,6 +371,7 @@
                         const url = el.dataset.url;
                         const title = el.dataset.title;
                         if (currentActiveItem === el && currentIssueNumber === issue) {
+                            // 收起内容
                             document.getElementById('reader-content').innerHTML = '✨ 选择一期周刊 ✨';
                             if (currentActiveItem) currentActiveItem.classList.remove('active');
                             currentActiveItem = null;
@@ -270,6 +380,7 @@
                             newUrl.searchParams.delete('i');
                             window.history.pushState({}, '', newUrl);
                         } else {
+                            // 新选择
                             if (currentActiveItem) currentActiveItem.classList.remove('active');
                             el.classList.add('active');
                             currentActiveItem = el;
@@ -282,6 +393,7 @@
                     });
                 });
 
+                // 处理 URL 参数跳转
                 const urlParams = new URLSearchParams(window.location.search);
                 const targetIssue = urlParams.get('i');
                 if (targetIssue) {
@@ -296,6 +408,7 @@
             }
         }
 
+        // 处理内部链接（往年回顾）的单页跳转
         function handleInternalLink(event) {
             const link = event.target.closest('a');
             if (!link) return;
@@ -312,11 +425,15 @@
                     if (targetItem) {
                         targetItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                         targetItem.click();
+                    } else {
+                        // 如果目录尚未加载对应项，可尝试重新加载列表（通常不会发生）
+                        console.warn('未找到期号', issue);
                     }
                 }
             }
         }
 
+        // 加载文章内容
         async function loadContent(rawUrl, title) {
             const reader = document.getElementById('reader-content');
             reader.innerHTML = '<div class="loading">📖 加载中...</div>';
@@ -326,6 +443,7 @@
                 const markdown = await res.text();
                 const html = marked.parse(markdown);
                 reader.innerHTML = `<div class="markdown-body">${html}</div>`;
+                // 重新绑定内部链接
                 reader.querySelectorAll('.markdown-body a').forEach(link => {
                     const href = link.getAttribute('href');
                     if (href && href.startsWith(BASE_PATH + '?i=')) {
@@ -342,6 +460,7 @@
             return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
         }
 
+        // 监听浏览器前进后退
         window.addEventListener('popstate', () => {
             const urlParams = new URLSearchParams(window.location.search);
             const targetIssue = urlParams.get('i');

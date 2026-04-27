@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>阮一峰 · 科技爱好者周刊</title>
+    <title>TECH_WEEKLY</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,200&display=swap">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -23,7 +23,6 @@
             width: 100%;
         }
 
-        /* 浅色主题变量 */
         :root {
             --md-sys-color-primary: #007134;
             --md-sys-color-on-primary: #ffffff;
@@ -38,9 +37,10 @@
             --md-sys-color-surface-variant: #e2f2e0;
             --md-sys-color-on-surface-variant: #2e4a3a;
             --md-sys-color-outline: #7b9c8a;
+            --md-sys-color-shadow: #000000;
+            --md-sys-color-surface-tint: #007134;
         }
 
-        /* 深色主题变量 */
         @media (prefers-color-scheme: dark) {
             :root {
                 --md-sys-color-primary: #75faaf;
@@ -63,7 +63,6 @@
             }
         }
 
-        /* 顶部栏 */
         .app-bar {
             background-color: var(--md-sys-color-surface);
             padding: 16px 24px;
@@ -92,20 +91,20 @@
             margin-top: 4px;
         }
 
-        /* 主容器 */
         .container {
             max-width: 1400px;
             margin: 0 auto;
             padding: 24px;
+            width: 100%;
             padding-top: 100px;
         }
+
         @media (max-width: 780px) {
             .container {
                 padding-top: 110px;
             }
         }
 
-        /* 双栏布局 */
         .dashboard {
             display: flex;
             gap: 28px;
@@ -113,7 +112,6 @@
             width: 100%;
         }
 
-        /* 左侧目录面板 */
         .weekly-panel {
             flex: 1;
             min-width: 280px;
@@ -121,11 +119,16 @@
             border-radius: 28px;
             padding: 20px 16px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            transition: box-shadow 0.2s;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
             max-height: calc(100vh - 140px);
-            overflow: hidden;
         }
+        .weekly-panel:hover {
+            box-shadow: 0 12px 32px rgba(0,0,0,0.16);
+        }
+
         .panel-header {
             display: flex;
             align-items: center;
@@ -133,6 +136,7 @@
             margin-bottom: 20px;
             border-bottom: 1px solid var(--md-sys-color-outline);
             padding-bottom: 12px;
+            flex-shrink: 0;
         }
         .panel-header h2 {
             font-size: 1.5rem;
@@ -140,16 +144,17 @@
             color: var(--md-sys-color-primary);
         }
 
-        /* 目录列表滚动 */
         .weekly-list {
             display: flex;
             flex-direction: column;
             gap: 8px;
             overflow-y: auto;
             flex-grow: 1;
+            /* 移除左右内边距，避免与 item 的 margin 叠加 */
             padding-left: 0;
             padding-right: 0;
         }
+
         .weekly-list::-webkit-scrollbar {
             width: 6px;
         }
@@ -162,17 +167,18 @@
             border-radius: 10px;
         }
 
-        /* 列表项 */
+        /* 为缩放预留空间：添加左右 margin，使放大时不会被父容器裁剪 */
         .weekly-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 12px 16px;
-            margin: 0 4px;
+            margin: 0 4px;          /* 左右各 4px 空隙，缩放时不会碰到边缘 */
             background: var(--md-sys-color-surface-variant);
             border-radius: 28px;
             cursor: pointer;
             transition: background-color 0.2s, transform 0.2s, box-shadow 0.2s;
+            word-break: break-word;
             position: relative;
             z-index: 1;
         }
@@ -191,28 +197,12 @@
         }
         .weekly-title {
             display: flex;
-            flex-direction: column;
-            gap: 4px;
-            flex: 1;
-        }
-        .weekly-title-main {
-            display: flex;
             align-items: center;
             gap: 12px;
+            font-weight: 500;
             flex-wrap: wrap;
         }
-        .weekly-date {
-            font-size: 0.7rem;
-            color: var(--md-sys-color-on-surface-variant);
-            opacity: 0.7;
-            margin-left: 0;
-        }
-        .weekly-item.active .weekly-date {
-            color: var(--md-sys-color-on-primary);
-            opacity: 0.9;
-        }
 
-        /* 右侧阅读面板 */
         .reader-panel {
             flex: 2;
             min-width: 400px;
@@ -221,9 +211,16 @@
             padding: 28px 32px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.12);
             overflow-x: auto;
+            word-wrap: break-word;
+            transition: box-shadow 0.2s;
         }
+        .reader-panel:hover {
+            box-shadow: 0 12px 32px rgba(0,0,0,0.16);
+        }
+
         .markdown-body {
             line-height: 1.6;
+            color: inherit;
             max-width: 100%;
             overflow-x: auto;
         }
@@ -231,6 +228,14 @@
             max-width: 100%;
             height: auto;
             border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .markdown-body pre,
+        .markdown-body code {
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow-x: auto;
+            max-width: 100%;
         }
         .markdown-body pre {
             background-color: var(--md-sys-color-surface-variant);
@@ -243,20 +248,24 @@
             border-radius: 8px;
             font-family: monospace;
         }
+        .markdown-body table {
+            display: block;
+            overflow-x: auto;
+            white-space: nowrap;
+            max-width: 100%;
+        }
         .markdown-body a {
             color: var(--md-sys-color-primary);
-            cursor: pointer;
+            word-break: break-all;
             text-decoration: underline;
         }
 
-        /* 加载和错误状态 */
         .loading, .error-state {
             text-align: center;
             padding: 48px 20px;
             color: var(--md-sys-color-on-surface-variant);
         }
 
-        /* 页脚 */
         footer {
             text-align: center;
             padding: 32px;
@@ -264,13 +273,16 @@
             font-size: 0.8rem;
             border-top: 1px solid var(--md-sys-color-outline);
             margin-top: 40px;
+            width: 100%;
         }
         footer a {
             color: var(--md-sys-color-primary);
             text-decoration: none;
         }
+        footer a:hover {
+            text-decoration: underline;
+        }
 
-        /* 移动端适配 */
         @media (max-width: 780px) {
             .dashboard {
                 flex-direction: column;
@@ -288,9 +300,6 @@
             }
             .weekly-panel {
                 padding: 16px;
-            }
-            .weekly-date {
-                font-size: 0.65rem;
             }
         }
 
@@ -322,8 +331,9 @@
     </div>
 
     <script>
+        // 配置：网站部署在子目录 /weekly/ 下
         const BASE_PATH = '/weekly/';
-        const WORKER_URL = 'https://wp.achtlv.ccwu.cc'; // 请确保此处为你的 Worker 域名
+        const WORKER_URL = 'https://wp.achtlv.ccwu.cc';
 
         let allIssues = [];
         let currentActiveItem = null;
@@ -332,14 +342,16 @@
         // 顶部栏滑动隐藏/显示
         let lastScrollTop = 0;
         const appBar = document.getElementById('appBar');
-        window.addEventListener('scroll', () => {
-            let st = window.pageYOffset || document.documentElement.scrollTop;
-            if (st > lastScrollTop && st > 60) appBar.classList.add('hide');
-            else if (st < lastScrollTop || st <= 10) appBar.classList.remove('hide');
-            lastScrollTop = st <= 0 ? 0 : st;
+        window.addEventListener('scroll', function() {
+            let scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            if (scrollTop > lastScrollTop && scrollTop > 60) {
+                appBar.classList.add('hide');
+            } else if (scrollTop < lastScrollTop || scrollTop <= 10) {
+                appBar.classList.remove('hide');
+            }
+            lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
         });
 
-        // 加载周刊目录
         async function loadWeeklyList() {
             const container = document.getElementById('weekly-list');
             try {
@@ -353,25 +365,20 @@
                 allIssues = issues;
                 container.innerHTML = issues.map(issue => `
                     <div class="weekly-item" data-url="${escapeHtml(issue.rawUrl)}" data-title="${escapeHtml(issue.title)}" data-issue="${issue.issue}">
-                        <div class="weekly-title">
-                            <div class="weekly-title-main">
-                                <span>${escapeHtml(issue.title)}</span>
-                            </div>
-                            ${issue.date ? `<div class="weekly-date">📅 ${escapeHtml(issue.date)}</div>` : ''}
-                        </div>
+                        <div class="weekly-title">${escapeHtml(issue.title)}</div>
                         <span class="material-symbols-outlined">chevron_right</span>
                     </div>
                 `).join('');
 
-                // 绑定点击事件
                 document.querySelectorAll('.weekly-item').forEach(el => {
                     el.addEventListener('click', (e) => {
                         e.preventDefault();
                         const issue = parseInt(el.dataset.issue);
                         const url = el.dataset.url;
                         const title = el.dataset.title;
+
                         if (currentActiveItem === el && currentIssueNumber === issue) {
-                            // 收起内容
+                            // 收起
                             document.getElementById('reader-content').innerHTML = '✨ 选择一期周刊 ✨';
                             if (currentActiveItem) currentActiveItem.classList.remove('active');
                             currentActiveItem = null;
@@ -380,7 +387,7 @@
                             newUrl.searchParams.delete('i');
                             window.history.pushState({}, '', newUrl);
                         } else {
-                            // 新选择
+                            // 加载新内容
                             if (currentActiveItem) currentActiveItem.classList.remove('active');
                             el.classList.add('active');
                             currentActiveItem = el;
@@ -393,7 +400,6 @@
                     });
                 });
 
-                // 处理 URL 参数跳转
                 const urlParams = new URLSearchParams(window.location.search);
                 const targetIssue = urlParams.get('i');
                 if (targetIssue) {
@@ -408,48 +414,17 @@
             }
         }
 
-        // 处理内部链接（往年回顾）的单页跳转
-        function handleInternalLink(event) {
-            const link = event.target.closest('a');
-            if (!link) return;
-            const href = link.getAttribute('href');
-            if (href && href.startsWith(BASE_PATH + '?i=')) {
-                event.preventDefault();
-                const urlParams = new URLSearchParams(href.split('?')[1]);
-                const issue = urlParams.get('i');
-                if (issue) {
-                    const newUrl = new URL(window.location.href);
-                    newUrl.searchParams.set('i', issue);
-                    window.history.pushState({}, '', newUrl);
-                    const targetItem = document.querySelector(`.weekly-item[data-issue="${issue}"]`);
-                    if (targetItem) {
-                        targetItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                        targetItem.click();
-                    } else {
-                        // 如果目录尚未加载对应项，可尝试重新加载列表（通常不会发生）
-                        console.warn('未找到期号', issue);
-                    }
-                }
-            }
-        }
-
-        // 加载文章内容
         async function loadContent(rawUrl, title) {
             const reader = document.getElementById('reader-content');
             reader.innerHTML = '<div class="loading">📖 加载中...</div>';
             try {
                 const res = await fetch(`${WORKER_URL}/api/content?url=${encodeURIComponent(rawUrl)}`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const markdown = await res.text();
+                let markdown = await res.text();
+                // 修正往年回顾链接为子目录路径
+                markdown = markdown.replace(/\/\?i=(\d+)/g, `${BASE_PATH}?i=$1`);
                 const html = marked.parse(markdown);
                 reader.innerHTML = `<div class="markdown-body">${html}</div>`;
-                // 重新绑定内部链接
-                reader.querySelectorAll('.markdown-body a').forEach(link => {
-                    const href = link.getAttribute('href');
-                    if (href && href.startsWith(BASE_PATH + '?i=')) {
-                        link.addEventListener('click', handleInternalLink);
-                    }
-                });
             } catch(e) {
                 reader.innerHTML = `<div class="error-state">❌ 加载失败: ${e.message}</div>`;
             }
@@ -457,10 +432,14 @@
 
         function escapeHtml(str) {
             if (!str) return '';
-            return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
         }
 
-        // 监听浏览器前进后退
         window.addEventListener('popstate', () => {
             const urlParams = new URLSearchParams(window.location.search);
             const targetIssue = urlParams.get('i');

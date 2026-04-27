@@ -16,7 +16,7 @@
 
         body {
             font-family: 'Roboto', sans-serif;
-            background-color: #f0f9f0;   /* 柔和底色 */
+            background-color: #f0f9f0;
             color: #1a2f2a;
             transition: background-color 0.2s;
             overflow-x: hidden;
@@ -42,14 +42,14 @@
             --md-sys-color-surface-tint: #007134;
         }
 
-        /* 深色模式适配 - 使用相同色系但降饱和度 */
+        /* 深色模式 */
         @media (prefers-color-scheme: dark) {
             :root {
                 --md-sys-color-primary: #75faaf;
                 --md-sys-color-on-primary: #00331a;
                 --md-sys-color-primary-container: #005528;
                 --md-sys-color-on-primary-container: #b3f0c2;
-                --md-sys-color-secondary: #75faaf;   /* 保持同色系 */
+                --md-sys-color-secondary: #75faaf;
                 --md-sys-color-on-secondary: #00331a;
                 --md-sys-color-secondary-container: #1d4d56;
                 --md-sys-color-on-secondary-container: #b8ecf8;
@@ -65,15 +65,23 @@
             }
         }
 
+        /* 顶部导航栏 - 支持滑动隐藏/显示 */
         .app-bar {
             background-color: var(--md-sys-color-surface);
             padding: 16px 24px;
-            position: sticky;
+            position: fixed;
             top: 0;
+            left: 0;
+            right: 0;
             backdrop-filter: blur(8px);
             border-bottom: 1px solid var(--md-sys-color-outline);
-            width: 100%;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08); /* 增强阴影 */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            transition: transform 0.3s ease;
+            z-index: 100;
+            transform: translateY(0);
+        }
+        .app-bar.hide {
+            transform: translateY(-100%);
         }
         .app-bar h1 {
             font-size: 1.5rem;
@@ -86,11 +94,13 @@
             margin-top: 4px;
         }
 
+        /* 内容容器需要留出顶部栏的空间 */
         .container {
             max-width: 1400px;
             margin: 0 auto;
             padding: 24px;
             width: 100%;
+            padding-top: 88px; /* 为固定的顶部栏留出空间 */
         }
 
         .dashboard {
@@ -106,9 +116,13 @@
             background: var(--md-sys-color-surface);
             border-radius: 28px;
             padding: 20px 16px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.12); /* 更明显的阴影 */
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
             transition: box-shadow 0.2s;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            /* 限制最大高度，使目录不延伸到页面底部（桌面版） */
+            max-height: calc(100vh - 140px);
         }
         .weekly-panel:hover {
             box-shadow: 0 12px 32px rgba(0,0,0,0.16);
@@ -121,6 +135,7 @@
             margin-bottom: 20px;
             border-bottom: 1px solid var(--md-sys-color-outline);
             padding-bottom: 12px;
+            flex-shrink: 0;
         }
         .panel-header h2 {
             font-size: 1.5rem;
@@ -132,9 +147,9 @@
             display: flex;
             flex-direction: column;
             gap: 8px;
-            max-height: 65vh;
             overflow-y: auto;
             padding-right: 6px;
+            flex-grow: 1;
         }
 
         /* 自定义滚动条 */
@@ -274,23 +289,29 @@
                 min-width: auto;
                 padding: 20px;
             }
-            .weekly-list {
-                max-height: 40vh;
+            .weekly-panel {
+                max-height: 45vh; /* 手机端适当减小目录高度 */
             }
             .selected-title {
                 font-size: 1.35rem;
             }
             .container {
                 padding: 16px;
+                padding-top: 80px;
             }
             .weekly-panel {
                 padding: 16px;
             }
         }
+
+        /* 平滑滚动（仅用于锚点，但点击时不会触发自动滚动） */
+        html {
+            scroll-behavior: smooth;
+        }
     </style>
 </head>
 <body>
-    <div class="app-bar">
+    <div class="app-bar" id="appBar">
         <h1>📖 科技爱好者周刊</h1>
         <div class="subhead">分享有趣的科技内容</div>
     </div>
@@ -298,7 +319,7 @@
     <div class="container">
         <div class="dashboard">
             <div class="weekly-panel">
-                <div class="panel-header"><h2>往期周刊</h2></div>
+                <div class="panel-header"><h2>目录</h2></div>
                 <div id="weekly-list" class="weekly-list">加载中...</div>
             </div>
             <div class="reader-panel">
@@ -317,6 +338,21 @@
         // 全局存储周刊数据
         let allIssues = [];
 
+        // 顶部栏滑动隐藏/显示逻辑
+        let lastScrollTop = 0;
+        const appBar = document.getElementById('appBar');
+        window.addEventListener('scroll', function() {
+            let scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            if (scrollTop > lastScrollTop && scrollTop > 60) {
+                // 向下滚动超过60px，隐藏顶部栏
+                appBar.classList.add('hide');
+            } else if (scrollTop < lastScrollTop || scrollTop <= 10) {
+                // 向上滚动或接近顶部，显示顶部栏
+                appBar.classList.remove('hide');
+            }
+            lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
+        });
+
         // 加载周刊列表
         async function loadWeeklyList() {
             const container = document.getElementById('weekly-list');
@@ -328,7 +364,7 @@
                     container.innerHTML = '<div class="error-state">暂无数据</div>';
                     return;
                 }
-                allIssues = issues; // 存储以供跳转使用
+                allIssues = issues;
                 container.innerHTML = issues.map(issue => `
                     <div class="weekly-item" data-url="${escapeHtml(issue.rawUrl)}" data-title="${escapeHtml(issue.title)}" data-issue="${issue.issue}">
                         <div class="weekly-title">${escapeHtml(issue.title)}</div>
@@ -336,19 +372,21 @@
                     </div>
                 `).join('');
 
-                // 绑定点击事件
+                // 绑定点击事件（点击时不会自动滚动页面）
                 document.querySelectorAll('.weekly-item').forEach(el => {
-                    el.addEventListener('click', () => {
+                    el.addEventListener('click', (e) => {
+                        e.preventDefault();
                         const url = el.dataset.url;
                         const title = el.dataset.title;
                         loadContent(url, title);
-                        // 更新URL参数（可选）
+                        // 更新URL参数
                         const issue = el.dataset.issue;
                         if (issue) {
                             const newUrl = new URL(window.location);
                             newUrl.searchParams.set('i', issue);
                             window.history.pushState({}, '', newUrl);
                         }
+                        // 不执行任何滚动操作
                     });
                 });
 
@@ -358,11 +396,9 @@
                 if (targetIssue) {
                     const targetItem = document.querySelector(`.weekly-item[data-issue="${targetIssue}"]`);
                     if (targetItem) {
-                        targetItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        // 滚动到该条目（但只滚动目录列表内部，不滚动整个页面）
+                        targetItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                         targetItem.click();
-                    } else {
-                        // 如果列表已加载但未找到期号（可能超出范围），尝试等待数据后再找？
-                        console.warn(`未找到期号 ${targetIssue}`);
                     }
                 }
             } catch(e) {
@@ -370,7 +406,7 @@
             }
         }
 
-        // 加载文章内容
+        // 加载文章内容（不触发页面滚动）
         async function loadContent(rawUrl, title) {
             const reader = document.getElementById('reader-content');
             reader.innerHTML = '<div class="loading">📖 加载中...</div>';
@@ -380,8 +416,7 @@
                 const markdown = await res.text();
                 const html = marked.parse(markdown);
                 reader.innerHTML = `<div class="selected-title">${escapeHtml(title)}</div><div class="markdown-body">${html}</div>`;
-                // 滚动到顶部
-                reader.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // 注意：这里不调用 scrollIntoView，页面不会滚动
             } catch(e) {
                 reader.innerHTML = `<div class="error-state">❌ 加载失败: ${e.message}</div>`;
             }
@@ -397,15 +432,17 @@
             });
         }
 
-        // 监听浏览器前进后退按钮，同步URL参数变化
+        // 监听浏览器前进后退按钮，同步URL参数变化（但不触发滚动）
         window.addEventListener('popstate', () => {
             const urlParams = new URLSearchParams(window.location.search);
             const targetIssue = urlParams.get('i');
             if (targetIssue && allIssues.length) {
                 const targetItem = document.querySelector(`.weekly-item[data-issue="${targetIssue}"]`);
-                if (targetItem) targetItem.click();
+                if (targetItem) {
+                    targetItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    targetItem.click();
+                }
             } else if (!targetIssue) {
-                // 清空阅读区
                 document.getElementById('reader-content').innerHTML = '✨ 选择一期周刊 ✨';
             }
         });

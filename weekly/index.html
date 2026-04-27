@@ -280,7 +280,7 @@
                 }
                 container.innerHTML = issues.map(issue => `
                     <div class="weekly-item" data-url="${escapeHtml(issue.rawUrl)}" data-title="${escapeHtml(issue.title)}">
-                        <div class="weekly-title">📄 ${escapeHtml(issue.title)}</div>
+                        <div class="weekly-title">${escapeHtml(issue.title)}</div>
                         <span class="material-symbols-outlined">chevron_right</span>
                     </div>
                 `).join('');

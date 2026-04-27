@@ -327,11 +327,17 @@
     </div>
 
     <script>
+        // ================= 配置 =================
+        // 如果你的网站部署在子目录下（例如 https://achtlv.ccwu.cc/weekly/），请设置 BASE_PATH = '/weekly/'
+        // 如果部署在根目录，则设置为空字符串 ''
+        const BASE_PATH = '/weekly/';
+        // Worker API 地址（与子目录无关，独立域名或路径）
         const WORKER_URL = 'https://wp.achtlv.ccwu.cc';
+        // =====================================
 
         let allIssues = [];
-        let currentActiveItem = null;      // 当前高亮的DOM元素
-        let currentIssueNumber = null;      // 当前选中的期号
+        let currentActiveItem = null;
+        let currentIssueNumber = null;
 
         // 顶部栏滑动隐藏/显示
         let lastScrollTop = 0;
@@ -373,35 +379,25 @@
                         const url = el.dataset.url;
                         const title = el.dataset.title;
 
-                        // 如果当前已经选中这一期，则收起内容，恢复样式，删除URL参数
                         if (currentActiveItem === el && currentIssueNumber === issue) {
                             // 收起内容
-                            const reader = document.getElementById('reader-content');
-                            reader.innerHTML = '✨ 选择一期周刊 ✨';
-                            // 移除高亮样式
-                            if (currentActiveItem) {
-                                currentActiveItem.classList.remove('active');
-                            }
+                            document.getElementById('reader-content').innerHTML = '✨ 选择一期周刊 ✨';
+                            if (currentActiveItem) currentActiveItem.classList.remove('active');
                             currentActiveItem = null;
                             currentIssueNumber = null;
-                            // 删除 URL 中的 ?i=xxx 参数
-                            const newUrl = new URL(window.location);
+                            // 删除 URL 中的参数，但保留子目录路径
+                            const newUrl = new URL(window.location.href);
                             newUrl.searchParams.delete('i');
                             window.history.pushState({}, '', newUrl);
                         } else {
-                            // 否则加载新内容
-                            // 移除之前的高亮
-                            if (currentActiveItem) {
-                                currentActiveItem.classList.remove('active');
-                            }
-                            // 添加当前高亮
+                            // 加载新内容
+                            if (currentActiveItem) currentActiveItem.classList.remove('active');
                             el.classList.add('active');
                             currentActiveItem = el;
                             currentIssueNumber = issue;
-                            // 加载内容
                             loadContent(url, title);
-                            // 更新 URL 参数
-                            const newUrl = new URL(window.location);
+                            // 更新 URL 参数，使用子目录前缀
+                            const newUrl = new URL(window.location.href);
                             newUrl.searchParams.set('i', issue);
                             window.history.pushState({}, '', newUrl);
                         }
@@ -423,16 +419,17 @@
             }
         }
 
-        // 加载文章内容
+        // 加载文章内容，并修复其中的站内链接为子目录路径
         async function loadContent(rawUrl, title) {
             const reader = document.getElementById('reader-content');
             reader.innerHTML = '<div class="loading">📖 加载中...</div>';
             try {
                 const res = await fetch(`${WORKER_URL}/api/content?url=${encodeURIComponent(rawUrl)}`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const markdown = await res.text();
+                let markdown = await res.text();
+                // 将 Worker 返回的 Markdown 中的站内链接 `/?i=数字` 替换为子目录路径
+                markdown = markdown.replace(/\/\?i=(\d+)/g, `${BASE_PATH}?i=$1`);
                 const html = marked.parse(markdown);
-                // 直接显示渲染后的内容（包含文章原始标题）
                 reader.innerHTML = `<div class="markdown-body">${html}</div>`;
             } catch(e) {
                 reader.innerHTML = `<div class="error-state">❌ 加载失败: ${e.message}</div>`;
@@ -456,28 +453,19 @@
             if (targetIssue && allIssues.length) {
                 const targetItem = document.querySelector(`.weekly-item[data-issue="${targetIssue}"]`);
                 if (targetItem) {
-                    // 先清除当前高亮
-                    if (currentActiveItem) {
-                        currentActiveItem.classList.remove('active');
-                    }
-                    // 触发点击（会内部设置高亮和内容）
+                    if (currentActiveItem) currentActiveItem.classList.remove('active');
                     targetItem.click();
                 } else {
-                    // 参数无效，回到主页状态
-                    if (currentActiveItem) {
-                        currentActiveItem.classList.remove('active');
-                        currentActiveItem = null;
-                        currentIssueNumber = null;
-                    }
+                    // 无效期号，清空状态
+                    if (currentActiveItem) currentActiveItem.classList.remove('active');
+                    currentActiveItem = null;
+                    currentIssueNumber = null;
                     document.getElementById('reader-content').innerHTML = '✨ 选择一期周刊 ✨';
                 }
             } else if (!targetIssue) {
-                // 没有参数，清空状态
-                if (currentActiveItem) {
-                    currentActiveItem.classList.remove('active');
-                    currentActiveItem = null;
-                    currentIssueNumber = null;
-                }
+                if (currentActiveItem) currentActiveItem.classList.remove('active');
+                currentActiveItem = null;
+                currentIssueNumber = null;
                 document.getElementById('reader-content').innerHTML = '✨ 选择一期周刊 ✨';
             }
         });

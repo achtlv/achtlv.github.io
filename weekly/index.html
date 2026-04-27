@@ -23,7 +23,6 @@
             width: 100%;
         }
 
-        /* 新配色系统 - 浅色 */
         :root {
             --md-sys-color-primary: #007134;
             --md-sys-color-on-primary: #ffffff;
@@ -42,7 +41,6 @@
             --md-sys-color-surface-tint: #007134;
         }
 
-        /* 深色模式 */
         @media (prefers-color-scheme: dark) {
             :root {
                 --md-sys-color-primary: #75faaf;
@@ -65,7 +63,6 @@
             }
         }
 
-        /* 顶部导航栏 - 支持滑动隐藏/显示 */
         .app-bar {
             background-color: var(--md-sys-color-surface);
             padding: 16px 24px;
@@ -94,13 +91,18 @@
             margin-top: 4px;
         }
 
-        /* 内容容器需要留出顶部栏的空间 */
         .container {
             max-width: 1400px;
             margin: 0 auto;
             padding: 24px;
             width: 100%;
-            padding-top: 88px; /* 为固定的顶部栏留出空间 */
+            padding-top: 100px; /* 增加顶部留白，避免被固定栏遮挡 */
+        }
+
+        @media (max-width: 780px) {
+            .container {
+                padding-top: 90px;
+            }
         }
 
         .dashboard {
@@ -121,7 +123,6 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            /* 限制最大高度，使目录不延伸到页面底部（桌面版） */
             max-height: calc(100vh - 140px);
         }
         .weekly-panel:hover {
@@ -152,7 +153,6 @@
             flex-grow: 1;
         }
 
-        /* 自定义滚动条 */
         .weekly-list::-webkit-scrollbar {
             width: 6px;
         }
@@ -205,7 +205,6 @@
             box-shadow: 0 12px 32px rgba(0,0,0,0.16);
         }
 
-        /* Markdown 内容样式 */
         .markdown-body {
             line-height: 1.6;
             color: inherit;
@@ -280,7 +279,6 @@
             text-decoration: underline;
         }
 
-        /* 移动端适应 */
         @media (max-width: 780px) {
             .dashboard {
                 flex-direction: column;
@@ -290,21 +288,20 @@
                 padding: 20px;
             }
             .weekly-panel {
-                max-height: 45vh; /* 手机端适当减小目录高度 */
+                max-height: 45vh;
             }
             .selected-title {
                 font-size: 1.35rem;
             }
             .container {
                 padding: 16px;
-                padding-top: 80px;
+                padding-top: 90px;
             }
             .weekly-panel {
                 padding: 16px;
             }
         }
 
-        /* 平滑滚动（仅用于锚点，但点击时不会触发自动滚动） */
         html {
             scroll-behavior: smooth;
         }
@@ -335,25 +332,20 @@
     <script>
         const WORKER_URL = 'https://wp.achtlv.ccwu.cc';
 
-        // 全局存储周刊数据
         let allIssues = [];
 
-        // 顶部栏滑动隐藏/显示逻辑
         let lastScrollTop = 0;
         const appBar = document.getElementById('appBar');
         window.addEventListener('scroll', function() {
             let scrollTop = window.pageYOffset || document.documentElement.scrollTop;
             if (scrollTop > lastScrollTop && scrollTop > 60) {
-                // 向下滚动超过60px，隐藏顶部栏
                 appBar.classList.add('hide');
             } else if (scrollTop < lastScrollTop || scrollTop <= 10) {
-                // 向上滚动或接近顶部，显示顶部栏
                 appBar.classList.remove('hide');
             }
             lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
         });
 
-        // 加载周刊列表
         async function loadWeeklyList() {
             const container = document.getElementById('weekly-list');
             try {
@@ -372,31 +364,26 @@
                     </div>
                 `).join('');
 
-                // 绑定点击事件（点击时不会自动滚动页面）
                 document.querySelectorAll('.weekly-item').forEach(el => {
                     el.addEventListener('click', (e) => {
                         e.preventDefault();
                         const url = el.dataset.url;
                         const title = el.dataset.title;
                         loadContent(url, title);
-                        // 更新URL参数
                         const issue = el.dataset.issue;
                         if (issue) {
                             const newUrl = new URL(window.location);
                             newUrl.searchParams.set('i', issue);
                             window.history.pushState({}, '', newUrl);
                         }
-                        // 不执行任何滚动操作
                     });
                 });
 
-                // 处理 URL 参数 ?i=xxx
                 const urlParams = new URLSearchParams(window.location.search);
                 const targetIssue = urlParams.get('i');
                 if (targetIssue) {
                     const targetItem = document.querySelector(`.weekly-item[data-issue="${targetIssue}"]`);
                     if (targetItem) {
-                        // 滚动到该条目（但只滚动目录列表内部，不滚动整个页面）
                         targetItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                         targetItem.click();
                     }
@@ -406,7 +393,6 @@
             }
         }
 
-        // 加载文章内容（不触发页面滚动）
         async function loadContent(rawUrl, title) {
             const reader = document.getElementById('reader-content');
             reader.innerHTML = '<div class="loading">📖 加载中...</div>';
@@ -416,7 +402,6 @@
                 const markdown = await res.text();
                 const html = marked.parse(markdown);
                 reader.innerHTML = `<div class="selected-title">${escapeHtml(title)}</div><div class="markdown-body">${html}</div>`;
-                // 注意：这里不调用 scrollIntoView，页面不会滚动
             } catch(e) {
                 reader.innerHTML = `<div class="error-state">❌ 加载失败: ${e.message}</div>`;
             }
@@ -432,7 +417,6 @@
             });
         }
 
-        // 监听浏览器前进后退按钮，同步URL参数变化（但不触发滚动）
         window.addEventListener('popstate', () => {
             const urlParams = new URLSearchParams(window.location.search);
             const targetIssue = urlParams.get('i');

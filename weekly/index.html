@@ -149,8 +149,10 @@
             flex-direction: column;
             gap: 8px;
             overflow-y: auto;
-            padding-right: 6px;
             flex-grow: 1;
+            /* 移除左右内边距，避免与 item 的 margin 叠加 */
+            padding-left: 0;
+            padding-right: 0;
         }
 
         .weekly-list::-webkit-scrollbar {
@@ -165,11 +167,13 @@
             border-radius: 10px;
         }
 
+        /* 为缩放预留空间：添加左右 margin，使放大时不会被父容器裁剪 */
         .weekly-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 12px 16px;
+            margin: 0 4px;          /* 左右各 4px 空隙，缩放时不会碰到边缘 */
             background: var(--md-sys-color-surface-variant);
             border-radius: 28px;
             cursor: pointer;
@@ -327,13 +331,9 @@
     </div>
 
     <script>
-        // ================= 配置 =================
-        // 如果你的网站部署在子目录下（例如 https://achtlv.ccwu.cc/weekly/），请设置 BASE_PATH = '/weekly/'
-        // 如果部署在根目录，则设置为空字符串 ''
+        // 配置：网站部署在子目录 /weekly/ 下
         const BASE_PATH = '/weekly/';
-        // Worker API 地址（与子目录无关，独立域名或路径）
         const WORKER_URL = 'https://wp.achtlv.ccwu.cc';
-        // =====================================
 
         let allIssues = [];
         let currentActiveItem = null;
@@ -352,7 +352,6 @@
             lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
         });
 
-        // 加载周刊列表
         async function loadWeeklyList() {
             const container = document.getElementById('weekly-list');
             try {
@@ -371,7 +370,6 @@
                     </div>
                 `).join('');
 
-                // 绑定点击事件（支持重复点击同一项收起）
                 document.querySelectorAll('.weekly-item').forEach(el => {
                     el.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -380,12 +378,11 @@
                         const title = el.dataset.title;
 
                         if (currentActiveItem === el && currentIssueNumber === issue) {
-                            // 收起内容
+                            // 收起
                             document.getElementById('reader-content').innerHTML = '✨ 选择一期周刊 ✨';
                             if (currentActiveItem) currentActiveItem.classList.remove('active');
                             currentActiveItem = null;
                             currentIssueNumber = null;
-                            // 删除 URL 中的参数，但保留子目录路径
                             const newUrl = new URL(window.location.href);
                             newUrl.searchParams.delete('i');
                             window.history.pushState({}, '', newUrl);
@@ -396,7 +393,6 @@
                             currentActiveItem = el;
                             currentIssueNumber = issue;
                             loadContent(url, title);
-                            // 更新 URL 参数，使用子目录前缀
                             const newUrl = new URL(window.location.href);
                             newUrl.searchParams.set('i', issue);
                             window.history.pushState({}, '', newUrl);
@@ -404,7 +400,6 @@
                     });
                 });
 
-                // 处理 URL 参数 ?i=xxx（自动打开对应期刊）
                 const urlParams = new URLSearchParams(window.location.search);
                 const targetIssue = urlParams.get('i');
                 if (targetIssue) {
@@ -419,7 +414,6 @@
             }
         }
 
-        // 加载文章内容，并修复其中的站内链接为子目录路径
         async function loadContent(rawUrl, title) {
             const reader = document.getElementById('reader-content');
             reader.innerHTML = '<div class="loading">📖 加载中...</div>';
@@ -427,7 +421,7 @@
                 const res = await fetch(`${WORKER_URL}/api/content?url=${encodeURIComponent(rawUrl)}`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 let markdown = await res.text();
-                // 将 Worker 返回的 Markdown 中的站内链接 `/?i=数字` 替换为子目录路径
+                // 修正往年回顾链接为子目录路径
                 markdown = markdown.replace(/\/\?i=(\d+)/g, `${BASE_PATH}?i=$1`);
                 const html = marked.parse(markdown);
                 reader.innerHTML = `<div class="markdown-body">${html}</div>`;
@@ -446,7 +440,6 @@
             });
         }
 
-        // 监听浏览器前进后退，同步高亮和内容
         window.addEventListener('popstate', () => {
             const urlParams = new URLSearchParams(window.location.search);
             const targetIssue = urlParams.get('i');
@@ -456,7 +449,6 @@
                     if (currentActiveItem) currentActiveItem.classList.remove('active');
                     targetItem.click();
                 } else {
-                    // 无效期号，清空状态
                     if (currentActiveItem) currentActiveItem.classList.remove('active');
                     currentActiveItem = null;
                     currentIssueNumber = null;

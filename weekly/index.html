@@ -96,12 +96,13 @@
             margin: 0 auto;
             padding: 24px;
             width: 100%;
-            padding-top: 100px; /* 增加顶部留白，避免被固定栏遮挡 */
+            padding-top: 100px; /* 桌面版足够 */
         }
 
+        /* 移动端单独增加顶部留白 */
         @media (max-width: 780px) {
             .container {
-                padding-top: 90px;
+                padding-top: 110px; /* 增大移动端留白，避免遮挡 */
             }
         }
 
@@ -120,7 +121,7 @@
             padding: 20px 16px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.12);
             transition: box-shadow 0.2s;
-            overflow: hidden;
+            overflow: visible; /* 避免裁剪 hover 效果 */
             display: flex;
             flex-direction: column;
             max-height: calc(100vh - 140px);
@@ -173,14 +174,14 @@
             background: var(--md-sys-color-surface-variant);
             border-radius: 28px;
             cursor: pointer;
-            transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
+            transition: background-color 0.2s, box-shadow 0.2s;
             word-break: break-word;
+            /* 移除 transform 避免被裁剪 */
         }
         .weekly-item:hover {
             background-color: var(--md-sys-color-primary-container);
             color: var(--md-sys-color-on-primary-container);
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            transform: scale(1.01);
         }
         .weekly-title {
             display: flex;
@@ -205,6 +206,7 @@
             box-shadow: 0 12px 32px rgba(0,0,0,0.16);
         }
 
+        /* Markdown 内容样式 */
         .markdown-body {
             line-height: 1.6;
             color: inherit;
@@ -252,15 +254,6 @@
             padding: 48px 20px;
             color: var(--md-sys-color-on-surface-variant);
         }
-        .selected-title {
-            font-size: 1.75rem;
-            font-weight: 500;
-            margin-bottom: 24px;
-            color: var(--md-sys-color-primary);
-            border-left: 4px solid var(--md-sys-color-primary);
-            padding-left: 20px;
-            word-break: break-word;
-        }
 
         footer {
             text-align: center;
@@ -290,12 +283,9 @@
             .weekly-panel {
                 max-height: 45vh;
             }
-            .selected-title {
-                font-size: 1.35rem;
-            }
             .container {
                 padding: 16px;
-                padding-top: 90px;
+                padding-top: 110px; /* 加大移动端间距 */
             }
             .weekly-panel {
                 padding: 16px;
@@ -393,6 +383,7 @@
             }
         }
 
+        // 修改：不再额外添加标题，直接渲染 Markdown 内容（保留原文章标题）
         async function loadContent(rawUrl, title) {
             const reader = document.getElementById('reader-content');
             reader.innerHTML = '<div class="loading">📖 加载中...</div>';
@@ -401,7 +392,8 @@
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const markdown = await res.text();
                 const html = marked.parse(markdown);
-                reader.innerHTML = `<div class="selected-title">${escapeHtml(title)}</div><div class="markdown-body">${html}</div>`;
+                // 不再显示 .selected-title，只显示渲染后的正文（包含原标题）
+                reader.innerHTML = `<div class="markdown-body">${html}</div>`;
             } catch(e) {
                 reader.innerHTML = `<div class="error-state">❌ 加载失败: ${e.message}</div>`;
             }

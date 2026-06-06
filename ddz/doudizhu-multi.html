@@ -8,24 +8,24 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&amp;display=swap');
-        body { font-family: 'Noto Sans SC'， system-ui, sans-serif; }
-        。game-bg { background: linear-gradient(135deg， #166534 0%, #14532d 100%); }
-        。card {
+        body { font-family: 'Noto Sans SC', system-ui, sans-serif; }
+        .game-bg { background: linear-gradient(135deg, #166534 0%, #14532d 100%); }
+        .card {
             width: 52px; height: 72px; background: white; border: 2px solid #334155;
             border-radius: 8px; box-shadow: 3px 4px 8px rgba(0,0,0,0.3);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             font-weight: 700; transition: all 0.2s cubic-bezier(0.4,0,0.2,1); position: relative;
         }
-        。card:hover { transform: translateY(-4px); box-shadow: 4px 6px 12px rgba(0,0,0,0.4); }
-        。card.selected { border-color: #eab308; box-shadow: 0 0 0 4px rgba(234,179,8,0.5); transform: translateY(-6px) scale(1.05); }
-        。card-back {
-            background: linear-gradient(145deg， #1e40af, #3b82f6);
+        .card:hover { transform: translateY(-4px); box-shadow: 4px 6px 12px rgba(0,0,0,0.4); }
+        .card.selected { border-color: #eab308; box-shadow: 0 0 0 4px rgba(234,179,8,0.5); transform: translateY(-6px) scale(1.05); }
+        .card-back {
+            background: linear-gradient(145deg, #1e40af, #3b82f6);
             border: 2px solid #1e3a8a; box-shadow: 2px 3px 6px rgba(0,0,0,0.3);
         }
-        。poker-table { background: radial-gradient(circle at center, #166534 0%, #14532d 70%); }
-        。player-area { transition: all 0.3s ease; }
-        。player-active { box-shadow: 0 0 0 4px rgba(234,179,8,0.6); border-radius: 12px; }
-        。joker-card { background: linear-gradient(145deg， #f8fafc, #e0e7ff); border-color: #64748b; }
+        .poker-table { background: radial-gradient(circle at center, #166534 0%, #14532d 70%); }
+        .player-area { transition: all 0.3s ease; }
+        .player-active { box-shadow: 0 0 0 4px rgba(234,179,8,0.6); border-radius: 12px; }
+        .joker-card { background: linear-gradient(145deg, #f8fafc, #e0e7ff); border-color: #64748b; }
     </style>
 </head>
 <body class="bg-zinc-950 text-white">
@@ -236,7 +236,7 @@
     <script>
         // ================== CONFIG ==================
         // ⚠️ 请把下面改成你部署的 Cloudflare Worker 地址
-        const WORKER_URL = 'https://doudizhu-multi.your-subdomain.workers.dev';
+        const WORKER_URL = 'https://ddz.achtlv.workers.dev';
         
         let currentRoomId = null;
         let currentPlayerId = null;

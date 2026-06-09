@@ -166,16 +166,6 @@
         opacity: 0.85;
       }
     }
-
-    /* 桌面端：自适应居中排列（flex + justify-center，不固定列数，可自动换行） */
-    @media (min-width: 600px) {
-      .links {
-        display: flex;
-        justify-content: center;
-        flex-wrap: wrap;
-        gap: 16px;
-      }
-    }
   </style>
 </head>
 <body>
@@ -191,7 +181,7 @@
 
     <div class="links">
       <!-- 点击复制 -->
-      <div class="link-card" onclick="copyToClipboard('GanZhou@outlook.SG', '邮箱已复制到剪贴板！')">
+      <div class="link-card" onclick="copyToClipboard('Ganzhou@outlook.sg', '邮箱已复制到剪贴板！')">
         <span class="material-icons link-icon">mail</span>
         <span class="link-name">邮箱</span>
         <span class="link-username">Ganzhou@outlook.sg</span>

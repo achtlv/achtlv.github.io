@@ -134,6 +134,48 @@
     .copy-toast.show {
       opacity: 1;
     }
+
+    /* 深色模式：背景黑 + 文字/图标白（自动跟随浏览器主题） */
+    @media (prefers-color-scheme: dark) {
+      body {
+        background-color: #000000;
+      }
+      .card {
+        background: #000000;
+        color: #ffffff;
+      }
+      .bio,
+      .nickname {
+        color: #ffffff;
+      }
+      .link-card {
+        background: #1f1f1f;
+        color: #ffffff;
+      }
+      .link-icon {
+        color: #ffffff;
+      }
+      .link-card:hover {
+        background: #333333;
+        color: #ffffff;
+      }
+      .link-card:hover .link-icon {
+        color: #ffffff;
+      }
+      .link-username {
+        opacity: 0.85;
+      }
+    }
+
+    /* 桌面端：自适应居中排列（flex + justify-center，不固定列数，可自动换行） */
+    @media (min-width: 600px) {
+      .links {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 16px;
+      }
+    }
   </style>
 </head>
 <body>

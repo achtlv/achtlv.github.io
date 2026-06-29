@@ -24,6 +24,6 @@ gr.achtlv.ccwu.cc/<作者>/<仓库>/<选择器>
  - gr.achtlv.ccwu.cc/MetaCubeX/ClashMetaForAndroid/1/
  - gr.achtlv.ccwu.cc/MetaCubeX/ClashMetaForAndroid/apk/
 
-#### 许可证
+#### 开源许可&源码
 
-AGPL-3.0
+[AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.txt) & [源码](https://v6.gh-proxy.org/https://raw.githubusercontent.com/achtlv/achtlv.github.io/refs/heads/main/gr/worker.js)

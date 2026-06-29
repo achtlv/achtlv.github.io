@@ -13,7 +13,7 @@ export default {
       );
     }
 
-    // 2. 解析路径：/作者/仓库/[选择器]
+    // 2. 解析路径：/<作者>/<仓库>/[选择器]
     const parts = url.pathname.split('/').filter(p => p.length > 0);
 
     if (parts.length < 2) {
@@ -58,7 +58,7 @@ export default {
         return new Response('该 release 没有 assets', { status: 404 });
       }
 
-      // 5. 根据选择器匹配资产
+      // 5. 根据选择器匹配Assets
       let targetUrl = null;
       const isNumeric = /^\d+$/.test(selector);
 
@@ -69,7 +69,7 @@ export default {
           return new Response('索引必须为正整数', { status: 400 });
         }
         if (index > assets.length) {
-          return new Response(`索引 ${index} 超出范围，共 ${assets.length} 个资产`, { status: 404 });
+          return new Response(`索引 ${index} 超出范围，共 ${assets.length} 个Assets`, { status: 404 });
         }
         targetUrl = assets[index - 1];
       } else {
@@ -80,7 +80,7 @@ export default {
           return fileName.includes(keyword);
         });
         if (!matched) {
-          return new Response(`未找到文件名包含 "${selector}" 的assets`, { status: 404 });
+          return new Response(`未找到文件名包含 "${selector}" 的Assets`, { status: 404 });
         }
         targetUrl = matched;
       }

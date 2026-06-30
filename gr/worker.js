@@ -13,7 +13,7 @@ export default {
       );
     }
 
-    // 2. 解析路径：/<作者>/<仓库>/[选择器]
+    // 2. 解析路径：/作者/仓库/[选择器]
     const parts = url.pathname.split('/').filter(p => p.length > 0);
 
     if (parts.length < 2) {
@@ -27,11 +27,11 @@ export default {
     // 3. 验证 GitHub Token
     const GITHUB_TOKEN = env.GITHUB_TOKEN;
     if (!GITHUB_TOKEN) {
-      return new Response('服务器未配置 GitHub Token', { status: 500 });
+      return new Response('服务器未配置GitHub Token', { status: 500 });
     }
 
     try {
-      // 4. 调用 GitHub API 获取最新 Release
+      // 4. 调用GitHub API获取最新Release
       const apiUrl = `https://api.github.com/repos/${owner}/${repo}/releases/latest`;
       const response = await fetch(apiUrl, {
         headers: {
@@ -43,19 +43,19 @@ export default {
 
       if (!response.ok) {
         if (response.status === 401) {
-          return new Response('GitHub Token 无效或已过期', { status: 500 });
+          return new Response('GitHub Token无效或已过期', { status: 500 });
         }
         if (response.status === 403) {
-          return new Response('API 速率限制已达上限', { status: 429 });
+          return new Response('API速率限制已达上限', { status: 429 });
         }
-        return new Response(`GitHub API 错误：${response.status}`, { status: 502 });
+        return new Response(`GitHub API错误：${response.status}`, { status: 502 });
       }
 
       const data = await response.json();
       const assets = data.assets.map(asset => asset.browser_download_url);
 
       if (assets.length === 0) {
-        return new Response('该 release 没有 assets', { status: 404 });
+        return new Response('该Release没有Assets', { status: 404 });
       }
 
       // 5. 根据选择器匹配Assets

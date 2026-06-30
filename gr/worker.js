@@ -1,4 +1,4 @@
-// GitHub Release 加速下载 Worker
+// GitHub Latest Release Assets下载加速
 // 许可证: AGPL-3.0
 
 export default {

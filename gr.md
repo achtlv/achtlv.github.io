@@ -20,6 +20,8 @@ gr.achtlv.ccwu.cc/关键词/
 ```
  - 在GitHub内使用关键词（区分大小写）搜索仓库，提取搜索结果中第1个仓库的最新release（不包括预发布）的第1个assets
 
+**2段路径**
+
 ```
 gr.achtlv.ccwu.cc/关键词/选择器/
 ```
@@ -28,11 +30,15 @@ gr.achtlv.ccwu.cc/关键词/选择器/
  - 选择器作为数字：提取列表里从上到下第n个assets（从1开始）
  - 选择器作为关键词：提取第1个文件名包含该词（区分大小写）的assets
 
+**3段路径**
+
 ```
 gr.achtlv.ccwu.cc/作者/仓库/选择器/
 ```
  - 提取GitHub上对应作者对应仓库的最新release的assets列表
  - 选择器功能同上
+
+**4段路径**
 
 ```
 gr.achtlv.ccwu.cc/作者/仓库/release tag/选择器/

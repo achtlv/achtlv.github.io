@@ -64,7 +64,7 @@ export default {
 
       // 根据选择器匹配
       const targetUrl = selectAsset(assets, selector);
-      const proxyUrl = `https://d.achtlv.ccwu.cc/${targetUrl}`;
+      const proxyUrl = `https://d.ach.us.ci/${targetUrl}`;
       return Response.redirect(proxyUrl, 302);
 
     } catch (err) {

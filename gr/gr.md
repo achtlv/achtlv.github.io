@@ -1,6 +1,6 @@
 ### GitHub Release Assets 加速
 
-**作者**：[achtlv](https://ach.us.ci/c/)
+**作者**：[achtlv](https://xn--ihqt08e.xn--0iv.gay/c/)
 
 基于Cloudflare Workers，快速获取指定的GitHub Release Assets并重定向至加速链接。
 

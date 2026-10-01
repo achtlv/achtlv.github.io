@@ -12,7 +12,7 @@ export default {
     // 1. 根路径重定向到 README
     if (url.pathname === '/') {
       return Response.redirect(
-        'https://markdownreader.mutantcat.org/?url=https://v6.gh-proxy.org/https://raw.githubusercontent.com/achtlv/achtlv.github.io/main/gr.md',
+        'https://markdownreader.mutantcat.org/?url=https://v6.gh-proxy.org/https://raw.githubusercontent.com/achtlv/achtlv.github.io/main/gr/gr.md',
         302
       );
     }
@@ -64,7 +64,7 @@ export default {
 
       // 根据选择器匹配
       const targetUrl = selectAsset(assets, selector);
-      const proxyUrl = `https://d.ach.us.ci/${targetUrl}`;
+      const proxyUrl = `https://v6.gh-proxy.org/${targetUrl}`;
       return Response.redirect(proxyUrl, 302);
 
     } catch (err) {

@@ -18,6 +18,25 @@ export default {
     }
 
     const parts = url.pathname.split('/').filter(p => p.length > 0);
+
+    // ★ 新增：如果最后一段以 '*' 结尾，则启用预发行版，并去掉该 '*'
+    let includePrerelease = false;
+    if (parts.length > 0) {
+      const last = parts[parts.length - 1];
+      if (last.endsWith('*')) {
+        includePrerelease = true;
+        const stripped = last.slice(0, -1);
+        if (stripped === '') {
+          parts.pop();
+        } else {
+          parts[parts.length - 1] = stripped;
+        }
+      }
+    }
+
+    if (parts.length === 0) {
+      return new Response('路径不能为空', { status: 400 });
+    }
     if (parts.length > 4) {
       return new Response('最多支持 4 段路径', { status: 400 });
     }
@@ -57,7 +76,7 @@ export default {
       }
 
       // 获取 assets 列表
-      const assets = await getReleaseAssets(owner, repo, releaseTag, GITHUB_TOKEN);
+      const assets = await getReleaseAssets(owner, repo, releaseTag, GITHUB_TOKEN, includePrerelease);
       if (assets.length === 0) {
         return new Response('该 release 没有 assets', { status: 404 });
       }
@@ -102,14 +121,25 @@ async function searchRepo(keyword, token) {
   return { owner, repo };
 }
 
-// 获取指定 release 的 assets 列表（releaseTag 可为 'latest' 或具体标签）
-async function getReleaseAssets(owner, repo, releaseTag, token) {
+// 获取指定 release 的 assets 列表
+// releaseTag 为 'latest' 或具体标签
+// includePrerelease 为 true 时，'latest' 会取包含预发布版的最新 release
+async function getReleaseAssets(owner, repo, releaseTag, token, includePrerelease = false) {
   let apiUrl;
+  let isListMode = false;
+
   if (releaseTag === 'latest') {
-    apiUrl = `https://api.github.com/repos/${owner}/${repo}/releases/latest`;
+    if (includePrerelease) {
+      // 列出全部 releases，取第一个（按创建时间倒序，即最新，含预发布版）
+      apiUrl = `https://api.github.com/repos/${owner}/${repo}/releases`;
+      isListMode = true;
+    } else {
+      apiUrl = `https://api.github.com/repos/${owner}/${repo}/releases/latest`;
+    }
   } else {
     apiUrl = `https://api.github.com/repos/${owner}/${repo}/releases/tags/${encodeURIComponent(releaseTag)}`;
   }
+
   const response = await fetch(apiUrl, {
     headers: {
       'User-Agent': 'Cloudflare-Worker',
@@ -123,12 +153,25 @@ async function getReleaseAssets(owner, repo, releaseTag, token) {
     throw err;
   }
   const data = await response.json();
-  if (!data.assets || data.assets.length === 0) {
+
+  let release;
+  if (isListMode) {
+    if (!Array.isArray(data) || data.length === 0) {
+      const err = new Error('该仓库没有任何 release');
+      err.status = 404;
+      throw err;
+    }
+    release = data[0];
+  } else {
+    release = data;
+  }
+
+  if (!release.assets || release.assets.length === 0) {
     const err = new Error('该 release 没有 assets');
     err.status = 404;
     throw err;
   }
-  return data.assets.map(asset => asset.browser_download_url);
+  return release.assets.map(asset => asset.browser_download_url);
 }
 
 // 根据选择器（数字或关键词）从 assets 中匹配一个 URL

@@ -5,72 +5,77 @@
   <title>Redirecting...</title>
   <script>
     (function () {
-      var path = window.location.pathname;
-      var search = window.location.search;
-      var hash = window.location.hash;
+      // ★ 通过 gh-proxy 获取 domain.txt，避免直连 GitHub
+      var DOMAIN_URL = 'https://v6.gh-proxy.org/https://raw.githubusercontent.com/achtlv/achtlv/main/domain.txt';
 
-      // 具体路由表
-      var routes = {
-        '/l':  { base: 'https://l.achtlv.kdns.fr',  keepPrefix: true  },
-        '/gr': { base: 'https://gr.achtlv.kdns.fr', keepPrefix: false },
-        '/p':  { base: 'https://p.achtlv.kdns.fr',  keepPrefix: false },
-        '/d':  { base: 'https://d.achtlv.kdns.fr',  keepPrefix: false }
-      };
+      function doRedirect(baseDomain) {
+        var path = window.location.pathname;
+        var search = window.location.search;
+        var hash = window.location.hash;
 
-      // 按前缀长度降序匹配
-      var prefixes = Object.keys(routes).sort(function (a, b) {
-        return b.length - a.length;
-      });
+        var routes = {
+          '/l':  { sub: 'l',  keepPrefix: true  },
+          '/gr': { sub: 'gr', keepPrefix: false },
+          '/p':  { sub: 'p',  keepPrefix: false },
+          '/d':  { sub: 'd',  keepPrefix: false }
+        };
 
-      for (var i = 0; i < prefixes.length; i++) {
-        var prefix = prefixes[i];
-        var regex = new RegExp('^' + prefix + '(?:\\/(.*))?$');
-        var match = path.match(regex);
+        var prefixes = Object.keys(routes).sort(function (a, b) {
+          return b.length - a.length;
+        });
 
-        if (match) {
-          var rest = match[1];
-          var route = routes[prefix];
-          var target;
+        for (var i = 0; i < prefixes.length; i++) {
+          var prefix = prefixes[i];
+          var regex = new RegExp('^' + prefix + '(?:\\/(.*))?$');
+          var match = path.match(regex);
 
-          if (prefix === '/l') {
-            // /l 特殊：/l -> /l，/l/xxx -> /xxx
-            if (!rest) {
-              target = route.base + '/l';
+          if (match) {
+            var rest = match[1];
+            var route = routes[prefix];
+            var target = 'https://' + route.sub + '.' + baseDomain;
+
+            if (prefix === '/l') {
+              target += (!rest) ? '/l' : '/' + rest;
             } else {
-              target = route.base + '/' + rest;
+              target += (!rest) ? '/' : '/' + rest;
             }
-          } else {
-            // /gr、/p、/d：去掉前缀，拼接到目标根
-            if (!rest) {
-              target = route.base + '/';
-            } else {
-              target = route.base + '/' + rest;
-            }
+
+            target += search + hash;
+            window.location.replace(target);
+            return true;
           }
+        }
 
+        var starMatch = path.match(/^\/(?:\*|%2A)(?:\/(.*))?$/i);
+        if (starMatch) {
+          var rest = starMatch[1];
+          var target = 'https://l.' + baseDomain + (rest ? '/' + rest : '/');
           target += search + hash;
           window.location.replace(target);
-          return;
+          return true;
         }
+
+        return false;
       }
 
-      // 第一段为字面 * 的情况（支持 * 和 %2A 两种写法）
-      var starMatch = path.match(/^\/(?:\*|%2A)(?:\/(.*))?$/i);
-      if (starMatch) {
-        var rest = starMatch[1]; // undefined 或字符串
-        var target;
-        if (!rest) {
-          target = 'https://l.achtlv.kdns.fr/';
-        } else {
-          target = 'https://l.achtlv.kdns.fr/' + rest;
-        }
-        target += search + hash;
-        window.location.replace(target);
-        return;
-      }
-
-      // 其他情况：显示 404
-      document.body.textContent = "404 Not Found";
+      fetch(DOMAIN_URL, { cache: 'no-store' })
+        .then(function (res) {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.text();
+        })
+        .then(function (text) {
+          var domain = (text.split(/\r?\n/)[0] || '').trim();
+          if (!domain) {
+            document.body.textContent = '404 Not Found (domain.txt is empty)';
+            return;
+          }
+          if (!doRedirect(domain)) {
+            document.body.textContent = '404 Not Found';
+          }
+        })
+        .catch(function (err) {
+          document.body.textContent = '404 Not Found (failed to load domain.txt: ' + err.message + ')';
+        });
     })();
   </script>
 </head>

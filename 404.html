@@ -8,20 +8,69 @@
       var path = window.location.pathname;
       var search = window.location.search;
       var hash = window.location.hash;
-      var base = "https://l.achtlv.kdns.fr";
 
-      var match = path.match(/^\/l(?:\/(.*))?$/);
+      // 具体路由表
+      var routes = {
+        '/l':  { base: 'https://l.achtlv.kdns.fr',  keepPrefix: true  },
+        '/gr': { base: 'https://gr.achtlv.kdns.fr', keepPrefix: false },
+        '/p':  { base: 'https://p.achtlv.kdns.fr',  keepPrefix: false },
+        '/d':  { base: 'https://d.achtlv.kdns.fr',  keepPrefix: false }
+      };
 
-      if (match) {
-        var rest = match[1];
-        if (!rest) {
-          window.location.replace(base + "/l" + search + hash);
-        } else {
-          window.location.replace(base + "/" + rest + search + hash);
+      // 按前缀长度降序匹配
+      var prefixes = Object.keys(routes).sort(function (a, b) {
+        return b.length - a.length;
+      });
+
+      for (var i = 0; i < prefixes.length; i++) {
+        var prefix = prefixes[i];
+        var regex = new RegExp('^' + prefix + '(?:\\/(.*))?$');
+        var match = path.match(regex);
+
+        if (match) {
+          var rest = match[1];
+          var route = routes[prefix];
+          var target;
+
+          if (prefix === '/l') {
+            // /l 特殊：/l -> /l，/l/xxx -> /xxx
+            if (!rest) {
+              target = route.base + '/l';
+            } else {
+              target = route.base + '/' + rest;
+            }
+          } else {
+            // /gr、/p、/d：去掉前缀，拼接到目标根
+            if (!rest) {
+              target = route.base + '/';
+            } else {
+              target = route.base + '/' + rest;
+            }
+          }
+
+          target += search + hash;
+          window.location.replace(target);
+          return;
         }
-      } else {
-        document.body.textContent = "404 Not Found";
       }
+
+      // 第一段为字面 * 的情况（支持 * 和 %2A 两种写法）
+      var starMatch = path.match(/^\/(?:\*|%2A)(?:\/(.*))?$/i);
+      if (starMatch) {
+        var rest = starMatch[1]; // undefined 或字符串
+        var target;
+        if (!rest) {
+          target = 'https://l.achtlv.kdns.fr/';
+        } else {
+          target = 'https://l.achtlv.kdns.fr/' + rest;
+        }
+        target += search + hash;
+        window.location.replace(target);
+        return;
+      }
+
+      // 其他情况：显示 404
+      document.body.textContent = "404 Not Found";
     })();
   </script>
 </head>

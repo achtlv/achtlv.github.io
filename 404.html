@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Redirecting...</title>
+  <script>
+    (function () {
+      var path = window.location.pathname;
+      var search = window.location.search;
+      var hash = window.location.hash;
+      var base = "https://l.achtlv.kdns.fr";
+
+      var match = path.match(/^\/l(?:\/(.*))?$/);
+
+      if (match) {
+        var rest = match[1];
+        if (!rest) {
+          window.location.replace(base + "/l" + search + hash);
+        } else {
+          window.location.replace(base + "/" + rest + search + hash);
+        }
+      } else {
+        document.body.textContent = "404 Not Found";
+      }
+    })();
+  </script>
+</head>
+<body></body>
+</html>

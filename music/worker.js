@@ -593,6 +593,8 @@ var QUALITY_LABEL={exhigh:'极高',standard:'标准',official:'官方',lossless:
 var QUALITY_RANK={lossless:4,exhigh:3,standard:2,official:1};
 var MAX_PLAY_RANK=3;
 var DETECT_TIMES=3;
+var PRELOAD_DELAY=5000;
+var PRELOAD_RETRY=10000;
 var DOWNLOAD_LEVELS=[
 {key:'lossless',label:'无损'},
 {key:'exhigh',label:'极高'},
@@ -857,13 +859,21 @@ audio.load();
 }catch(e){}
 }
 
+function resetProgressUI(){
+try{$('seek').value='0';}catch(e){}
+updateSeekBg(0);
+$('curTime').textContent='0:00';
+$('durTime').textContent='0:00';
+}
+
 // ==================== 封面缓存 ====================
 var coverCache={};
 
 function preloadCover(url){
 if(!url)return;
-if(coverCache[url])return;
-var entry={state:'loading',img:null};
+var entry=coverCache[url];
+if(entry&&(entry.state==='loading'||entry.state==='loaded'))return;
+entry={state:'loading',img:null};
 coverCache[url]=entry;
 var img=new Image();
 entry.img=img;
@@ -910,6 +920,11 @@ if(imgEl.getAttribute('src')!==pic)imgEl.src=pic;
 imgEl.style.display='block';
 ldEl.style.display='none';
 fbEl.style.display='none';
+}else if(entry&&entry.state==='error'){
+if(imgEl.getAttribute('src'))imgEl.removeAttribute('src');
+imgEl.style.display='none';
+ldEl.style.display='none';
+fbEl.style.display='flex';
 }else{
 if(imgEl.getAttribute('src'))imgEl.removeAttribute('src');
 imgEl.style.display='none';
@@ -918,45 +933,170 @@ fbEl.style.display='none';
 }
 }
 
-function preloadNeighbors(){
-var len=state.playlist.length;
-if(len===0||state.current<0)return;
-var prevIdx=(state.current-1+len)%len;
-var nextIdx=(state.current+1)%len;
-var prev=state.playlist[prevIdx];
-var next=state.playlist[nextIdx];
-if(prev&&prev.pic)preloadCover(prev.pic);
-if(next&&next.pic)preloadCover(next.pic);
+// ==================== 预加载系统 ====================
+var preloadCache={};   // id -> {pic, lyric, lyricTrans, lyricRoma, url, quality, picDone, lyricDone, urlDone}
+var preloadTimers={};  // id -> {pic, lyric, url}
+
+function getPreloadEntry(id){
+if(!id)return null;
+if(!preloadCache[id]){
+preloadCache[id]={
+pic:'',lyric:'',lyricTrans:'',lyricRoma:'',
+url:'',quality:'',
+picDone:false,lyricDone:false,urlDone:false
+};
+}
+return preloadCache[id];
 }
 
-async function preloadNeighborCovers(){
-var len=state.playlist.length;
-if(len<1||state.current<0)return;
-var token=playToken;
-var prevIdx=(state.current-1+len)%len;
-var nextIdx=(state.current+1)%len;
-var targets=[];
-if(prevIdx!==state.current){
-var s1=state.playlist[prevIdx];
-if(s1&&!s1.external&&s1.id)targets.push(s1);
+async function preloadSongPic(song){
+if(!song||!song.id)return;
+var entry=getPreloadEntry(song.id);
+if(!entry||entry.picDone)return;
+
+if(song.pic){
+entry.pic=song.pic;
+entry.picDone=true;
+preloadCover(song.pic);
+return;
 }
-if(nextIdx!==state.current&&nextIdx!==prevIdx){
-var s2=state.playlist[nextIdx];
-if(s2&&!s2.external&&s2.id)targets.push(s2);
-}
-for(var i=0;i<targets.length;i++){
-if(targets[i].pic)preloadCover(targets[i].pic);
-}
-for(var j=0;j<targets.length;j++){
-var s=targets[j];
-if(s.pic)continue;
+
 try{
-var info=await post('/api/getSongInfo',{id:s.id});
-if(token!==playToken)return;
+var info=await post('/api/getSongInfo',{id:song.id});
 var m=extractInfo(info);
-if(m.pic){s.pic=m.pic;preloadCover(m.pic);}
+if(m.pic){
+entry.pic=m.pic;
+entry.picDone=true;
+song.pic=m.pic;
+preloadCover(m.pic);
+var cur=state.playlist[state.current];
+if(cur===song)render();
+return;
+}
+}catch(e){}
+
+try{
+var sr=await post('/api/search',{word:song.name||''});
+if(sr&&sr.pic){
+entry.pic=sr.pic;
+entry.picDone=true;
+song.pic=sr.pic;
+preloadCover(sr.pic);
+var cur2=state.playlist[state.current];
+if(cur2===song)render();
+return;
+}
+}catch(e){}
+
+schedulePreloadRetry(song,'pic');
+}
+
+async function preloadSongLyric(song){
+if(!song||!song.id)return;
+var entry=getPreloadEntry(song.id);
+if(!entry||entry.lyricDone)return;
+
+if(song.external){
+entry.lyricDone=true;
+return;
+}
+
+try{
+var lr=await post('/api/getSongLyric',{id:song.id});
+var m=extractLyricMulti(lr);
+entry.lyric=m.main||'';
+entry.lyricTrans=m.trans||'';
+entry.lyricRoma=m.roma||'';
+entry.lyricDone=true;
+
+var cur=state.playlist[state.current];
+if(cur===song){
+state.lyric=entry.lyric||'暂无歌词';
+state.lyricTrans=entry.lyricTrans;
+state.lyricRoma=entry.lyricRoma;
+state.lyricLoading=false;
+state._lastLyricKey=null;
+render();
+}
+return;
+}catch(e){}
+
+schedulePreloadRetry(song,'lyric');
+}
+
+async function preloadSongUrl(song){
+if(!song||!song.id)return;
+var entry=getPreloadEntry(song.id);
+if(!entry)return;
+
+if(song.external){
+entry.url=song.url;
+entry.quality='external';
+entry.urlDone=true;
+return;
+}
+
+if(entry.urlDone)return;
+if(entry.quality==='exhigh'){
+entry.urlDone=true;
+return;
+}
+
+for(var i=0;i<3;i++){
+try{
+var r=await fetchPlayUrlOnce(song.id);
+if(r&&r.url&&isHttpUrl(r.url)){
+if(!entry.quality||qualityRank(r.level)>qualityRank(entry.quality)){
+entry.url=r.url;
+entry.quality=r.level;
+}
+if(entry.quality==='exhigh'){
+entry.urlDone=true;
+return;
+}
+}
 }catch(e){}
 }
+
+schedulePreloadRetry(song,'url');
+}
+
+function schedulePreloadRetry(song,type){
+if(!song||!song.id)return;
+if(!preloadTimers[song.id])preloadTimers[song.id]={pic:null,lyric:null,url:null};
+var t=preloadTimers[song.id];
+if(t[type])return;
+t[type]=setTimeout(function(){
+t[type]=null;
+if(state.playlist.indexOf(song)===-1)return;
+if(type==='pic')preloadSongPic(song);
+else if(type==='lyric')preloadSongLyric(song);
+else preloadSongUrl(song);
+},PRELOAD_RETRY);
+}
+
+function triggerPreloadNeighbors(){
+var len=state.playlist.length;
+var curIdx=state.current;
+if(curIdx<0||len<1)return;
+var scheduledIdx=curIdx;
+setTimeout(function(){
+if(state.current!==scheduledIdx)return;
+var curSong=state.playlist[curIdx];
+if(!curSong)return;
+var prevIdx=(curIdx-1+len)%len;
+var nextIdx=(curIdx+1)%len;
+var targets=[];
+var prevSong=state.playlist[prevIdx];
+var nextSong=state.playlist[nextIdx];
+if(prevSong&&prevSong!==curSong)targets.push(prevSong);
+if(nextSong&&nextSong!==curSong&&nextSong!==prevSong)targets.push(nextSong);
+for(var i=0;i<targets.length;i++){
+preloadSongPic(targets[i]);
+preloadSongLyric(targets[i]);
+preloadSongUrl(targets[i]);
+}
+},PRELOAD_DELAY);
 }
 
 // ==================== gzip ====================
@@ -1712,7 +1852,6 @@ $('coverBox').style.display=(hasSongs&&!state.showLyric)?'block':'none';
 $('lyricBox').style.display=(hasSongs&&state.showLyric)?'block':'none';
 
 updateCoverDisplay();
-preloadNeighbors();
 scheduleMediaSessionUpdate();
 
 var lyrKey=(state.lyricLoading?'L':'l')+'|'+(state.lyric||'')+'|'+
@@ -1782,15 +1921,34 @@ if(i<0||i>=state.playlist.length)return;
 var token=++playToken;
 
 stopAudio();
+resetProgressUI();
 
 state.current=i;
 state.showLyric=false;
-state.lyric='';state.lyricTrans='';state.lyricRoma='';
 state.audioUrl='';state.quality='';
-state.lyricLoading=true;
-render();
 
 var song=state.playlist[i];
+var pe=preloadCache[song.id];
+
+if(pe&&pe.lyricDone){
+state.lyric=pe.lyric||'暂无歌词';
+state.lyricTrans=pe.lyricTrans||'';
+state.lyricRoma=pe.lyricRoma||'';
+state.lyricLoading=false;
+state._lastLyricKey=null;
+}else{
+state.lyric='';state.lyricTrans='';state.lyricRoma='';
+state.lyricLoading=true;
+state._lastLyricKey=null;
+}
+
+if(pe&&pe.pic&&!song.pic){
+song.pic=pe.pic;
+preloadCover(pe.pic);
+}
+
+render();
+
 var result;
 try{
 if(song.external){
@@ -1799,12 +1957,21 @@ result={url:song.url,level:'external'};
 var u=await fetchPlayUrlLevel(song.id,forcedQuality);
 if(!u)throw new Error('音源加载失败');
 result={url:u,level:forcedQuality};
+}else if(pe&&pe.url&&isHttpUrl(pe.url)&&pe.quality){
+result={url:pe.url,level:pe.quality};
 }else{
 result=await fetchPlayUrl(song.id);
 }
 if(token!==playToken)return;
 state.audioUrl=result.url;
 state.quality=result.level;
+if(!song.external){
+var e2=getPreloadEntry(song.id);
+if(e2&&(!e2.quality||qualityRank(result.level)>qualityRank(e2.quality))){
+e2.url=result.url;
+e2.quality=result.level;
+}
+}
 render();
 await setAudioSource(result.url,song.format);
 }catch(e){
@@ -1821,12 +1988,12 @@ if(token!==playToken)return;
 render();
 
 if(song.external){
+if(!state.lyric||state.lyricLoading){
 state.lyric='外部音源，暂无歌词';
 state.lyricLoading=false;
 render();
-return;
 }
-
+}else if(state.lyricLoading||!state.lyric){
 try{
 var lr=await post('/api/getSongLyric',{id:song.id});
 if(token!==playToken)return;
@@ -1835,6 +2002,13 @@ state.lyric=m.main||'暂无歌词';
 state.lyricTrans=m.trans||'';
 state.lyricRoma=m.roma||'';
 state.lyricLoading=false;
+var e3=getPreloadEntry(song.id);
+if(e3){
+e3.lyric=state.lyric;
+e3.lyricTrans=state.lyricTrans;
+e3.lyricRoma=state.lyricRoma;
+e3.lyricDone=true;
+}
 render();
 }catch(e){
 if(token!==playToken)return;
@@ -1842,6 +2016,7 @@ state.lyric='暂无歌词';
 state.lyricTrans='';state.lyricRoma='';
 state.lyricLoading=false;
 render();
+}
 }
 
 if(!song.pic){
@@ -1851,13 +2026,15 @@ if(token!==playToken)return;
 if(sr&&sr.pic){
 song.pic=sr.pic;
 preloadCover(sr.pic);
+var e4=getPreloadEntry(song.id);
+if(e4){e4.pic=sr.pic;e4.picDone=true;}
 render();
 }
 }catch(e){}
 }
 
 if(token!==playToken)return;
-preloadNeighborCovers();
+triggerPreloadNeighbors();
 }
 
 function nextSong(){
@@ -2364,11 +2541,10 @@ state.editingOrder=false;
 $('sheetEdit').innerHTML=ICON.edit;
 $('sheetEdit').classList.remove('active');
 stopAudio();
-$('seek').value='0';
-updateSeekBg(0);
-$('curTime').textContent='0:00';
-$('durTime').textContent='0:00';
+resetProgressUI();
 clearPlaylistCookie();
+preloadCache={};
+preloadTimers={};
 state._lastMediaKey=null;
 render();
 updateMediaSessionMetadata();
@@ -2502,6 +2678,17 @@ var del=e.target.closest('[data-del]');
 if(del){
 e.stopPropagation();
 var idx=parseInt(del.getAttribute('data-del'),10);
+var removed=state.playlist[idx];
+if(removed&&removed.id){
+delete preloadCache[removed.id];
+if(preloadTimers[removed.id]){
+var pt=preloadTimers[removed.id];
+if(pt.pic)clearTimeout(pt.pic);
+if(pt.lyric)clearTimeout(pt.lyric);
+if(pt.url)clearTimeout(pt.url);
+delete preloadTimers[removed.id];
+}
+}
 state.playlist.splice(idx,1);
 if(state.playlist.length===0){
 state.current=-1;state.playing=false;
@@ -2513,8 +2700,7 @@ state.editingOrder=false;
 $('sheetEdit').innerHTML=ICON.edit;
 $('sheetEdit').classList.remove('active');
 stopAudio();
-$('seek').value='0';updateSeekBg(0);
-$('curTime').textContent='0:00';$('durTime').textContent='0:00';
+resetProgressUI();
 clearPlaylistCookie();
 state._lastMediaKey=null;
 updateMediaSessionMetadata();

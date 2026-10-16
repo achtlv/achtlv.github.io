@@ -7,7 +7,9 @@ const HTML = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#F7FBF1" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#11140F" media="(prefers-color-scheme: dark)">
-<title>网易云音乐播放器</title>
+<title>音乐播放器</title>
+<link rel="icon" type="image/png" href="https://img.icons8.com/?size=100&id=59862&format=png&color=000000">
+<link rel="apple-touch-icon" href="https://img.icons8.com/?size=100&id=59862&format=png&color=000000">
 <link rel="preconnect" href="https://fonts.font.im" crossorigin>
 <link rel="stylesheet" href="https://fonts.font.im/css2?family=Roboto:wght@400;500;700&display=swap">
 <style>
@@ -102,6 +104,11 @@ transition:transform .3s}
 .cover-fallback{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
 color:var(--on-primary-container)}
 .cover-fallback svg{width:80px;height:80px;fill:currentColor;opacity:.55}
+.cover-loading{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+background:linear-gradient(135deg,var(--primary-container),var(--surface-container-highest))}
+.cover-loading-spinner{width:38px;height:38px;border-radius:50%;
+border:3px solid color-mix(in srgb,var(--primary) 25%,transparent);
+border-top-color:var(--primary);animation:spin .8s linear infinite}
 
 .lyric-box{display:none;width:100%;height:100%;overflow-y:auto;padding:4px 8px;
 scrollbar-width:none;border-radius:20px;position:relative}
@@ -381,6 +388,9 @@ footer{padding:8px 0 6px}
 <div class="cover-fallback" id="coverFallback">
 <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
 </div>
+<div class="cover-loading" id="coverLoading">
+<div class="cover-loading-spinner"></div>
+</div>
 </div>
 <div class="lyric-box" id="lyricBox">
 <div class="lyric-toolbar" id="lyricToolbar">
@@ -530,6 +540,9 @@ var LF=String.fromCharCode(10);
 var CR=String.fromCharCode(13);
 var BS=String.fromCharCode(92);
 
+var DEFAULT_ICON='https://img.icons8.com/?size=100&id=59862&format=png&color=000000';
+var SITE_TITLE='音乐播放器';
+
 var ICON={
 play:'<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',
 pause:'<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>',
@@ -563,7 +576,7 @@ lyricLoading:false,
 retrying:false,
 lyricLines:[],lyricHasTime:false,lyricCurrent:-1,lyricUserScrolled:false,
 editingOrder:false,
-_lastLyricKey:null,_lyricScrollTimer:null
+_lastLyricKey:null,_lastMediaKey:null,_lyricScrollTimer:null
 };
 var audio=new Audio();
 audio.preload='metadata';
@@ -740,6 +753,100 @@ var r=QUALITY_RANK[q];
 return (r===undefined)?0:r;
 }
 
+// ==================== Media Session ====================
+function updateMediaSessionMetadata(){
+if(!('mediaSession' in navigator))return;
+try{
+var song=state.playlist[state.current];
+if(!song){
+navigator.mediaSession.metadata=new MediaMetadata({
+title:SITE_TITLE,
+artist:'',
+album:'',
+artwork:[{src:DEFAULT_ICON,sizes:'96x96',type:'image/png'}]
+});
+return;
+}
+var artwork=[];
+if(song.pic){
+artwork.push({src:song.pic,sizes:'512x512',type:'image/jpeg'});
+artwork.push({src:song.pic,sizes:'256x256',type:'image/jpeg'});
+artwork.push({src:song.pic,sizes:'192x192',type:'image/jpeg'});
+artwork.push({src:song.pic,sizes:'96x96',type:'image/jpeg'});
+}else{
+artwork.push({src:DEFAULT_ICON,sizes:'96x96',type:'image/png'});
+}
+navigator.mediaSession.metadata=new MediaMetadata({
+title:song.name||'未知歌曲',
+artist:song.artist||'未知歌手',
+album:SITE_TITLE,
+artwork:artwork
+});
+}catch(e){}
+}
+
+function updateMediaSessionPlaybackState(){
+if(!('mediaSession' in navigator))return;
+try{
+navigator.mediaSession.playbackState=state.playing?'playing':'paused';
+}catch(e){}
+}
+
+function setupMediaSession(){
+if(!('mediaSession' in navigator))return;
+try{
+navigator.mediaSession.setActionHandler('play',function(){togglePlay()});
+navigator.mediaSession.setActionHandler('pause',function(){togglePlay()});
+navigator.mediaSession.setActionHandler('previoustrack',function(){prevSong()});
+navigator.mediaSession.setActionHandler('nexttrack',function(){nextSong()});
+navigator.mediaSession.setActionHandler('stop',function(){
+try{audio.pause();audio.currentTime=0;}catch(e){}
+});
+try{navigator.mediaSession.setActionHandler('seekbackward',function(d){
+var t=audio.currentTime-(d&&d.seekOffset?d.seekOffset:10);
+audio.currentTime=Math.max(0,t);
+});}catch(e){}
+try{navigator.mediaSession.setActionHandler('seekforward',function(d){
+var t=audio.currentTime+(d&&d.seekOffset?d.seekOffset:10);
+if(audio.duration)audio.currentTime=Math.min(audio.duration,t);
+});}catch(e){}
+try{navigator.mediaSession.setActionHandler('seekto',function(d){
+if(d&&d.seekTime!==undefined)audio.currentTime=d.seekTime;
+});}catch(e){}
+}catch(e){}
+updateMediaSessionMetadata();
+}
+
+// ==================== 官方接口本地探测 ====================
+function probeOfficialLocal(id){
+return new Promise(function(resolve){
+var a=new Audio();
+var done=false;
+var timer=null;
+function finish(ok){
+if(done)return;
+done=true;
+if(timer)clearTimeout(timer);
+try{
+a.removeAttribute('src');
+a.load();
+}catch(e){}
+resolve(ok);
+}
+timer=setTimeout(function(){finish(false)},5000);
+a.preload='metadata';
+a.muted=true;
+a.onloadedmetadata=function(){finish(true)};
+a.oncanplay=function(){finish(true)};
+a.onerror=function(){finish(false)};
+try{
+a.src=OFFICIAL_PREFIX+encodeURIComponent(String(id));
+}catch(e){
+finish(false);
+}
+});
+}
+
 // ==================== 音频源控制 ====================
 function stopAudio(){
 try{audio.pause()}catch(e){}
@@ -748,6 +855,108 @@ try{
 audio.removeAttribute('src');
 audio.load();
 }catch(e){}
+}
+
+// ==================== 封面缓存 ====================
+var coverCache={};
+
+function preloadCover(url){
+if(!url)return;
+if(coverCache[url])return;
+var entry={state:'loading',img:null};
+coverCache[url]=entry;
+var img=new Image();
+entry.img=img;
+img.onload=function(){
+entry.state='loaded';
+var song=state.playlist[state.current];
+if(song&&song.pic===url){
+updateCoverDisplay();
+scheduleMediaSessionUpdate();
+}
+};
+img.onerror=function(){
+entry.state='error';
+var song=state.playlist[state.current];
+if(song&&song.pic===url)updateCoverDisplay();
+};
+img.src=url;
+}
+
+function updateCoverDisplay(){
+var song=state.playlist[state.current];
+var imgEl=$('coverImg');
+var fbEl=$('coverFallback');
+var ldEl=$('coverLoading');
+if(!song||!song.pic){
+if(imgEl.getAttribute('src'))imgEl.removeAttribute('src');
+imgEl.style.display='none';
+ldEl.style.display='none';
+if(song){
+fbEl.style.display='flex';
+}else{
+fbEl.style.display='none';
+}
+return;
+}
+var pic=song.pic;
+var entry=coverCache[pic];
+if(!entry){
+preloadCover(pic);
+entry=coverCache[pic];
+}
+if(entry&&entry.state==='loaded'){
+if(imgEl.getAttribute('src')!==pic)imgEl.src=pic;
+imgEl.style.display='block';
+ldEl.style.display='none';
+fbEl.style.display='none';
+}else{
+if(imgEl.getAttribute('src'))imgEl.removeAttribute('src');
+imgEl.style.display='none';
+ldEl.style.display='flex';
+fbEl.style.display='none';
+}
+}
+
+function preloadNeighbors(){
+var len=state.playlist.length;
+if(len===0||state.current<0)return;
+var prevIdx=(state.current-1+len)%len;
+var nextIdx=(state.current+1)%len;
+var prev=state.playlist[prevIdx];
+var next=state.playlist[nextIdx];
+if(prev&&prev.pic)preloadCover(prev.pic);
+if(next&&next.pic)preloadCover(next.pic);
+}
+
+async function preloadNeighborCovers(){
+var len=state.playlist.length;
+if(len<1||state.current<0)return;
+var token=playToken;
+var prevIdx=(state.current-1+len)%len;
+var nextIdx=(state.current+1)%len;
+var targets=[];
+if(prevIdx!==state.current){
+var s1=state.playlist[prevIdx];
+if(s1&&!s1.external&&s1.id)targets.push(s1);
+}
+if(nextIdx!==state.current&&nextIdx!==prevIdx){
+var s2=state.playlist[nextIdx];
+if(s2&&!s2.external&&s2.id)targets.push(s2);
+}
+for(var i=0;i<targets.length;i++){
+if(targets[i].pic)preloadCover(targets[i].pic);
+}
+for(var j=0;j<targets.length;j++){
+var s=targets[j];
+if(s.pic)continue;
+try{
+var info=await post('/api/getSongInfo',{id:s.id});
+if(token!==playToken)return;
+var m=extractInfo(info);
+if(m.pic){s.pic=m.pic;preloadCover(m.pic);}
+}catch(e){}
+}
 }
 
 // ==================== gzip ====================
@@ -1274,7 +1483,7 @@ if(!existing[s.id]){state.playlist.push(s);existing[s.id]=true;added++;}
 return added;
 }
 
-// ==================== 播放链接检测（3 次取最高，拿到最高提前退出） ====================
+// ==================== 播放链接检测 ====================
 async function fetchPlayUrlOnce(id){
 for(var i=0;i<LEVELS.length;i++){
 try{
@@ -1284,8 +1493,8 @@ if(url&&isHttpUrl(url)){return {url:url,level:LEVELS[i]};}
 }catch(e){}
 }
 try{
-var chk=await post('/api/checkOfficial',{id:String(id)});
-if(chk&&chk.ok){
+var ok=await probeOfficialLocal(id);
+if(ok){
 var official=OFFICIAL_PREFIX+encodeURIComponent(String(id));
 return {url:official,level:'official'};
 }
@@ -1307,8 +1516,8 @@ throw new Error('暂无可用音源');
 async function fetchPlayUrlLevelOnce(id,level){
 if(level==='official'){
 try{
-var chk=await post('/api/checkOfficial',{id:String(id)});
-if(chk&&chk.ok)return OFFICIAL_PREFIX+encodeURIComponent(String(id));
+var ok=await probeOfficialLocal(id);
+if(ok)return OFFICIAL_PREFIX+encodeURIComponent(String(id));
 }catch(e){}
 return '';
 }
@@ -1357,8 +1566,8 @@ if(url&&isHttpUrl(url))return LEVELS[i];
 }catch(e){}
 }
 try{
-var chk=await post('/api/checkOfficial',{id:String(id)});
-if(chk&&chk.ok)return 'official';
+var ok=await probeOfficialLocal(id);
+if(ok)return 'official';
 }catch(e){}
 return '';
 }
@@ -1463,6 +1672,14 @@ render();
 }
 
 // ==================== 渲染 ====================
+function scheduleMediaSessionUpdate(){
+var song=state.playlist[state.current];
+var key=state.current+'|'+(song?(song.id||''):'')+'|'+(song?(song.name||''):'')+'|'+(song?(song.artist||''):'')+'|'+(song?(song.pic||''):'');
+if(state._lastMediaKey===key)return;
+state._lastMediaKey=key;
+updateMediaSessionMetadata();
+}
+
 function render(){
 var song=state.playlist[state.current];
 var hasSongs=state.playlist.length>0;
@@ -1494,16 +1711,9 @@ $('emptyAdd').style.display=hasSongs?'none':'flex';
 $('coverBox').style.display=(hasSongs&&!state.showLyric)?'block':'none';
 $('lyricBox').style.display=(hasSongs&&state.showLyric)?'block':'none';
 
-var pic=(song&&song.pic)||(state.playlist[0]&&state.playlist[0].pic)||'';
-if(pic){
-$('coverImg').src=pic;
-$('coverImg').style.display='block';
-$('coverFallback').style.display='none';
-}else{
-$('coverImg').removeAttribute('src');
-$('coverImg').style.display='none';
-$('coverFallback').style.display='flex';
-}
+updateCoverDisplay();
+preloadNeighbors();
+scheduleMediaSessionUpdate();
 
 var lyrKey=(state.lyricLoading?'L':'l')+'|'+(state.lyric||'')+'|'+
 (state.lyricTrans||'')+'|'+(state.lyricRoma||'')+'|'+
@@ -1638,9 +1848,16 @@ if(!song.pic){
 try{
 var sr=await post('/api/search',{word:song.name});
 if(token!==playToken)return;
-if(sr&&sr.pic){song.pic=sr.pic;render()}
+if(sr&&sr.pic){
+song.pic=sr.pic;
+preloadCover(sr.pic);
+render();
+}
 }catch(e){}
 }
+
+if(token!==playToken)return;
+preloadNeighborCovers();
 }
 
 function nextSong(){
@@ -1699,12 +1916,29 @@ $('durTime').textContent=fmt(d);
 }
 $('curTime').textContent=fmt(c);
 if(state.showLyric&&state.lyricHasTime)updateLyricScroll(false);
+if('mediaSession' in navigator&&d>0&&isFinite(d)){
+try{
+navigator.mediaSession.setPositionState({
+duration:d,
+playbackRate:audio.playbackRate||1,
+position:Math.min(c,d)
+});
+}catch(e){}
+}
 }
 audio.addEventListener('timeupdate',onTimeUpdate);
 audio.addEventListener('loadedmetadata',onTimeUpdate);
 audio.addEventListener('durationchange',onTimeUpdate);
-audio.addEventListener('play',function(){state.playing=true;render()});
-audio.addEventListener('pause',function(){state.playing=false;render()});
+audio.addEventListener('play',function(){
+state.playing=true;
+render();
+updateMediaSessionPlaybackState();
+});
+audio.addEventListener('pause',function(){
+state.playing=false;
+render();
+updateMediaSessionPlaybackState();
+});
 audio.addEventListener('ended',function(){
 if(state.mode==='single'){
 audio.currentTime=0;
@@ -1797,7 +2031,7 @@ return;
 var link=buildShareLink(song);
 try{
 await navigator.share({
-title:song.name||'网易云音乐播放器',
+title:song.name||SITE_TITLE,
 text:(song.name||'')+' - '+(song.artist||''),
 url:link
 });
@@ -1814,8 +2048,7 @@ var downloadDetectToken=0;
 async function checkLevelAvailableOnce(id,level){
 if(level==='official'){
 try{
-var chk=await post('/api/checkOfficial',{id:String(id)});
-return !!(chk&&chk.ok);
+return await probeOfficialLocal(id);
 }catch(e){
 return false;
 }
@@ -2136,7 +2369,10 @@ updateSeekBg(0);
 $('curTime').textContent='0:00';
 $('durTime').textContent='0:00';
 clearPlaylistCookie();
+state._lastMediaKey=null;
 render();
+updateMediaSessionMetadata();
+updateMediaSessionPlaybackState();
 $('clearScrim').classList.remove('show');
 $('listScrim').classList.remove('show');
 toast('播放列表已清空');
@@ -2280,6 +2516,9 @@ stopAudio();
 $('seek').value='0';updateSeekBg(0);
 $('curTime').textContent='0:00';$('durTime').textContent='0:00';
 clearPlaylistCookie();
+state._lastMediaKey=null;
+updateMediaSessionMetadata();
+updateMediaSessionPlaybackState();
 }else if(idx===state.current){
 if(idx>=state.playlist.length)state.current=state.playlist.length-1;
 savePlaylist();
@@ -2403,6 +2642,7 @@ check();
 
 // ==================== 启动 ====================
 updateSeekBg(0);
+setupMediaSession();
 restorePlaylist();
 render();
 setTimeout(handleUrlAdd,300);
@@ -2447,7 +2687,6 @@ export default {
       if (action === "search") return await handleSearch(body.word || "");
       if (action === "resolve") return await handleResolve(body.url || "");
       if (action === "checkAudio") return await handleCheckAudio(body.url || "");
-      if (action === "checkOfficial") return await handleCheckOfficial(body.id || "");
 
       if (action === "getSongInfo") {
         return await proxy("getSongInfo", { id: body.id, timestamp: Date.now(), ip });
@@ -2678,74 +2917,6 @@ async function handleResolve(rawUrl) {
   }
 
   return json({ code: 404, msg: "无法从链接中提取歌曲 ID" }, 404);
-}
-
-// 检测网易云官方接口是否真的返回音频
-// 关键修复：补全浏览器 headers + 匿名 Cookie，避免被网易识别为爬虫返回 HTML
-async function handleCheckOfficial(id) {
-  if (!id) return json({ ok: false, msg: "缺少歌曲 ID" });
-  const sid = String(id);
-  const official =
-    "https://music.163.com/song/media/outer/url?id=" + encodeURIComponent(sid);
-
-  try {
-    const res = await fetch(official, {
-      method: "GET",
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Referer": "https://music.163.com/",
-        "Origin": "https://music.163.com",
-        "Accept": "*/*",
-        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-        // 关键：带匿名 Cookie，模拟浏览器首次访问。不需要登录也能拿到免费歌曲
-        "Cookie": "os=pc; appver=2.9.7; osver=Microsoft-Windows-10-Professional-build-19045-64bit; deviceId=; mode=; NMTID=; playerid=;",
-        "Range": "bytes=0-1023",
-      },
-      redirect: "follow",
-    });
-
-    // 不读完整 body，只释放连接（避免大文件拖慢 Worker）
-    try {
-      if (res.body && typeof res.body.cancel === "function") {
-        await res.body.cancel();
-      } else {
-        await res.arrayBuffer();
-      }
-    } catch (e) {}
-
-    const rawCt = res.headers.get("Content-Type") || "";
-    const ct = rawCt.toLowerCase().split(";")[0].trim();
-    const finalUrl = (res.url || "").toLowerCase();
-    const contentLength = parseInt(res.headers.get("Content-Length") || "0", 10);
-
-    // 命中音频信号
-    const isAudioCt = ct.indexOf("audio/") === 0;
-    const isOctet = ct === "application/octet-stream";
-    const isMp3Url = finalUrl.indexOf(".mp3") !== -1;
-    const isMusic126 = finalUrl.indexOf("music.126.net") !== -1;
-    // 排除信号
-    const isHtml = ct.indexOf("text/html") !== -1;
-    const is404Page =
-      finalUrl.indexOf("/404") !== -1 ||
-      finalUrl.indexOf("music.163.com/404") !== -1;
-    const tooSmall = contentLength > 0 && contentLength < 1024;
-
-    const ok =
-      !isHtml &&
-      !is404Page &&
-      !tooSmall &&
-      (isAudioCt || isMp3Url || isMusic126 || isOctet);
-
-    return json({
-      ok,
-      contentType: ct,
-      finalUrl: res.url || "",
-      contentLength,
-    });
-  } catch (e) {
-    return json({ ok: false, msg: String(e.message || e) });
-  }
 }
 
 async function handleCheckAudio(url) {

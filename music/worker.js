@@ -587,7 +587,6 @@ editingOrder:false,
 _lastLyricKey:null,_lastMediaKey:null,_lyricScrollTimer:null
 };
 
-// 使用 video 元素替代 audio，支持视频容器（只输出音频）
 var audio=document.createElement('video');
 audio.style.position='absolute';
 audio.style.left='-9999px';
@@ -622,6 +621,7 @@ var PRELOAD_DELAY=5000;
 var PRELOAD_RETRY=10000;
 var URL_SAFETY_BUFFER=60;
 var DEFAULT_EXPI=1200;
+var COVER_LYRIC_TTL_MS=7*24*3600*1000;
 
 var AUDIO_FORMATS=['mp3','m4a','aac','flac','wav','ogg','opus','wma','weba','oga','mka','aiff','aif','ape','alac','amr','3ga'];
 var VIDEO_FORMATS=['m3u8','mp4','flv','wmv','mkv','webm','mov','avi','m4v','ts','3gp','3g2','ogv','mpg','mpeg','m2ts','f4v','rm','rmvb','asf'];
@@ -847,6 +847,117 @@ return result==='probably'||result==='maybe';
 }catch(e){
 return false;
 }
+}
+
+// ==================== textdb 缓存封装 ====================
+async function cacheGetRaw(key){
+try{
+var r=await post('/api/cacheGet',{key:key});
+if(r&&r.ok&&r.value)return r.value;
+}catch(e){}
+return '';
+}
+
+async function cacheSetRaw(key,value){
+if(!key||!value)return;
+try{
+await post('/api/cacheSet',{key:key,value:value});
+}catch(e){}
+}
+
+function cacheEncodeValue(expireAt,url){
+return String(expireAt)+'|'+encodeURIComponent(url);
+}
+
+function cacheDecodeValue(text){
+if(!text)return null;
+var idx=text.indexOf('|');
+if(idx===-1)return null;
+var exp=parseInt(text.substring(0,idx),10);
+if(!isFinite(exp)||exp<=0)return null;
+var encoded=text.substring(idx+1);
+var url='';
+try{
+url=decodeURIComponent(encoded);
+}catch(e){
+url=encoded;
+}
+if(!url||!isHttpUrl(url))return null;
+return {expireAt:exp,url:url};
+}
+
+async function getCachedAudioUrl(id,level,minRemainSec){
+if(level==='official')return null;
+if(level==='external')return null;
+var key=level+String(id);
+var text=await cacheGetRaw(key);
+var data=cacheDecodeValue(text);
+if(!data)return null;
+var remainSec=(data.expireAt-Date.now())/1000;
+if(remainSec<minRemainSec)return null;
+return data;
+}
+
+async function saveAudioUrlToCache(id,level,url,expi){
+if(level==='official')return;
+if(level==='external')return;
+if(!url)return;
+var expireAt=Date.now()+(expi||DEFAULT_EXPI)*1000;
+var key=level+String(id);
+var value=cacheEncodeValue(expireAt,url);
+await cacheSetRaw(key,value);
+}
+
+async function getCachedCover(id){
+var key='cover'+String(id);
+var text=await cacheGetRaw(key);
+var data=cacheDecodeValue(text);
+if(!data)return '';
+if(data.expireAt<Date.now())return '';
+return data.url;
+}
+
+async function saveCoverToCache(id,picUrl){
+if(!picUrl)return;
+var key='cover'+String(id);
+var expireAt=Date.now()+COVER_LYRIC_TTL_MS;
+var value=cacheEncodeValue(expireAt,picUrl);
+await cacheSetRaw(key,value);
+}
+
+async function getCachedLyric(id){
+var key='lyric'+String(id);
+var text=await cacheGetRaw(key);
+if(!text)return null;
+var idx=text.indexOf('|');
+if(idx===-1)return null;
+var exp=parseInt(text.substring(0,idx),10);
+if(!isFinite(exp)||exp<Date.now())return null;
+var jsonStr='';
+try{
+jsonStr=decodeURIComponent(text.substring(idx+1));
+}catch(e){
+return null;
+}
+try{
+var obj=JSON.parse(jsonStr);
+return {
+main:String(obj.l||''),
+trans:String(obj.t||''),
+roma:String(obj.r||'')
+};
+}catch(e){
+return null;
+}
+}
+
+async function saveLyricToCache(id,main,trans,roma){
+var key='lyric'+String(id);
+var expireAt=Date.now()+COVER_LYRIC_TTL_MS;
+var obj={l:main||'',t:trans||'',r:roma||''};
+var jsonStr=JSON.stringify(obj);
+var value=String(expireAt)+'|'+encodeURIComponent(jsonStr);
+await cacheSetRaw(key,value);
 }
 
 // ==================== 时长缓存 ====================
@@ -1084,6 +1195,19 @@ return;
 }
 
 try{
+var cachedPic=await getCachedCover(song.id);
+if(cachedPic){
+entry.pic=cachedPic;
+entry.picDone=true;
+song.pic=cachedPic;
+preloadCover(cachedPic);
+var cur0=state.playlist[state.current];
+if(cur0===song)render();
+return;
+}
+}catch(e){}
+
+try{
 var info=await post('/api/getSongInfo',{id:song.id});
 var m=extractInfo(info);
 if(m.pic){
@@ -1092,6 +1216,7 @@ entry.picDone=true;
 song.pic=m.pic;
 if(!song.duration&&m.duration>0)song.duration=m.duration;
 preloadCover(m.pic);
+await saveCoverToCache(song.id,m.pic);
 var cur=state.playlist[state.current];
 if(cur===song)render();
 return;
@@ -1105,6 +1230,7 @@ entry.pic=sr.pic;
 entry.picDone=true;
 song.pic=sr.pic;
 preloadCover(sr.pic);
+await saveCoverToCache(song.id,sr.pic);
 var cur2=state.playlist[state.current];
 if(cur2===song)render();
 return;
@@ -1125,12 +1251,34 @@ return;
 }
 
 try{
+var cached=await getCachedLyric(song.id);
+if(cached){
+entry.lyric=cached.main;
+entry.lyricTrans=cached.trans;
+entry.lyricRoma=cached.roma;
+entry.lyricDone=true;
+var cur0=state.playlist[state.current];
+if(cur0===song){
+state.lyric=cached.main||'暂无歌词';
+state.lyricTrans=cached.trans;
+state.lyricRoma=cached.roma;
+state.lyricLoading=false;
+state._lastLyricKey=null;
+render();
+}
+return;
+}
+}catch(e){}
+
+try{
 var lr=await post('/api/getSongLyric',{id:song.id});
 var m=extractLyricMulti(lr);
 entry.lyric=m.main||'';
 entry.lyricTrans=m.trans||'';
 entry.lyricRoma=m.roma||'';
 entry.lyricDone=true;
+
+await saveLyricToCache(song.id,entry.lyric,entry.lyricTrans,entry.lyricRoma);
 
 var cur=state.playlist[state.current];
 if(cur===song){
@@ -1166,6 +1314,24 @@ entry.urlDone=true;
 return;
 }
 
+var dur=song.duration&&song.duration>0?song.duration:360;
+var needRemain=dur+URL_SAFETY_BUFFER;
+
+for(var k=0;k<LEVELS.length;k++){
+var lv=LEVELS[k];
+var cached=await getCachedAudioUrl(song.id,lv,needRemain);
+if(cached){
+entry.url=cached.url;
+entry.quality=lv;
+entry.urlExpireAt=cached.expireAt;
+if(lv==='exhigh'){
+entry.urlDone=true;
+return;
+}
+break;
+}
+}
+
 for(var i=0;i<3;i++){
 try{
 var r=await fetchPlayUrlOnce(song.id);
@@ -1174,6 +1340,7 @@ if(!entry.quality||qualityRank(r.level)>=qualityRank(entry.quality)){
 entry.url=r.url;
 entry.quality=r.level;
 entry.urlExpireAt=Date.now()+(r.expi||DEFAULT_EXPI)*1000;
+await saveAudioUrlToCache(song.id,r.level,r.url,r.expi);
 }
 if(entry.quality==='exhigh'){
 entry.urlDone=true;
@@ -1639,7 +1806,6 @@ return flvLoading;
 
 // ==================== 带编码检测的媒体加载 ====================
 
-// 普通媒体（mp4/webm/wmv 等原生解码）：靠 loadedmetadata 和 error 判断
 function loadPlainMedia(url){
 return new Promise(function(resolve,reject){
 var settled=false;
@@ -1691,7 +1857,6 @@ reject(new Error('设置音源失败'));
 });
 }
 
-// HLS：先只加载 manifest，拿到 codec 检查后再决定是否 attachMedia
 function loadHlsWithCodecCheck(url){
 if(window.Hls)return loadHlsWithCodecCheckInner(url);
 return loadHlsJs().then(function(){return loadHlsWithCodecCheckInner(url)});
@@ -1763,7 +1928,6 @@ fail('HLS 加载失败：'+e.message);
 });
 }
 
-// FLV：flv.js 内部用 MSE，codec 不支持时它会触发 ERROR
 function loadFlvWithCheck(url){
 if(window.flvjs)return loadFlvWithCheckInner(url);
 return loadFlvJs().then(function(){return loadFlvWithCheckInner(url)});
@@ -1956,14 +2120,29 @@ return {url:official,level:'official',expi:0};
 return null;
 }
 
-async function fetchPlayUrl(id){
+async function fetchPlayUrl(id,durationHint){
+var durSec=(durationHint&&durationHint>0)?durationHint:360;
+var needRemain=durSec+URL_SAFETY_BUFFER;
+
+for(var i=0;i<LEVELS.length;i++){
+var lv=LEVELS[i];
+var cached=await getCachedAudioUrl(id,lv,needRemain);
+if(cached){
+var expi=Math.max(1,Math.floor((cached.expireAt-Date.now())/1000));
+return {url:cached.url,level:lv,expi:expi,fromCache:true};
+}
+}
+
 var best=null;
 for(var attempt=0;attempt<DETECT_TIMES;attempt++){
 var r=await fetchPlayUrlOnce(id);
 if(r&&(!best||qualityRank(r.level)>qualityRank(best.level)))best=r;
 if(best&&qualityRank(best.level)>=MAX_PLAY_RANK)break;
 }
-if(best)return best;
+if(best){
+await saveAudioUrlToCache(id,best.level,best.url,best.expi);
+return best;
+}
 throw new Error('暂无可用音源');
 }
 
@@ -1971,22 +2150,35 @@ async function fetchPlayUrlLevelOnce(id,level){
 if(level==='official'){
 try{
 var ok=await probeOfficialLocal(id);
-if(ok)return OFFICIAL_PREFIX+encodeURIComponent(String(id));
+if(ok){
+return {url:OFFICIAL_PREFIX+encodeURIComponent(String(id)),expi:0};
+}
 }catch(e){}
-return '';
+return null;
 }
 try{
 var r=await post('/api/getSongUrl',{id:id,level:level});
 var url=extractUrl(r);
-if(url&&isHttpUrl(url))return url;
+if(url&&isHttpUrl(url)){
+return {url:url,expi:extractExpi(r)};
+}
 }catch(e){}
-return '';
+return null;
 }
 
-async function fetchPlayUrlLevel(id,level){
+async function fetchPlayUrlLevel(id,level,minRemainSec){
+if(level==='official')return '';
+if(typeof minRemainSec!=='number')minRemainSec=300;
+
+var cached=await getCachedAudioUrl(id,level,minRemainSec);
+if(cached)return cached.url;
+
 for(var attempt=0;attempt<DETECT_TIMES;attempt++){
-var url=await fetchPlayUrlLevelOnce(id,level);
-if(url)return url;
+var r=await fetchPlayUrlLevelOnce(id,level);
+if(r&&r.url){
+await saveAudioUrlToCache(id,level,r.url,r.expi);
+return r.url;
+}
 }
 return '';
 }
@@ -2071,7 +2263,6 @@ async function resolveInput(text){
 text=(text||'').trim();
 if(!text)throw new Error('请输入内容');
 
-// 优先级 1：纯数字 ID
 if(isSongId(text)){
 var meta=await fetchMetaById(text);
 var q=await detectNeteaseQuality(text);
@@ -2080,7 +2271,6 @@ meta.quality=q;
 return meta;
 }
 
-// 优先级 2：文本中的链接
 var urls=extractAllUrlsFromText(text);
 if(urls.length>0){
 for(var i=0;i<urls.length;i++){
@@ -2099,7 +2289,6 @@ if(em)return em;
 }
 }
 
-// 优先级 3：歌名搜索
 var rs=await post('/api/search',{word:text});
 if(rs&&rs.id){
 var meta3={id:String(rs.id),name:rs.name||text,artist:rs.artist||'未知歌手',pic:rs.pic||'',duration:0};
@@ -2314,18 +2503,18 @@ try{
 if(song.external){
 result={url:song.url,level:'external',expi:0};
 }else if(forcedQuality){
-var u=await fetchPlayUrlLevel(song.id,forcedQuality);
+var u=await fetchPlayUrlLevel(song.id,forcedQuality,(song.duration||360)+URL_SAFETY_BUFFER);
 if(!u)throw new Error('音源加载失败');
 result={url:u,level:forcedQuality,expi:0};
 }else if(pe&&pe.url&&isHttpUrl(pe.url)&&pe.quality){
 result={url:pe.url,level:pe.quality,expi:0};
 }else{
-result=await fetchPlayUrl(song.id);
+result=await fetchPlayUrl(song.id,song.duration);
 }
 if(token!==playToken)return;
 state.audioUrl=result.url;
 state.quality=result.level;
-if(!song.external){
+if(!song.external&&result.level!=='external'){
 var e2=getPreloadEntry(song.id);
 if(e2&&(!e2.quality||qualityRank(result.level)>=qualityRank(e2.quality))){
 e2.url=result.url;
@@ -2370,6 +2559,7 @@ e3.lyricTrans=state.lyricTrans;
 e3.lyricRoma=state.lyricRoma;
 e3.lyricDone=true;
 }
+await saveLyricToCache(song.id,state.lyric,state.lyricTrans,state.lyricRoma);
 render();
 }catch(e){
 if(token!==playToken)return;
@@ -2389,6 +2579,7 @@ song.pic=sr.pic;
 preloadCover(sr.pic);
 var e4=getPreloadEntry(song.id);
 if(e4){e4.pic=sr.pic;e4.picDone=true;}
+await saveCoverToCache(song.id,sr.pic);
 render();
 }
 }catch(e){}
@@ -2424,7 +2615,7 @@ var myToken=++refreshToken;
 refreshingUrl=true;
 render();
 var fresh;
-try{fresh=await fetchPlayUrl(song.id);}catch(e){fresh=null;}
+try{fresh=await fetchPlayUrl(song.id,song.duration);}catch(e){fresh=null;}
 
 if(myToken!==refreshToken){
 refreshingUrl=false;
@@ -2438,7 +2629,7 @@ audio.play().catch(function(){});
 return;
 }
 var entry=getPreloadEntry(song.id);
-if(entry){
+if(entry&&fresh.level!=='external'){
 entry.url=fresh.url;
 entry.quality=fresh.level;
 entry.urlExpireAt=Date.now()+((fresh.expi||DEFAULT_EXPI)*1000);
@@ -2664,12 +2855,20 @@ return false;
 }
 }
 try{
+var cached=await getCachedAudioUrl(id,level,300);
+if(cached)return true;
+}catch(e){}
+try{
 var r=await post('/api/getSongUrl',{id:id,level:level});
 var url=extractUrl(r);
-return !!(url&&isHttpUrl(url));
+if(url&&isHttpUrl(url)){
+await saveAudioUrlToCache(id,level,url,extractExpi(r));
+return true;
+}
 }catch(e){
 return false;
 }
+return false;
 }
 
 async function checkAllLevels(id){
@@ -2772,7 +2971,7 @@ if(!song)return;
 toast('获取下载链接...');
 var url='';
 try{
-url=await fetchPlayUrlLevel(song.id,level);
+url=await fetchPlayUrlLevel(song.id,level,300);
 }catch(e){}
 if(!url){toast('该音质不可用');return}
 
@@ -3315,6 +3514,8 @@ export default {
       if (action === "search") return await handleSearch(body.word || "");
       if (action === "resolve") return await handleResolve(body.url || "");
       if (action === "checkAudio") return await handleCheckAudio(body.url || "");
+      if (action === "cacheGet") return await handleCacheGet(body.key || "");
+      if (action === "cacheSet") return await handleCacheSet(body.key || "", body.value || "");
 
       if (action === "getSongInfo") {
         return await proxy("getSongInfo", { id: body.id, timestamp: Date.now(), ip });
@@ -3356,6 +3557,55 @@ async function proxy(endpoint, body) {
   });
   const data = await res.json();
   return json(data, res.status);
+}
+
+// ==================== textdb 缓存中转 ====================
+async function handleCacheGet(key) {
+  if (!key) return json({ ok: false, msg: "缺少 key" });
+  const safeKey = String(key).replace(/[^a-zA-Z0-9_-]/g, "");
+  if (!safeKey) return json({ ok: false, msg: "无效 key" });
+  try {
+    const res = await fetch("https://textdb.online/" + safeKey, {
+      method: "GET",
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+      },
+      redirect: "follow",
+    });
+    if (!res.ok) return json({ ok: false, msg: "HTTP " + res.status });
+    const text = await res.text();
+    return json({ ok: true, value: text.trim() });
+  } catch (e) {
+    return json({ ok: false, msg: String(e.message || e) });
+  }
+}
+
+async function handleCacheSet(key, value) {
+  if (!key || !value) return json({ ok: false, msg: "缺少参数" });
+  const safeKey = String(key).replace(/[^a-zA-Z0-9_-]/g, "");
+  if (!safeKey) return json({ ok: false, msg: "无效 key" });
+  try {
+    const url =
+      "https://textdb.online/update/?key=" +
+      encodeURIComponent(safeKey) +
+      "&value=" +
+      encodeURIComponent(String(value));
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+      },
+      redirect: "follow",
+    });
+    try {
+      await res.text();
+    } catch (e) {}
+    return json({ ok: true });
+  } catch (e) {
+    return json({ ok: false, msg: String(e.message || e) });
+  }
 }
 
 function isSongIdStr(s) {

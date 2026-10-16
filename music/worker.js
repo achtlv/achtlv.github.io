@@ -828,7 +828,7 @@ var r=QUALITY_RANK[q];
 return (r===undefined)?0:r;
 }
 
-// ==================== 编码检测（方案C） ====================
+// ==================== 编码检测 ====================
 function normalizeCodec(c){
 if(!c)return '';
 return String(c).trim();
@@ -2210,31 +2210,73 @@ return '';
 }
 
 // ==================== 解析输入 ====================
+// 元数据获取：优先播放列表现有 → 缓存封面 → 网络
 async function fetchMetaById(id){
+var idStr=String(id);
 var name='',artist='',pic='',duration=0;
+
+for(var i=0;i<state.playlist.length;i++){
+var s=state.playlist[i];
+if(s.id===idStr&&!s.external){
+if(s.name&&s.name!=='未知歌曲')name=s.name;
+if(s.artist&&s.artist!=='未知歌手')artist=s.artist;
+if(s.pic)pic=s.pic;
+if(s.duration&&s.duration>0)duration=s.duration;
+break;
+}
+}
+
+if(!pic){
 try{
-var info=await post('/api/getSongInfo',{id:id});
-var m=extractInfo(info);
-name=m.name||'';artist=m.artist||'';pic=m.pic||'';duration=m.duration||0;
+var cachedPic=await getCachedCover(idStr);
+if(cachedPic)pic=cachedPic;
 }catch(e){}
+}
+
+if(!name||!artist||!pic){
+try{
+var info=await post('/api/getSongInfo',{id:idStr});
+var m=extractInfo(info);
+if(!name&&m.name)name=m.name;
+if(!artist&&m.artist)artist=m.artist;
+if(!pic&&m.pic){
+pic=m.pic;
+await saveCoverToCache(idStr,m.pic);
+}
+if(!duration&&m.duration>0)duration=m.duration;
+}catch(e){}
+}
+
 if((!pic||!name)&&name){
 try{
 var r=await post('/api/search',{word:name});
-if(r&&r.id&&r.id===String(id)){
-if(!pic&&r.pic)pic=r.pic;
+if(r&&r.id&&r.id===idStr){
+if(!pic&&r.pic){
+pic=r.pic;
+await saveCoverToCache(idStr,r.pic);
+}
 if(!artist&&r.artist)artist=r.artist;
 }
 }catch(e){}
 }
-return {id:String(id),name:name||'未知歌曲',artist:artist||'未知歌手',pic:pic||'',duration:duration};
+
+return {id:idStr,name:name||'未知歌曲',artist:artist||'未知歌手',pic:pic||'',duration:duration};
 }
 
-async function detectNeteaseQualityOnce(id){
+// 单次探测：加过期检查 + 存储
+async function detectNeteaseQualityOnce(id,durationHint){
+var durSec=(durationHint&&durationHint>0)?durationHint:0;
+var minExpi=durSec>0?(durSec+URL_SAFETY_BUFFER):0;
 for(var i=0;i<LEVELS.length;i++){
 try{
 var r=await post('/api/getSongUrl',{id:id,level:LEVELS[i]});
 var url=extractUrl(r);
-if(url&&isHttpUrl(url))return LEVELS[i];
+if(url&&isHttpUrl(url)){
+var expi=extractExpi(r)||DEFAULT_EXPI;
+if(minExpi>0&&expi<minExpi)continue;
+await saveAudioUrlToCache(id,LEVELS[i],url,expi);
+return LEVELS[i];
+}
 }catch(e){}
 }
 try{
@@ -2244,10 +2286,21 @@ if(ok)return 'official';
 return '';
 }
 
-async function detectNeteaseQuality(id){
+// 音质检测：缓存优先 → 网络3次
+async function detectNeteaseQuality(id,durationHint){
+var hasDuration=(durationHint&&durationHint>0);
+var durSec=hasDuration?durationHint:0;
+var needRemain=hasDuration?(durSec+URL_SAFETY_BUFFER):300;
+
+for(var i=0;i<LEVELS.length;i++){
+var lv=LEVELS[i];
+var cached=await getCachedAudioUrl(id,lv,needRemain);
+if(cached)return lv;
+}
+
 var best='';
 for(var attempt=0;attempt<DETECT_TIMES;attempt++){
-var q=await detectNeteaseQualityOnce(id);
+var q=await detectNeteaseQualityOnce(id,durSec);
 if(q&&qualityRank(q)>qualityRank(best))best=q;
 if(best&&qualityRank(best)>=MAX_PLAY_RANK)break;
 }
@@ -2258,7 +2311,7 @@ async function tryNeteaseLink(url){
 var r=await post('/api/resolve',{url:url});
 if(r&&r.id){
 var m=await fetchMetaById(r.id);
-var q=await detectNeteaseQuality(r.id);
+var q=await detectNeteaseQuality(r.id,m.duration);
 if(q){
 m.quality=q;
 return m;
@@ -2291,7 +2344,7 @@ if(!text)throw new Error('请输入内容');
 
 if(isSongId(text)){
 var meta=await fetchMetaById(text);
-var q=await detectNeteaseQuality(text);
+var q=await detectNeteaseQuality(text,meta.duration);
 if(!q)throw new Error('该歌曲暂无可用音源');
 meta.quality=q;
 return meta;
@@ -2318,7 +2371,7 @@ if(em)return em;
 var rs=await post('/api/search',{word:text});
 if(rs&&rs.id){
 var meta3={id:String(rs.id),name:rs.name||text,artist:rs.artist||'未知歌手',pic:rs.pic||'',duration:0};
-var q3=await detectNeteaseQuality(meta3.id);
+var q3=await detectNeteaseQuality(meta3.id,meta3.duration);
 if(!q3)throw new Error('该歌曲暂无可用音源');
 meta3.quality=q3;
 return meta3;
@@ -2345,7 +2398,7 @@ state.retrying=true;
 render();
 var q='';
 try{
-q=await detectNeteaseQuality(song.id);
+q=await detectNeteaseQuality(song.id,song.duration);
 }catch(e){
 q='';
 }
@@ -2570,6 +2623,22 @@ state.lyricLoading=false;
 render();
 }
 }else if(state.lyricLoading||!state.lyric){
+var cachedLyric=null;
+try{cachedLyric=await getCachedLyric(song.id);}catch(e){}
+if(cachedLyric){
+state.lyric=cachedLyric.main||'暂无歌词';
+state.lyricTrans=cachedLyric.trans||'';
+state.lyricRoma=cachedLyric.roma||'';
+state.lyricLoading=false;
+var eC=getPreloadEntry(song.id);
+if(eC){
+eC.lyric=state.lyric;
+eC.lyricTrans=state.lyricTrans;
+eC.lyricRoma=state.lyricRoma;
+eC.lyricDone=true;
+}
+render();
+}else{
 try{
 var lr=await post('/api/getSongLyric',{id:song.id});
 if(token!==playToken)return;
@@ -2595,8 +2664,18 @@ state.lyricLoading=false;
 render();
 }
 }
+}
 
 if(!song.pic&&!song.external){
+var cachedPic='';
+try{cachedPic=await getCachedCover(song.id);}catch(e){}
+if(cachedPic){
+song.pic=cachedPic;
+preloadCover(cachedPic);
+var eCp=getPreloadEntry(song.id);
+if(eCp){eCp.pic=cachedPic;eCp.picDone=true;}
+render();
+}else{
 try{
 var sr=await post('/api/search',{word:song.name});
 if(token!==playToken)return;
@@ -2609,6 +2688,7 @@ await saveCoverToCache(song.id,sr.pic);
 render();
 }
 }catch(e){}
+}
 }
 
 if(token!==playToken)return;
@@ -2872,7 +2952,6 @@ if(e&&e.name==='AbortError'){$('shareScrim').classList.remove('show')}
 var pendingDownloadSong=null;
 var downloadDetectToken=0;
 
-// VIP 判定：只有 free===true 且 copyright===1 才返回 false（不需要VIP）
 async function checkVipNeeded(id){
 try{
 var r=await post('/api/getSongInfo',{id:String(id)});
@@ -2884,7 +2963,6 @@ d=d.data;
 }
 
 if(d&&typeof d==='object'){
-// 必须 free === true 且有版权
 var isFree=(d.free===true);
 var hasCopyright=(typeof d.copyright==='number'&&d.copyright!==0);
 if(isFree&&hasCopyright){
@@ -2892,7 +2970,6 @@ return false;
 }
 }
 }catch(e){}
-// 默认需要VIP（保守）
 return true;
 }
 

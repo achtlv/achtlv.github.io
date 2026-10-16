@@ -562,6 +562,8 @@ var COOKIE_MAX=3800;
 var HLS_CDN='https://fastly.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js';
 
 var QUALITY_LABEL={exhigh:'极高',standard:'标准',official:'官方',lossless:'无损'};
+var QUALITY_RANK={lossless:4,exhigh:3,standard:2,official:1};
+var DETECT_TIMES=3;
 var DOWNLOAD_LEVELS=[
 {key:'lossless',label:'无损'},
 {key:'exhigh',label:'极高'},
@@ -713,6 +715,22 @@ setTimeout(function(){t.remove()},320);
 function extractUrl(r){
 return (r&&r.data&&r.data[0]&&r.data[0].url)||(r&&r.data&&r.data.url)||(r&&r.url)||
 (r&&r.data&&r.data.playUrl)||'';
+}
+
+function qualityRank(q){
+if(!q||q==='unavailable'||q==='external')return 0;
+var r=QUALITY_RANK[q];
+return (r===undefined)?0:r;
+}
+
+// ==================== 音频源控制 ====================
+function stopAudio(){
+try{audio.pause()}catch(e){}
+if(hlsInstance){try{hlsInstance.destroy()}catch(e){}hlsInstance=null}
+try{
+audio.removeAttribute('src');
+audio.load();
+}catch(e){}
 }
 
 // ==================== gzip ====================
@@ -1239,8 +1257,8 @@ if(!existing[s.id]){state.playlist.push(s);existing[s.id]=true;added++;}
 return added;
 }
 
-// ==================== 播放链接 ====================
-async function fetchPlayUrl(id){
+// ==================== 播放链接（检测三次取最高） ====================
+async function fetchPlayUrlOnce(id){
 for(var i=0;i<LEVELS.length;i++){
 try{
 var r=await post('/api/getSongUrl',{id:id,level:LEVELS[i]});
@@ -1255,10 +1273,20 @@ var official=OFFICIAL_PREFIX+encodeURIComponent(String(id));
 return {url:official,level:'official'};
 }
 }catch(e){}
+return null;
+}
+
+async function fetchPlayUrl(id){
+var best=null;
+for(var attempt=0;attempt<DETECT_TIMES;attempt++){
+var r=await fetchPlayUrlOnce(id);
+if(r&&(!best||qualityRank(r.level)>qualityRank(best.level)))best=r;
+}
+if(best)return best;
 throw new Error('暂无可用音源');
 }
 
-async function fetchPlayUrlLevel(id,level){
+async function fetchPlayUrlLevelOnce(id,level){
 if(level==='official'){
 try{
 var chk=await post('/api/checkOfficial',{id:String(id)});
@@ -1271,6 +1299,14 @@ var r=await post('/api/getSongUrl',{id:id,level:level});
 var url=extractUrl(r);
 if(url&&isHttpUrl(url))return url;
 }catch(e){}
+return '';
+}
+
+async function fetchPlayUrlLevel(id,level){
+for(var attempt=0;attempt<DETECT_TIMES;attempt++){
+var url=await fetchPlayUrlLevelOnce(id,level);
+if(url)return url;
+}
 return '';
 }
 
@@ -1293,7 +1329,8 @@ if(!artist&&r.artist)artist=r.artist;
 }
 return {id:String(id),name:name||'未知歌曲',artist:artist||'未知歌手',pic:pic||''};
 }
-async function detectNeteaseQuality(id){
+
+async function detectNeteaseQualityOnce(id){
 for(var i=0;i<LEVELS.length;i++){
 try{
 var r=await post('/api/getSongUrl',{id:id,level:LEVELS[i]});
@@ -1307,6 +1344,16 @@ if(chk&&chk.ok)return 'official';
 }catch(e){}
 return '';
 }
+
+async function detectNeteaseQuality(id){
+var best='';
+for(var attempt=0;attempt<DETECT_TIMES;attempt++){
+var q=await detectNeteaseQualityOnce(id);
+if(q&&qualityRank(q)>qualityRank(best))best=q;
+}
+return best;
+}
+
 async function resolveInput(text){
 text=(text||'').trim();
 if(!text)throw new Error('请输入内容');
@@ -1357,37 +1404,43 @@ else{val=song.id||'';}
 return base+'?add='+encodeURIComponent(val);
 }
 
-// ==================== 重新检测音源 ====================
+// ==================== 重新检测音源（只升不降） ====================
 async function retryQuality(){
 var song=state.playlist[state.current];
 if(!song||song.external)return;
 if(state.retrying)return;
 state.retrying=true;
 render();
+var q='';
 try{
-var q=await detectNeteaseQuality(song.id);
-state.retrying=false;
-if(q){
-var changed=(state.quality!==q);
-state.quality=q;
-if(changed){
-toast('已找到可用音源：'+(QUALITY_LABEL[q]||q));
-playIndex(state.current);
-}else{
-toast('当前已是最优音源');
-render();
+q=await detectNeteaseQuality(song.id);
+}catch(e){
+q='';
 }
+state.retrying=false;
+
+var curRank=qualityRank(state.quality);
+var newRank=qualityRank(q);
+
+if(q&&newRank>curRank){
+state.quality=q;
+toast('已找到更高音质：'+(QUALITY_LABEL[q]||q));
+playIndex(state.current,q);
+return;
+}
+if(q&&newRank===curRank){
+toast('当前已是最优音源');
+}else if(q){
+toast('当前音源已是最优，保持现有音质');
+}else{
+if(curRank>0){
+toast('新检测无可用音源，保持当前音质');
 }else{
 state.quality='unavailable';
 toast('仍然没有可用音源');
-render();
 }
-}catch(e){
-state.retrying=false;
-state.quality='unavailable';
-toast('检测失败');
-render();
 }
+render();
 }
 
 // ==================== 渲染 ====================
@@ -1408,7 +1461,6 @@ $('qualityBadge').style.display='inline-block';
 $('qualityBadge').style.display='none';
 }
 
-// 重试按钮：网易云歌曲时显示
 var showRetry=!!(song&&!song.external);
 if(showRetry){
 $('retryBtn').style.display='flex';
@@ -1496,9 +1548,12 @@ box.innerHTML=html;
 }
 
 // ==================== 播放 ====================
-async function playIndex(i){
+async function playIndex(i,forcedQuality){
 if(i<0||i>=state.playlist.length)return;
 var token=++playToken;
+
+// 先暂停当前播放并释放当前音源，再加载新歌
+stopAudio();
 
 state.current=i;
 state.showLyric=false;
@@ -1510,8 +1565,15 @@ render();
 var song=state.playlist[i];
 var result;
 try{
-if(song.external){result={url:song.url,level:'external'};}
-else{result=await fetchPlayUrl(song.id);}
+if(song.external){
+result={url:song.url,level:'external'};
+}else if(forcedQuality){
+var u=await fetchPlayUrlLevel(song.id,forcedQuality);
+if(!u)throw new Error('音源加载失败');
+result={url:u,level:forcedQuality};
+}else{
+result=await fetchPlayUrl(song.id);
+}
 if(token!==playToken)return;
 state.audioUrl=result.url;
 state.quality=result.level;
@@ -1730,7 +1792,7 @@ if(e&&e.name==='AbortError'){$('shareScrim').classList.remove('show')}
 // ==================== 下载 ====================
 var pendingDownloadSong=null;
 
-async function checkLevelAvailable(id,level){
+async function checkLevelAvailableOnce(id,level){
 if(level==='official'){
 try{
 var chk=await post('/api/checkOfficial',{id:String(id)});
@@ -1746,6 +1808,13 @@ return !!(url&&isHttpUrl(url));
 }catch(e){
 return false;
 }
+}
+
+async function checkLevelAvailable(id,level){
+for(var attempt=0;attempt<DETECT_TIMES;attempt++){
+if(await checkLevelAvailableOnce(id,level))return true;
+}
+return false;
 }
 
 async function openDownloadDialog(song){
@@ -2015,10 +2084,7 @@ state.retrying=false;
 state.editingOrder=false;
 $('sheetEdit').innerHTML=ICON.edit;
 $('sheetEdit').classList.remove('active');
-if(hlsInstance){try{hlsInstance.destroy()}catch(e){}hlsInstance=null}
-audio.pause();
-audio.removeAttribute('src');
-audio.load();
+stopAudio();
 $('seek').value='0';
 updateSeekBg(0);
 $('curTime').textContent='0:00';
@@ -2164,8 +2230,7 @@ state.retrying=false;
 state.editingOrder=false;
 $('sheetEdit').innerHTML=ICON.edit;
 $('sheetEdit').classList.remove('active');
-if(hlsInstance){try{hlsInstance.destroy()}catch(e){}hlsInstance=null}
-audio.pause();audio.removeAttribute('src');audio.load();
+stopAudio();
 $('seek').value='0';updateSeekBg(0);
 $('curTime').textContent='0:00';$('durTime').textContent='0:00';
 clearPlaylistCookie();

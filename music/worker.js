@@ -63,6 +63,18 @@ flex-shrink:0;transition:background .18s,transform .15s}
 .retry-btn.spinning svg{animation:retry-spin .8s linear infinite}
 @keyframes retry-spin{to{transform:rotate(360deg)}}
 
+.dlg-retry{width:32px;height:32px;border-radius:50%;border:none;padding:0;
+background:color-mix(in srgb,var(--primary) 15%,transparent);color:var(--primary);
+display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;
+transition:background .18s,transform .15s}
+.dlg-retry:hover{background:color-mix(in srgb,var(--primary) 25%,transparent)}
+.dlg-retry:active{transform:scale(.92)}
+.dlg-retry:disabled{cursor:default;opacity:.7}
+.dlg-retry svg{width:17px;height:17px;fill:currentColor;pointer-events:none}
+.dlg-retry.spinning svg{animation:retry-spin .8s linear infinite}
+.dialog-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px}
+.dialog-head h2{margin-bottom:0}
+
 .icon-btn{width:40px;height:40px;border:none;border-radius:50%;background:transparent;
 color:var(--on-surface-variant);display:flex;align-items:center;justify-content:center;
 cursor:pointer;transition:background .18s,color .18s;flex-shrink:0}
@@ -449,7 +461,10 @@ footer{padding:8px 0 6px}
 
 <div class="scrim" id="downloadScrim">
 <div class="dialog">
+<div class="dialog-head">
 <h2>选择下载音质</h2>
+<button class="dlg-retry" id="downloadRetryBtn" aria-label="重新检测音质"></button>
+</div>
 <p class="dialog-text" id="downloadSongName">—</p>
 <div id="qualityList"></div>
 <div class="dlg-actions">
@@ -563,6 +578,7 @@ var HLS_CDN='https://fastly.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js';
 
 var QUALITY_LABEL={exhigh:'极高',standard:'标准',official:'官方',lossless:'无损'};
 var QUALITY_RANK={lossless:4,exhigh:3,standard:2,official:1};
+var MAX_PLAY_RANK=3;
 var DETECT_TIMES=3;
 var DOWNLOAD_LEVELS=[
 {key:'lossless',label:'无损'},
@@ -588,6 +604,7 @@ $('sheetExport').innerHTML=ICON.exportIco;
 $('sheetImport').innerHTML=ICON.importIco;
 $('sheetEdit').innerHTML=ICON.edit;
 $('retryBtn').innerHTML=ICON.refresh;
+$('downloadRetryBtn').innerHTML=ICON.refresh;
 
 function closeOtherScrims(exceptId){
 for(var i=0;i<ALL_SCRIMS.length;i++){
@@ -1257,7 +1274,7 @@ if(!existing[s.id]){state.playlist.push(s);existing[s.id]=true;added++;}
 return added;
 }
 
-// ==================== 播放链接（检测三次取最高） ====================
+// ==================== 播放链接检测（3 次取最高，拿到最高提前退出） ====================
 async function fetchPlayUrlOnce(id){
 for(var i=0;i<LEVELS.length;i++){
 try{
@@ -1281,6 +1298,7 @@ var best=null;
 for(var attempt=0;attempt<DETECT_TIMES;attempt++){
 var r=await fetchPlayUrlOnce(id);
 if(r&&(!best||qualityRank(r.level)>qualityRank(best.level)))best=r;
+if(best&&qualityRank(best.level)>=MAX_PLAY_RANK)break;
 }
 if(best)return best;
 throw new Error('暂无可用音源');
@@ -1350,6 +1368,7 @@ var best='';
 for(var attempt=0;attempt<DETECT_TIMES;attempt++){
 var q=await detectNeteaseQualityOnce(id);
 if(q&&qualityRank(q)>qualityRank(best))best=q;
+if(best&&qualityRank(best)>=MAX_PLAY_RANK)break;
 }
 return best;
 }
@@ -1552,7 +1571,6 @@ async function playIndex(i,forcedQuality){
 if(i<0||i>=state.playlist.length)return;
 var token=++playToken;
 
-// 先暂停当前播放并释放当前音源，再加载新歌
 stopAudio();
 
 state.current=i;
@@ -1791,6 +1809,7 @@ if(e&&e.name==='AbortError'){$('shareScrim').classList.remove('show')}
 
 // ==================== 下载 ====================
 var pendingDownloadSong=null;
+var downloadDetectToken=0;
 
 async function checkLevelAvailableOnce(id,level){
 if(level==='official'){
@@ -1810,62 +1829,83 @@ return false;
 }
 }
 
-async function checkLevelAvailable(id,level){
+async function checkAllLevels(id){
+var result={lossless:false,exhigh:false,standard:false,official:false};
 for(var attempt=0;attempt<DETECT_TIMES;attempt++){
-if(await checkLevelAvailableOnce(id,level))return true;
+var tasks=[];
+if(!result.lossless)tasks.push(checkLevelAvailableOnce(id,'lossless').then(function(ok){return {key:'lossless',ok:ok}}));
+if(!result.exhigh)tasks.push(checkLevelAvailableOnce(id,'exhigh').then(function(ok){return {key:'exhigh',ok:ok}}));
+if(!result.standard)tasks.push(checkLevelAvailableOnce(id,'standard').then(function(ok){return {key:'standard',ok:ok}}));
+if(!result.official)tasks.push(checkLevelAvailableOnce(id,'official').then(function(ok){return {key:'official',ok:ok}}));
+if(!tasks.length)break;
+var rs=await Promise.all(tasks);
+for(var i=0;i<rs.length;i++){
+if(rs[i].ok)result[rs[i].key]=true;
 }
-return false;
+if(result.lossless&&result.exhigh&&result.standard)break;
+}
+return result;
 }
 
-async function openDownloadDialog(song){
-pendingDownloadSong=song;
-$('downloadSongName').textContent=(song.name||'未知歌曲')+' - '+(song.artist||'');
+async function runQualityDetection(song){
+var token=++downloadDetectToken;
 var listEl=$('qualityList');
+var btn=$('downloadRetryBtn');
 listEl.innerHTML='<div class="quality-loading"><div class="quality-spinner"></div><div>正在检测可用音质...</div></div>';
-closeOtherScrims('downloadScrim');
-$('downloadScrim').classList.add('show');
+btn.disabled=true;
+btn.classList.add('spinning');
 
-var currentIsThisSong=(state.current>=0&&state.playlist[state.current]===song);
-var currentQuality=currentIsThisSong?state.quality:'';
+var availability=await checkAllLevels(song.id);
 
-var tasks=DOWNLOAD_LEVELS.map(function(lv){
-if(lv.key===currentQuality){
-return Promise.resolve({key:lv.key,label:lv.label,available:true,current:true});
-}
-return checkLevelAvailable(song.id,lv.key).then(function(ok){
-return {key:lv.key,label:lv.label,available:ok,current:false};
-});
-});
-
-var results=await Promise.all(tasks);
+if(token!==downloadDetectToken)return;
 if(!$('downloadScrim').classList.contains('show'))return;
 if(pendingDownloadSong!==song)return;
 
-renderDownloadQualityList(results,song);
+btn.disabled=false;
+btn.classList.remove('spinning');
+
+var currentIsThisSong=(state.current>=0&&state.playlist[state.current]===song);
+var currentQuality=currentIsThisSong?state.quality:'';
+if(currentQuality&&availability[currentQuality]!==undefined){
+availability[currentQuality]=true;
 }
 
-function renderDownloadQualityList(results,song){
+renderDownloadQualityList(availability,song,currentQuality);
+}
+
+function openDownloadDialog(song){
+pendingDownloadSong=song;
+$('downloadSongName').textContent=(song.name||'未知歌曲')+' - '+(song.artist||'');
+closeOtherScrims('downloadScrim');
+$('downloadScrim').classList.add('show');
+runQualityDetection(song);
+}
+
+function renderDownloadQualityList(availability,song,currentQuality){
 var listEl=$('qualityList');
 var anyAvailable=false;
-for(var i=0;i<results.length;i++){if(results[i].available){anyAvailable=true;break}}
-
+for(var i=0;i<DOWNLOAD_LEVELS.length;i++){
+if(availability[DOWNLOAD_LEVELS[i].key]){anyAvailable=true;break}
+}
 if(!anyAvailable){
 listEl.innerHTML='<div class="quality-loading">没有可用音质</div>';
 return;
 }
 
 var html='<div class="quality-list">';
-for(var i=0;i<results.length;i++){
-var r=results[i];
+for(var i=0;i<DOWNLOAD_LEVELS.length;i++){
+var lv=DOWNLOAD_LEVELS[i];
+var isCurrent=lv.key===currentQuality;
+var avail=availability[lv.key]||isCurrent;
 var cls='quality-item';
-if(!r.available)cls+=' disabled';
-if(r.current)cls+=' current';
-var dis=r.available?'':' disabled';
-html+='<button class="'+cls+'" data-level="'+r.key+'"'+dis+'>';
-html+='<span class="quality-label">'+r.label+'</span>';
-if(r.current){
+if(!avail)cls+=' disabled';
+if(isCurrent)cls+=' current';
+var dis=avail?'':' disabled';
+html+='<button class="'+cls+'" data-level="'+lv.key+'"'+dis+'>';
+html+='<span class="quality-label">'+lv.label+'</span>';
+if(isCurrent){
 html+='<span class="quality-tag">当前</span>';
-}else if(!r.available){
+}else if(!avail){
 html+='<span class="quality-tag unavailable">不可用</span>';
 }
 html+='</button>';
@@ -1922,13 +1962,19 @@ toast('已在新窗口打开');
 
 $('downloadCancel').addEventListener('click',function(){
 pendingDownloadSong=null;
+downloadDetectToken++;
 $('downloadScrim').classList.remove('show');
 });
 $('downloadScrim').addEventListener('click',function(e){
 if(e.target===this){
 pendingDownloadSong=null;
+downloadDetectToken++;
 this.classList.remove('show');
 }
+});
+$('downloadRetryBtn').addEventListener('click',function(){
+if(!pendingDownloadSong)return;
+runQualityDetection(pendingDownloadSong);
 });
 
 $('downloadBtn').addEventListener('click',async function(){
@@ -2634,45 +2680,68 @@ async function handleResolve(rawUrl) {
   return json({ code: 404, msg: "无法从链接中提取歌曲 ID" }, 404);
 }
 
+// 检测网易云官方接口是否真的返回音频
+// 关键修复：补全浏览器 headers + 匿名 Cookie，避免被网易识别为爬虫返回 HTML
 async function handleCheckOfficial(id) {
   if (!id) return json({ ok: false, msg: "缺少歌曲 ID" });
+  const sid = String(id);
   const official =
-    "https://music.163.com/song/media/outer/url?id=" + encodeURIComponent(String(id));
+    "https://music.163.com/song/media/outer/url?id=" + encodeURIComponent(sid);
 
   try {
     const res = await fetch(official, {
       method: "GET",
       headers: {
-        Range: "bytes=0-1023",
         "User-Agent":
-          "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-        Referer: "https://music.163.com/",
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Referer": "https://music.163.com/",
+        "Origin": "https://music.163.com",
+        "Accept": "*/*",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        // 关键：带匿名 Cookie，模拟浏览器首次访问。不需要登录也能拿到免费歌曲
+        "Cookie": "os=pc; appver=2.9.7; osver=Microsoft-Windows-10-Professional-build-19045-64bit; deviceId=; mode=; NMTID=; playerid=;",
+        "Range": "bytes=0-1023",
       },
       redirect: "follow",
     });
 
+    // 不读完整 body，只释放连接（避免大文件拖慢 Worker）
     try {
-      await res.arrayBuffer();
+      if (res.body && typeof res.body.cancel === "function") {
+        await res.body.cancel();
+      } else {
+        await res.arrayBuffer();
+      }
     } catch (e) {}
 
     const rawCt = res.headers.get("Content-Type") || "";
     const ct = rawCt.toLowerCase().split(";")[0].trim();
     const finalUrl = (res.url || "").toLowerCase();
+    const contentLength = parseInt(res.headers.get("Content-Length") || "0", 10);
 
-    const isAudioCt =
-      ct.indexOf("audio/") === 0 ||
-      ct === "application/octet-stream";
+    // 命中音频信号
+    const isAudioCt = ct.indexOf("audio/") === 0;
+    const isOctet = ct === "application/octet-stream";
     const isMp3Url = finalUrl.indexOf(".mp3") !== -1;
-    const isHtml =
-      ct.indexOf("text/html") !== -1 ||
-      ct.indexOf("text/") === 0;
+    const isMusic126 = finalUrl.indexOf("music.126.net") !== -1;
+    // 排除信号
+    const isHtml = ct.indexOf("text/html") !== -1;
+    const is404Page =
+      finalUrl.indexOf("/404") !== -1 ||
+      finalUrl.indexOf("music.163.com/404") !== -1;
+    const tooSmall = contentLength > 0 && contentLength < 1024;
 
-    const ok = (isAudioCt || isMp3Url) && !isHtml;
+    const ok =
+      !isHtml &&
+      !is404Page &&
+      !tooSmall &&
+      (isAudioCt || isMp3Url || isMusic126 || isOctet);
 
     return json({
       ok,
       contentType: ct,
       finalUrl: res.url || "",
+      contentLength,
     });
   } catch (e) {
     return json({ ok: false, msg: String(e.message || e) });

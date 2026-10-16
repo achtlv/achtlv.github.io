@@ -598,7 +598,6 @@ audio.style.pointerEvents='none';
 audio.setAttribute('playsinline','');
 audio.setAttribute('webkit-playsinline','');
 audio.preload='metadata';
-audio.crossOrigin='anonymous';
 if(document.body)document.body.appendChild(audio);
 else document.addEventListener('DOMContentLoaded',function(){document.body.appendChild(audio)});
 
@@ -1027,9 +1026,18 @@ if(d&&d.seekTime!==undefined)audio.currentTime=d.seekTime;
 updateMediaSessionMetadata();
 }
 
-// ==================== 官方接口本地探测 ====================
+// ==================== 官方接口本地探测（解析 302 拿 https 直链） ====================
 function probeOfficialLocal(id){
-return new Promise(function(resolve){
+return new Promise(async function(resolve){
+var finalUrl='';
+try{
+var r=await post('/api/resolveOfficial',{id:String(id)});
+if(r&&r.ok&&r.url)finalUrl=r.url;
+}catch(e){}
+if(!finalUrl){
+finalUrl=OFFICIAL_PREFIX+encodeURIComponent(String(id));
+}
+
 var a=new Audio();
 var done=false;
 var timer=null;
@@ -1037,11 +1045,8 @@ function finish(ok){
 if(done)return;
 done=true;
 if(timer)clearTimeout(timer);
-try{
-a.removeAttribute('src');
-a.load();
-}catch(e){}
-resolve(ok);
+try{a.removeAttribute('src');a.load();}catch(e){}
+resolve(ok?finalUrl:false);
 }
 timer=setTimeout(function(){finish(false)},5000);
 a.preload='metadata';
@@ -1050,7 +1055,7 @@ a.onloadedmetadata=function(){finish(true)};
 a.oncanplay=function(){finish(true)};
 a.onerror=function(){finish(false)};
 try{
-a.src=OFFICIAL_PREFIX+encodeURIComponent(String(id));
+a.src=finalUrl;
 }catch(e){
 finish(false);
 }
@@ -2119,10 +2124,9 @@ if(url&&isHttpUrl(url)){return {url:url,level:LEVELS[i],expi:extractExpi(r)};}
 }catch(e){}
 }
 try{
-var ok=await probeOfficialLocal(id);
-if(ok){
-var official=OFFICIAL_PREFIX+encodeURIComponent(String(id));
-return {url:official,level:'official',expi:0};
+var officialUrl=await probeOfficialLocal(id);
+if(officialUrl){
+return {url:officialUrl,level:'official',expi:0};
 }
 }catch(e){}
 return null;
@@ -2163,9 +2167,9 @@ var r2=await tryGetLevelWithCache(id,'standard',needRemain);
 if(r2)return r2;
 
 try{
-var ok=await probeOfficialLocal(id);
-if(ok){
-return {url:OFFICIAL_PREFIX+encodeURIComponent(String(id)),level:'official',expi:0};
+var officialUrl=await probeOfficialLocal(id);
+if(officialUrl){
+return {url:officialUrl,level:'official',expi:0};
 }
 }catch(e){}
 
@@ -2175,9 +2179,9 @@ throw new Error('暂无可用音源');
 async function fetchPlayUrlLevelOnce(id,level){
 if(level==='official'){
 try{
-var ok=await probeOfficialLocal(id);
-if(ok){
-return {url:OFFICIAL_PREFIX+encodeURIComponent(String(id)),expi:0};
+var officialUrl=await probeOfficialLocal(id);
+if(officialUrl){
+return {url:officialUrl,expi:0};
 }
 }catch(e){}
 return null;
@@ -2210,7 +2214,6 @@ return '';
 }
 
 // ==================== 解析输入 ====================
-// 元数据获取：优先播放列表现有 → 缓存封面 → 网络
 async function fetchMetaById(id){
 var idStr=String(id);
 var name='',artist='',pic='',duration=0;
@@ -2263,7 +2266,6 @@ if(!artist&&r.artist)artist=r.artist;
 return {id:idStr,name:name||'未知歌曲',artist:artist||'未知歌手',pic:pic||'',duration:duration};
 }
 
-// 单次探测：加过期检查 + 存储
 async function detectNeteaseQualityOnce(id,durationHint){
 var durSec=(durationHint&&durationHint>0)?durationHint:0;
 var minExpi=durSec>0?(durSec+URL_SAFETY_BUFFER):0;
@@ -2280,13 +2282,12 @@ return LEVELS[i];
 }catch(e){}
 }
 try{
-var ok=await probeOfficialLocal(id);
-if(ok)return 'official';
+var officialUrl=await probeOfficialLocal(id);
+if(officialUrl)return 'official';
 }catch(e){}
 return '';
 }
 
-// 音质检测：缓存优先 → 网络3次
 async function detectNeteaseQuality(id,durationHint){
 var hasDuration=(durationHint&&durationHint>0);
 var durSec=hasDuration?durationHint:0;
@@ -3083,8 +3084,10 @@ url=await fetchPlayUrlLevel(song.id,level,300);
 }catch(e){}
 if(!url){
 if(level==='official'){
-url=OFFICIAL_PREFIX+encodeURIComponent(String(song.id));
-}else{
+var officialUrl=await probeOfficialLocal(song.id);
+if(officialUrl)url=officialUrl;
+}
+if(!url){
 toast('该音质不可用');
 return;
 }
@@ -3631,6 +3634,7 @@ export default {
       if (action === "checkAudio") return await handleCheckAudio(body.url || "");
       if (action === "cacheGet") return await handleCacheGet(body.key || "");
       if (action === "cacheSet") return await handleCacheSet(body.key || "", body.value || "");
+      if (action === "resolveOfficial") return await handleResolveOfficial(body.id || "");
 
       if (action === "getSongInfo") {
         return await proxy("getSongInfo", { id: body.id, timestamp: Date.now(), ip });
@@ -3718,6 +3722,32 @@ async function handleCacheSet(key, value) {
       await res.text();
     } catch (e) {}
     return json({ ok: true });
+  } catch (e) {
+    return json({ ok: false, msg: String(e.message || e) });
+  }
+}
+
+// ==================== 解析官方 302 直链（http → https） ====================
+async function handleResolveOfficial(id) {
+  if (!id) return json({ ok: false, msg: "缺少 ID" });
+  const url =
+    "https://music.163.com/song/media/outer/url?id=" + encodeURIComponent(String(id));
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      redirect: "manual",
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+        "Referer": "https://music.163.com/",
+      },
+    });
+    const loc = res.headers.get("Location") || "";
+    let httpsLoc = loc;
+    if (loc.indexOf("http://") === 0) {
+      httpsLoc = "https://" + loc.substring(7);
+    }
+    return json({ ok: !!httpsLoc, url: httpsLoc });
   } catch (e) {
     return json({ ok: false, msg: String(e.message || e) });
   }

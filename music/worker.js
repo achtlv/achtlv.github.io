@@ -1760,10 +1760,18 @@ var artist='';
 if(Array.isArray(artists)){artist=artists.map(function(a){return a&&a.name?a.name:a}).filter(Boolean).join(' / ')}
 else if(artists&&typeof artists==='object'){artist=artists.name||''}
 else if(typeof artists==='string'){artist=artists}
-var pic=(song.al&&song.al.picUrl)||(song.album&&song.album.picUrl)||song.picUrl||song.pic||song.cover||'';
+var pic=(song.al&&song.al.picUrl)||(song.album&&song.album.picUrl)||song.picUrl||song.pic||song.cover||song.picimg||'';
 var duration=0;
 if(typeof song.dt==='number'&&song.dt>0)duration=song.dt/1000;
 else if(typeof song.duration==='number'&&song.duration>0)duration=song.duration/1000;
+else if(typeof song.duration==='string'&&song.duration.length>0){
+var parts=song.duration.split(':');
+if(parts.length===2){
+var mm=parseInt(parts[0],10);
+var ss=parseInt(parts[1],10);
+if(isFinite(mm)&&isFinite(ss))duration=mm*60+ss;
+}
+}
 return {name:name,artist:artist,pic:pic,duration:duration};
 }
 function uid(){return 'ext_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)}
@@ -2120,29 +2128,47 @@ return {url:official,level:'official',expi:0};
 return null;
 }
 
+// 单等级：缓存优先 → 网络3次
+async function tryGetLevelWithCache(id,level,minRemainSec){
+if(level!=='official'){
+var cached=await getCachedAudioUrl(id,level,minRemainSec);
+if(cached){
+var expi=Math.max(1,Math.floor((cached.expireAt-Date.now())/1000));
+return {url:cached.url,level:level,expi:expi,fromCache:true};
+}
+}
+for(var i=0;i<DETECT_TIMES;i++){
+try{
+var r=await fetchPlayUrlLevelOnce(id,level);
+if(r&&r.url){
+if(level!=='official'){
+await saveAudioUrlToCache(id,level,r.url,r.expi);
+}
+return {url:r.url,level:level,expi:r.expi};
+}
+}catch(e){}
+}
+return null;
+}
+
+// 播放：严格串行 exhigh → standard → official
 async function fetchPlayUrl(id,durationHint){
 var durSec=(durationHint&&durationHint>0)?durationHint:360;
 var needRemain=durSec+URL_SAFETY_BUFFER;
 
-for(var i=0;i<LEVELS.length;i++){
-var lv=LEVELS[i];
-var cached=await getCachedAudioUrl(id,lv,needRemain);
-if(cached){
-var expi=Math.max(1,Math.floor((cached.expireAt-Date.now())/1000));
-return {url:cached.url,level:lv,expi:expi,fromCache:true};
-}
-}
+var r1=await tryGetLevelWithCache(id,'exhigh',needRemain);
+if(r1)return r1;
 
-var best=null;
-for(var attempt=0;attempt<DETECT_TIMES;attempt++){
-var r=await fetchPlayUrlOnce(id);
-if(r&&(!best||qualityRank(r.level)>qualityRank(best.level)))best=r;
-if(best&&qualityRank(best.level)>=MAX_PLAY_RANK)break;
+var r2=await tryGetLevelWithCache(id,'standard',needRemain);
+if(r2)return r2;
+
+try{
+var ok=await probeOfficialLocal(id);
+if(ok){
+return {url:OFFICIAL_PREFIX+encodeURIComponent(String(id)),level:'official',expi:0};
 }
-if(best){
-await saveAudioUrlToCache(id,best.level,best.url,best.expi);
-return best;
-}
+}catch(e){}
+
 throw new Error('暂无可用音源');
 }
 
@@ -2846,46 +2872,51 @@ if(e&&e.name==='AbortError'){$('shareScrim').classList.remove('show')}
 var pendingDownloadSong=null;
 var downloadDetectToken=0;
 
-async function checkLevelAvailableOnce(id,level){
-if(level==='official'){
+// VIP 判定：只有 free===true 且 copyright===1 才返回 false（不需要VIP）
+async function checkVipNeeded(id){
 try{
-return await probeOfficialLocal(id);
-}catch(e){
+var r=await post('/api/getSongInfo',{id:String(id)});
+if(!r)return true;
+
+var d=r.data!==undefined?r.data:r;
+if(d&&typeof d==='object'&&d.data&&typeof d.data==='object'){
+d=d.data;
+}
+
+if(d&&typeof d==='object'){
+// 必须 free === true 且有版权
+var isFree=(d.free===true);
+var hasCopyright=(typeof d.copyright==='number'&&d.copyright!==0);
+if(isFree&&hasCopyright){
 return false;
 }
 }
-try{
-var cached=await getCachedAudioUrl(id,level,300);
-if(cached)return true;
 }catch(e){}
-try{
-var r=await post('/api/getSongUrl',{id:id,level:level});
-var url=extractUrl(r);
-if(url&&isHttpUrl(url)){
-await saveAudioUrlToCache(id,level,url,extractExpi(r));
+// 默认需要VIP（保守）
 return true;
-}
-}catch(e){
-return false;
-}
-return false;
 }
 
 async function checkAllLevels(id){
-var result={lossless:false,exhigh:false,standard:false,official:false};
-for(var attempt=0;attempt<DETECT_TIMES;attempt++){
-var tasks=[];
-if(!result.lossless)tasks.push(checkLevelAvailableOnce(id,'lossless').then(function(ok){return {key:'lossless',ok:ok}}));
-if(!result.exhigh)tasks.push(checkLevelAvailableOnce(id,'exhigh').then(function(ok){return {key:'exhigh',ok:ok}}));
-if(!result.standard)tasks.push(checkLevelAvailableOnce(id,'standard').then(function(ok){return {key:'standard',ok:ok}}));
-if(!result.official)tasks.push(checkLevelAvailableOnce(id,'official').then(function(ok){return {key:'official',ok:ok}}));
-if(!tasks.length)break;
+var levels=['lossless','exhigh','standard'];
+var tasks=levels.map(function(lv){
+return tryGetLevelWithCache(id,lv,300).then(function(r){
+return {key:lv,ok:!!(r&&r.url)};
+});
+});
 var rs=await Promise.all(tasks);
+
+var result={lossless:false,exhigh:false,standard:false,official:false};
 for(var i=0;i<rs.length;i++){
 if(rs[i].ok)result[rs[i].key]=true;
 }
-if(result.lossless&&result.exhigh&&result.standard)break;
+
+try{
+var vipNeeded=await checkVipNeeded(id);
+result.official=!vipNeeded;
+}catch(e){
+result.official=false;
 }
+
 return result;
 }
 
@@ -2973,7 +3004,14 @@ var url='';
 try{
 url=await fetchPlayUrlLevel(song.id,level,300);
 }catch(e){}
-if(!url){toast('该音质不可用');return}
+if(!url){
+if(level==='official'){
+url=OFFICIAL_PREFIX+encodeURIComponent(String(song.id));
+}else{
+toast('该音质不可用');
+return;
+}
+}
 
 try{
 var res=await fetch(url);

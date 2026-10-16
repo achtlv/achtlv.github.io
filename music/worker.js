@@ -197,15 +197,6 @@ font-size:15px;font-family:inherit;outline:none;transition:border-color .2s,back
 background:color-mix(in srgb,var(--primary) 5%,transparent)}
 .input-row input::placeholder{color:var(--on-surface-variant)}
 
-.textarea{width:100%;min-height:72px;max-height:120px;padding:10px 14px;border-radius:14px;
-border:1px solid var(--outline);background:transparent;color:var(--on-surface);
-font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.6;
-outline:none;resize:vertical;transition:border-color .2s,background .2s;word-break:break-all}
-.textarea:focus{border-color:var(--primary);
-background:color-mix(in srgb,var(--primary) 4%,transparent)}
-.textarea::placeholder{color:var(--on-surface-variant)}
-.textarea[readonly]{cursor:text}
-
 .filled-icon{width:48px;height:48px;border-radius:50%;border:none;background:var(--primary);
 color:var(--on-primary);display:flex;align-items:center;justify-content:center;cursor:pointer;
 flex-shrink:0;transition:box-shadow .2s,opacity .2s,transform .15s}
@@ -493,13 +484,15 @@ footer{padding:8px 0 6px}
 
 <div class="scrim" id="exportScrim">
 <div class="dialog">
-<h2>导出播放列表</h2>
-<textarea class="textarea" id="exportText" readonly></textarea>
-<p class="hint" id="exportHint">已使用 gzip 压缩，可直接复制分享</p>
+<h2>网络导出</h2>
+<div class="input-row">
+<input id="exportKey" readonly placeholder="正在上传...">
+<button class="filled-icon" id="exportCopy" aria-label="复制密钥" disabled></button>
+</div>
+<p class="hint" id="exportHint">正在将歌单上传到网络...</p>
 <div class="dlg-actions">
-<button class="text-btn" id="exportClose">关闭</button>
-<button class="text-btn" id="exportCopy">复制</button>
-<button class="filled-btn" id="exportDownload">下载 .txt</button>
+<button class="text-btn" id="exportDownload">下载 .txt</button>
+<button class="filled-btn" id="exportClose">关闭</button>
 </div>
 </div>
 </div>
@@ -507,7 +500,10 @@ footer{padding:8px 0 6px}
 <div class="scrim" id="importScrim">
 <div class="dialog">
 <h2>导入播放列表</h2>
-<textarea class="textarea" id="importText" placeholder="粘贴播放列表文本（支持压缩格式或明文）"></textarea>
+<div class="input-row">
+<input id="importKey" placeholder="密钥 / GZIP / 明文歌单" autocomplete="off" maxlength="8000">
+<button class="filled-icon" id="importGo" aria-label="获取"></button>
+</div>
 <input type="file" id="importFile" accept=".txt,text/plain" style="display:none">
 <div class="import-toolbar">
 <button class="text-btn" id="importPickFile">选择 .txt 文件</button>
@@ -517,6 +513,7 @@ footer{padding:8px 0 6px}
 <label><input type="radio" name="importMode" value="merge" checked>合并到原列表</label>
 <label><input type="radio" name="importMode" value="replace">覆盖原列表</label>
 </div>
+<p class="hint" id="importHint"></p>
 <div class="dlg-actions">
 <button class="text-btn" id="importCancel">取消</button>
 <button class="filled-btn" id="importConfirm">确认导入</button>
@@ -572,7 +569,8 @@ arrowUp:'<svg viewBox="0 0 24 24"><path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.
 arrowDown:'<svg viewBox="0 0 24 24"><path d="M12 16l6-6-1.41-1.41L12 13.17l-4.59-4.58L6 10z"/></svg>',
 edit:'<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>',
 check:'<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
-refresh:'<svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>'
+refresh:'<svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>',
+copy:'<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>'
 };
 
 var state={
@@ -651,6 +649,8 @@ $('sheetImport').innerHTML=ICON.importIco;
 $('sheetEdit').innerHTML=ICON.edit;
 $('retryBtn').innerHTML=ICON.refresh;
 $('downloadRetryBtn').innerHTML=ICON.refresh;
+$('exportCopy').innerHTML=ICON.copy;
+$('importGo').innerHTML=ICON.arrow;
 
 function closeOtherScrims(exceptId){
 for(var i=0;i<ALL_SCRIMS.length;i++){
@@ -686,6 +686,42 @@ for(var i=0;i<NETEASE_HOSTS.length;i++){
 if(s.indexOf(NETEASE_HOSTS[i])!==-1)return true;
 }
 return false;
+}
+
+// 生成 15 字符分享密钥（字母数字 + URL-safe 符号 - _）
+function genShareKey(){
+var chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+var key='';
+var t=Date.now();
+var r1=Math.floor(Math.random()*16777216);
+var r2=Math.floor(Math.random()*16777216);
+var s=t;
+for(var i=0;i<8;i++){
+key+=chars.charAt(s%64);
+s=Math.floor(s/64);
+}
+var s2=r1*16777216+r2;
+for(var j=0;j<7;j++){
+key+=chars.charAt(s2%64);
+s2=Math.floor(s2/64);
+}
+var shift=r1%15;
+if(shift>0){
+key=key.substring(shift)+key.substring(0,shift);
+}
+return key;
+}
+
+// 判断输入内容类型：
+// 1. 以 #GZIP 开头且长度 > 15 → 'gzip'
+// 2. 长度恰好 15 且不含 '|' → 'key'
+// 3. 其他 → 'plain'
+function detectImportType(val){
+var s=String(val||'').trim();
+if(!s)return 'empty';
+if(s.indexOf('#GZIP')===0&&s.length>15)return 'gzip';
+if(s.length===15&&s.indexOf('|')===-1)return 'key';
+return 'plain';
 }
 
 function extractAllUrlsFromText(text){
@@ -843,7 +879,7 @@ return false;
 }
 }
 
-// ==================== textdb 缓存封装 ====================
+// ==================== textdb 缓存封装（全部通过 Worker 中转） ====================
 async function cacheGetRaw(key){
 try{
 var r=await post('/api/cacheGet',{key:key});
@@ -853,10 +889,12 @@ return '';
 }
 
 async function cacheSetRaw(key,value){
-if(!key||!value)return;
+if(!key||!value)return false;
 try{
-await post('/api/cacheSet',{key:key,value:value});
+var r=await post('/api/cacheSet',{key:key,value:value});
+return !!(r&&r.ok);
 }catch(e){}
+return false;
 }
 
 function cacheEncodeValue(expireAt,url){
@@ -1018,7 +1056,7 @@ if(d&&d.seekTime!==undefined)audio.currentTime=d.seekTime;
 updateMediaSessionMetadata();
 }
 
-// ==================== 官方接口探测（第三方代理，已处理 http→https 与免费判定） ====================
+// ==================== 官方接口探测（第三方代理） ====================
 function probeOfficialLocal(id){
 return Promise.resolve(OFFICIAL_PREFIX+encodeURIComponent(String(id)));
 }
@@ -1414,6 +1452,16 @@ var off=0;
 for(var i=0;i<chunks.length;i++){all.set(chunks[i],off);off+=chunks[i].length;}
 return new TextDecoder().decode(all);
 }catch(e){return null;}
+}
+async function decodeImportText(text){
+text=String(text||'').trim();
+if(!text)return null;
+if(text.indexOf('#GZIP')===0){
+var b64=text.substring(6).trim();
+var decoded=await gzipDecompress(b64);
+return decoded;
+}
+return text;
 }
 
 // ==================== 歌词解析 ====================
@@ -2088,7 +2136,6 @@ return {url:officialUrl,level:'official',expi:0};
 return null;
 }
 
-// 单等级：缓存优先 → 网络3次
 async function tryGetLevelWithCache(id,level,minRemainSec){
 if(level!=='official'){
 var cached=await getCachedAudioUrl(id,level,minRemainSec);
@@ -2111,7 +2158,6 @@ return {url:r.url,level:level,expi:r.expi};
 return null;
 }
 
-// 播放：严格串行 exhigh → standard → official
 async function fetchPlayUrl(id,durationHint){
 var durSec=(durationHint&&durationHint>0)?durationHint:360;
 var needRemain=durSec+URL_SAFETY_BUFFER;
@@ -3270,39 +3316,78 @@ else $('sheetEdit').classList.remove('active');
 render();
 });
 
-// ==================== 导出 ====================
+// ==================== 网络导出 ====================
+var exportGenerating=false;
 $('sheetExport').addEventListener('click',async function(){
 if(!state.playlist.length){toast('播放列表为空');return}
 $('listScrim').classList.remove('show');
-var raw=exportListText();
-var compressed=await gzipCompress(raw);
-if(compressed){
-$('exportText').value='#GZIP:'+compressed;
-$('exportHint').textContent='已使用 gzip 压缩 ('+raw.length+' → '+compressed.length+' 字符)，可直接复制分享';
-}else{
-$('exportText').value=raw;
-$('exportHint').textContent='当前浏览器不支持压缩，已输出明文';
-}
+if(exportGenerating)return;
+exportGenerating=true;
+
+$('exportKey').value='';
+$('exportKey').placeholder='正在上传...';
+$('exportCopy').disabled=true;
+$('exportHint').textContent='正在将歌单上传到网络...';
 closeOtherScrims('exportScrim');
 $('exportScrim').classList.add('show');
+
+var raw=exportListText();
+var compressed=await gzipCompress(raw);
+var toUpload=raw;
+if(compressed&&('#GZIP:'+compressed).length<raw.length){
+toUpload='#GZIP:'+compressed;
+}
+
+var key=genShareKey();
+var ok=await cacheSetRaw(key,toUpload);
+
+var verifyOk=false;
+if(ok){
+var verify=await cacheGetRaw(key);
+if(verify&&verify===toUpload)verifyOk=true;
+}
+
+exportGenerating=false;
+
+if(verifyOk){
+$('exportKey').value=key;
+$('exportKey').placeholder='';
+$('exportCopy').disabled=false;
+$('exportHint').textContent='已上传 '+state.playlist.length+' 首歌曲，可复制 15 位密钥分享';
+}else{
+$('exportKey').value='';
+$('exportKey').placeholder='上传失败';
+$('exportCopy').disabled=true;
+$('exportHint').textContent='上传失败，请检查网络后重试';
+}
 });
 $('exportClose').addEventListener('click',function(){$('exportScrim').classList.remove('show')});
 $('exportScrim').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show')});
 $('exportCopy').addEventListener('click',async function(){
-var text=$('exportText').value;
-if(!text)return;
+var key=$('exportKey').value;
+if(!key||detectImportType(key)!=='key'){toast('请等待上传完成');return}
 try{
-await navigator.clipboard.writeText(text);
-toast('已复制到剪贴板');
+await navigator.clipboard.writeText(key);
+toast('密钥已复制');
 }catch(e){
-$('exportText').select();
-document.execCommand('copy');
-toast('已复制');
+var ta=document.createElement('textarea');
+ta.value=key;
+ta.style.position='fixed';
+ta.style.left='-9999px';
+document.body.appendChild(ta);
+ta.select();
+try{document.execCommand('copy');toast('密钥已复制');}
+catch(e2){toast('复制失败');}
+ta.remove();
 }
 });
-$('exportDownload').addEventListener('click',function(){
-var text=$('exportText').value;
-if(!text)return;
+
+// txt 导出：始终用 gzip 压缩，不考虑变长变短
+$('exportDownload').addEventListener('click',async function(){
+if(!state.playlist.length){toast('播放列表为空');return}
+var raw=exportListText();
+var compressed=await gzipCompress(raw);
+var text=compressed?('#GZIP:'+compressed):raw;
 try{
 var blob=new Blob([text],{type:'text/plain;charset=utf-8'});
 var a=document.createElement('a');
@@ -3321,45 +3406,93 @@ toast('已开始下载');
 // ==================== 导入 ====================
 $('sheetImport').addEventListener('click',function(){
 $('listScrim').classList.remove('show');
-$('importText').value='';
+$('importKey').value='';
 $('importFile').value='';
 $('importFileName').textContent='';
+$('importHint').textContent='';
 closeOtherScrims('importScrim');
 $('importScrim').classList.add('show');
+setTimeout(function(){$('importKey').focus()},120);
 });
 $('importCancel').addEventListener('click',function(){$('importScrim').classList.remove('show')});
 $('importScrim').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show')});
 $('importPickFile').addEventListener('click',function(){$('importFile').click()});
+
+// 统一解析：按 detectImportType 判断
+async function resolveImportText(val){
+val=String(val||'').trim();
+if(!val)return '';
+var type=detectImportType(val);
+if(type==='key'){
+var raw=await cacheGetRaw(val);
+if(!raw)return '';
+return (await decodeImportText(raw))||'';
+}
+// 'gzip' 或 'plain' 都走 decodeImportText（自动处理 #GZIP 前缀）
+return (await decodeImportText(val))||'';
+}
+
+$('importGo').addEventListener('click',async function(){
+var val=$('importKey').value.trim();
+if(!val){toast('请输入密钥或歌单文本');return}
+var type=detectImportType(val);
+$('importHint').textContent='正在解析...';
+var text=await resolveImportText(val);
+if(!text){
+$('importHint').textContent='';
+if(type==='key'){toast('未找到该密钥对应的歌单');}
+else{toast('无法解析输入内容');}
+return;
+}
+var imported=parseListText(text);
+if(!imported.length){
+$('importHint').textContent='';
+toast('未解析到有效歌曲');
+return;
+}
+$('importHint').textContent='已找到 '+imported.length+' 首歌曲，点击"确认导入"';
+});
+
+$('importKey').addEventListener('keydown',function(e){
+if(e.key==='Enter'){e.preventDefault();$('importGo').click()}
+});
+
 $('importFile').addEventListener('change',function(){
 var file=this.files&&this.files[0];
 if(!file)return;
 var reader=new FileReader();
 reader.onload=function(e){
-$('importText').value=String(e.target.result||'');
+var text=String(e.target.result||'').trim();
+$('importKey').value=text;
 $('importFileName').textContent=file.name;
+var type=detectImportType(text);
+if(type==='key'){$('importHint').textContent='已读取密钥，点击"确认导入"';}
+else if(type==='gzip'){$('importHint').textContent='已读取压缩歌单，点击"确认导入"';}
+else if(type==='plain'){$('importHint').textContent='已读取明文歌单，点击"确认导入"';}
+else{$('importHint').textContent='';}
 };
 reader.onerror=function(){toast('读取文件失败')};
 reader.readAsText(file,'utf-8');
 });
 
-async function decodeImportText(text){
-text=String(text||'').trim();
-if(!text)return null;
-if(text.indexOf('#GZIP:')===0){
-var b64=text.substring(6).trim();
-var decoded=await gzipDecompress(b64);
-return decoded;
-}
-return text;
-}
-
 $('importConfirm').addEventListener('click',async function(){
-var raw=$('importText').value.trim();
-if(!raw){toast('请输入或选择文件');return}
-var text=await decodeImportText(raw);
-if(!text){toast('解压失败，可能是无效数据');return}
+var val=$('importKey').value.trim();
+if(!val){toast('请输入密钥、歌单文本或选择文件');return}
+var type=detectImportType(val);
+$('importHint').textContent='正在解析...';
+var text=await resolveImportText(val);
+if(!text){
+$('importHint').textContent='';
+if(type==='key'){toast('未找到该密钥对应的歌单');}
+else{toast('无法解析输入内容');}
+return;
+}
 var imported=parseListText(text);
-if(!imported.length){toast('未解析到有效歌曲');return}
+if(!imported.length){
+$('importHint').textContent='';
+toast('歌单内容为空');
+return;
+}
 var mode='merge';
 var radios=document.getElementsByName('importMode');
 for(var i=0;i<radios.length;i++){if(radios[i].checked){mode=radios[i].value;break}}

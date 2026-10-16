@@ -52,6 +52,17 @@ text-overflow:ellipsis;margin-top:2px;display:flex;align-items:center;gap:8px;ju
 background:color-mix(in srgb,var(--primary) 15%,transparent);color:var(--primary);
 vertical-align:middle;line-height:1.5;flex-shrink:0;white-space:nowrap}
 .badge.ext{background:color-mix(in srgb,var(--outline) 22%,transparent);color:var(--on-surface-variant)}
+.retry-btn{width:20px;height:20px;border-radius:50%;border:none;padding:0;
+background:color-mix(in srgb,var(--primary) 15%,transparent);color:var(--primary);
+display:flex;align-items:center;justify-content:center;cursor:pointer;
+flex-shrink:0;transition:background .18s,transform .15s}
+.retry-btn:hover{background:color-mix(in srgb,var(--primary) 25%,transparent)}
+.retry-btn:active{transform:scale(.92)}
+.retry-btn:disabled{cursor:default;opacity:.7}
+.retry-btn svg{width:12px;height:12px;fill:currentColor;pointer-events:none}
+.retry-btn.spinning svg{animation:retry-spin .8s linear infinite}
+@keyframes retry-spin{to{transform:rotate(360deg)}}
+
 .icon-btn{width:40px;height:40px;border:none;border-radius:50%;background:transparent;
 color:var(--on-surface-variant);display:flex;align-items:center;justify-content:center;
 cursor:pointer;transition:background .18s,color .18s;flex-shrink:0}
@@ -73,12 +84,8 @@ background:color-mix(in srgb,var(--primary) 8%,transparent)}
 
 .cover-box{display:none;height:100%;max-height:340px;aspect-ratio:1;max-width:100%;
 border-radius:28px;overflow:hidden;position:relative;cursor:pointer;
-box-shadow:0 12px 40px var(--shadow);
 background:linear-gradient(135deg,var(--primary-container),var(--surface-container-highest));
-transition:box-shadow .3s,transform .3s}
-@media (hover:hover){
-.cover-box:hover{box-shadow:0 16px 52px var(--shadow-2);transform:translateY(-2px)}
-}
+transition:transform .3s}
 .cover-box img{width:100%;height:100%;object-fit:cover;display:block}
 .cover-fallback{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
 color:var(--on-primary-container)}
@@ -348,7 +355,7 @@ footer{padding:8px 0 6px}
 <button class="icon-btn" id="shareBtn" title="分享" aria-label="分享"></button>
 <div class="meta">
 <h1 id="title">未在播放</h1>
-<p><span class="artist-text" id="artist">—</span><span class="badge" id="qualityBadge" style="display:none"></span></p>
+<p><span class="artist-text" id="artist">—</span><span class="badge" id="qualityBadge" style="display:none"></span><button class="retry-btn" id="retryBtn" style="display:none" aria-label="重新检测音源"></button></p>
 </div>
 </header>
 
@@ -528,7 +535,8 @@ arrow:'<svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.
 arrowUp:'<svg viewBox="0 0 24 24"><path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z"/></svg>',
 arrowDown:'<svg viewBox="0 0 24 24"><path d="M12 16l6-6-1.41-1.41L12 13.17l-4.59-4.58L6 10z"/></svg>',
 edit:'<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>',
-check:'<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>'
+check:'<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
+refresh:'<svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>'
 };
 
 var state={
@@ -537,6 +545,7 @@ showLyric:false,lyric:'',audioUrl:'',quality:'',
 lyricTrans:'',lyricRoma:'',
 transEnabled:true,romaEnabled:false,
 lyricLoading:false,
+retrying:false,
 lyricLines:[],lyricHasTime:false,lyricCurrent:-1,lyricUserScrolled:false,
 editingOrder:false,
 _lastLyricKey:null,_lyricScrollTimer:null
@@ -565,6 +574,8 @@ var AUDIO_EXTS=['mp3','m4a','aac','flac','wav','ogg','opus','wma','m3u8','mp4'];
 var hlsInstance=null;
 var hlsLoading=null;
 
+var ALL_SCRIMS=['addScrim','clearScrim','shareScrim','downloadScrim','exportScrim','importScrim','listScrim'];
+
 $('shareBtn').innerHTML=ICON.share;
 $('prevBtn').innerHTML=ICON.prev;
 $('nextBtn').innerHTML=ICON.next;
@@ -574,6 +585,15 @@ $('sheetClear').innerHTML=ICON.clearAll;
 $('sheetExport').innerHTML=ICON.exportIco;
 $('sheetImport').innerHTML=ICON.importIco;
 $('sheetEdit').innerHTML=ICON.edit;
+$('retryBtn').innerHTML=ICON.refresh;
+
+function closeOtherScrims(exceptId){
+for(var i=0;i<ALL_SCRIMS.length;i++){
+if(ALL_SCRIMS[i]===exceptId)continue;
+var el=$(ALL_SCRIMS[i]);
+if(el)el.classList.remove('show');
+}
+}
 
 // ==================== 基础工具 ====================
 function isAllDigits(s){
@@ -1074,6 +1094,7 @@ if(quality==='external'){
 var fm=song&&song.format?song.format.toUpperCase():'';
 return fm?'外部音源 · '+fm:'外部音源';
 }
+if(quality==='unavailable')return '不可用';
 return QUALITY_LABEL[quality]||'';
 }
 
@@ -1227,13 +1248,23 @@ var url=extractUrl(r);
 if(url&&isHttpUrl(url)){return {url:url,level:LEVELS[i]};}
 }catch(e){}
 }
-var fallback=OFFICIAL_PREFIX+encodeURIComponent(String(id));
-return {url:fallback,level:'official'};
+try{
+var chk=await post('/api/checkOfficial',{id:String(id)});
+if(chk&&chk.ok){
+var official=OFFICIAL_PREFIX+encodeURIComponent(String(id));
+return {url:official,level:'official'};
+}
+}catch(e){}
+throw new Error('暂无可用音源');
 }
 
 async function fetchPlayUrlLevel(id,level){
 if(level==='official'){
-return OFFICIAL_PREFIX+encodeURIComponent(String(id));
+try{
+var chk=await post('/api/checkOfficial',{id:String(id)});
+if(chk&&chk.ok)return OFFICIAL_PREFIX+encodeURIComponent(String(id));
+}catch(e){}
+return '';
 }
 try{
 var r=await post('/api/getSongUrl',{id:id,level:level});
@@ -1263,14 +1294,27 @@ if(!artist&&r.artist)artist=r.artist;
 return {id:String(id),name:name||'未知歌曲',artist:artist||'未知歌手',pic:pic||''};
 }
 async function detectNeteaseQuality(id){
-try{var r=await fetchPlayUrl(id);return r.level;}catch(e){return 'official';}
+for(var i=0;i<LEVELS.length;i++){
+try{
+var r=await post('/api/getSongUrl',{id:id,level:LEVELS[i]});
+var url=extractUrl(r);
+if(url&&isHttpUrl(url))return LEVELS[i];
+}catch(e){}
+}
+try{
+var chk=await post('/api/checkOfficial',{id:String(id)});
+if(chk&&chk.ok)return 'official';
+}catch(e){}
+return '';
 }
 async function resolveInput(text){
 text=(text||'').trim();
 if(!text)throw new Error('请输入内容');
 if(isSongId(text)){
 var meta=await fetchMetaById(text);
-meta.quality=await detectNeteaseQuality(text);
+var q=await detectNeteaseQuality(text);
+if(!q)throw new Error('该歌曲暂无可用音源');
+meta.quality=q;
 return meta;
 }
 var link=extractUrlFromText(text);
@@ -1279,7 +1323,9 @@ if(isNeteaseUrl(link)){
 var r=await post('/api/resolve',{url:link});
 if(r&&r.id){
 var m2=await fetchMetaById(r.id);
-m2.quality=await detectNeteaseQuality(r.id);
+var q2=await detectNeteaseQuality(r.id);
+if(!q2)throw new Error('该歌曲暂无可用音源');
+m2.quality=q2;
 return m2;
 }
 throw new Error((r&&r.msg)||'网易云链接解析失败');
@@ -1293,7 +1339,9 @@ throw new Error((check&&check.msg)||'该链接不是有效的音频文件');
 var rs=await post('/api/search',{word:text});
 if(rs&&rs.id){
 var meta3={id:String(rs.id),name:rs.name||text,artist:rs.artist||'未知歌手',pic:rs.pic||''};
-meta3.quality=await detectNeteaseQuality(meta3.id);
+var q3=await detectNeteaseQuality(meta3.id);
+if(!q3)throw new Error('该歌曲暂无可用音源');
+meta3.quality=q3;
 return meta3;
 }
 throw new Error((rs&&rs.msg)||'未找到歌曲');
@@ -1309,6 +1357,39 @@ else{val=song.id||'';}
 return base+'?add='+encodeURIComponent(val);
 }
 
+// ==================== 重新检测音源 ====================
+async function retryQuality(){
+var song=state.playlist[state.current];
+if(!song||song.external)return;
+if(state.retrying)return;
+state.retrying=true;
+render();
+try{
+var q=await detectNeteaseQuality(song.id);
+state.retrying=false;
+if(q){
+var changed=(state.quality!==q);
+state.quality=q;
+if(changed){
+toast('已找到可用音源：'+(QUALITY_LABEL[q]||q));
+playIndex(state.current);
+}else{
+toast('当前已是最优音源');
+render();
+}
+}else{
+state.quality='unavailable';
+toast('仍然没有可用音源');
+render();
+}
+}catch(e){
+state.retrying=false;
+state.quality='unavailable';
+toast('检测失败');
+render();
+}
+}
+
 // ==================== 渲染 ====================
 function render(){
 var song=state.playlist[state.current];
@@ -1320,10 +1401,22 @@ $('artist').textContent=song?(song.artist||'未知歌手'):'—';
 var qlabel=song?getQualityText(song,state.quality):'';
 if(qlabel){
 $('qualityBadge').textContent=qlabel;
-$('qualityBadge').className='badge'+(state.quality==='external'?' ext':'');
+var extCls=(state.quality==='external'||state.quality==='unavailable')?' ext':'';
+$('qualityBadge').className='badge'+extCls;
 $('qualityBadge').style.display='inline-block';
 }else{
 $('qualityBadge').style.display='none';
+}
+
+// 重试按钮：网易云歌曲时显示
+var showRetry=!!(song&&!song.external);
+if(showRetry){
+$('retryBtn').style.display='flex';
+if(state.retrying)$('retryBtn').classList.add('spinning');
+else $('retryBtn').classList.remove('spinning');
+$('retryBtn').disabled=!!state.retrying;
+}else{
+$('retryBtn').style.display='none';
 }
 
 $('emptyAdd').style.display=hasSongs?'none':'flex';
@@ -1428,6 +1521,7 @@ await setAudioSource(result.url,song.format);
 if(token!==playToken)return;
 state.playing=false;
 state.lyricLoading=false;
+state.quality='unavailable';
 toast(e.message||'播放失败');
 render();
 return;
@@ -1576,11 +1670,17 @@ state._lastLyricKey=null;
 render();
 });
 
+$('retryBtn').addEventListener('click',function(e){
+e.stopPropagation();
+retryQuality();
+});
+
 // ==================== 分享菜单 ====================
 $('shareBtn').addEventListener('click',function(){
 var song=state.playlist[state.current];
 if(!song){toast('没有可分享的歌曲');return}
 $('shareSongName').textContent=(song.name||'未知歌曲')+' - '+(song.artist||'');
+closeOtherScrims('shareScrim');
 $('shareScrim').classList.add('show');
 });
 $('shareCancel').addEventListener('click',function(){$('shareScrim').classList.remove('show')});
@@ -1631,7 +1731,14 @@ if(e&&e.name==='AbortError'){$('shareScrim').classList.remove('show')}
 var pendingDownloadSong=null;
 
 async function checkLevelAvailable(id,level){
-if(level==='official')return true;
+if(level==='official'){
+try{
+var chk=await post('/api/checkOfficial',{id:String(id)});
+return !!(chk&&chk.ok);
+}catch(e){
+return false;
+}
+}
 try{
 var r=await post('/api/getSongUrl',{id:id,level:level});
 var url=extractUrl(r);
@@ -1646,6 +1753,7 @@ pendingDownloadSong=song;
 $('downloadSongName').textContent=(song.name||'未知歌曲')+' - '+(song.artist||'');
 var listEl=$('qualityList');
 listEl.innerHTML='<div class="quality-loading"><div class="quality-spinner"></div><div>正在检测可用音质...</div></div>';
+closeOtherScrims('downloadScrim');
 $('downloadScrim').classList.add('show');
 
 var currentIsThisSong=(state.current>=0&&state.playlist[state.current]===song);
@@ -1654,9 +1762,6 @@ var currentQuality=currentIsThisSong?state.quality:'';
 var tasks=DOWNLOAD_LEVELS.map(function(lv){
 if(lv.key===currentQuality){
 return Promise.resolve({key:lv.key,label:lv.label,available:true,current:true});
-}
-if(lv.key==='official'){
-return Promise.resolve({key:lv.key,label:lv.label,available:true,current:false});
 }
 return checkLevelAvailable(song.id,lv.key).then(function(ok){
 return {key:lv.key,label:lv.label,available:ok,current:false};
@@ -1717,11 +1822,16 @@ var url='';
 try{
 url=await fetchPlayUrlLevel(song.id,level);
 }catch(e){}
-if(!url){toast('无法获取下载链接');return}
+if(!url){toast('该音质不可用');return}
 
 try{
 var res=await fetch(url);
 var blob=await res.blob();
+var ct=(blob.type||'').toLowerCase();
+if(ct.indexOf('text/')===0||ct.indexOf('application/json')!==-1){
+toast('该音质不是音频文件');
+return;
+}
 var a=document.createElement('a');
 a.href=URL.createObjectURL(blob);
 var ext='.mp3';
@@ -1788,6 +1898,7 @@ openDownloadDialog(song);
 
 // ==================== 添加歌曲弹窗 ====================
 function openAdd(){
+closeOtherScrims('addScrim');
 $('addStage1').style.display='block';
 $('addStage2').style.display='none';
 $('addInput').value='';
@@ -1800,7 +1911,10 @@ $('addScrim').classList.remove('show');
 $('addInput').blur();
 }
 $('emptyAdd').addEventListener('click',openAdd);
-$('listBtn').addEventListener('click',function(){$('listScrim').classList.add('show')});
+$('listBtn').addEventListener('click',function(){
+closeOtherScrims('listScrim');
+$('listScrim').classList.add('show');
+});
 $('sheetAdd').addEventListener('click',function(){
 $('listScrim').classList.remove('show');
 setTimeout(openAdd,180);
@@ -1833,6 +1947,7 @@ metaHtml+='<span class="meta-tag q">'+qlabel+'</span>';
 }
 $('foundMeta').innerHTML=metaHtml;
 $('addHint').textContent=fromUrl?'来自分享链接，是否添加到列表并播放？':'是否将此歌曲加入播放列表？';
+closeOtherScrims('addScrim');
 $('addScrim').classList.add('show');
 }
 
@@ -1884,6 +1999,7 @@ render();
 // ==================== 清空列表 ====================
 $('sheetClear').addEventListener('click',function(){
 if(!state.playlist.length){toast('播放列表已为空');return}
+closeOtherScrims('clearScrim');
 $('clearScrim').classList.add('show');
 });
 $('clearCancel').addEventListener('click',function(){$('clearScrim').classList.remove('show')});
@@ -1895,6 +2011,7 @@ state.playing=false;
 state.lyric='';state.lyricTrans='';state.lyricRoma='';
 state.lyricLoading=false;
 state.audioUrl='';state.quality='';
+state.retrying=false;
 state.editingOrder=false;
 $('sheetEdit').innerHTML=ICON.edit;
 $('sheetEdit').classList.remove('active');
@@ -1925,6 +2042,7 @@ render();
 // ==================== 导出 ====================
 $('sheetExport').addEventListener('click',async function(){
 if(!state.playlist.length){toast('播放列表为空');return}
+$('listScrim').classList.remove('show');
 var raw=exportListText();
 var compressed=await gzipCompress(raw);
 if(compressed){
@@ -1934,6 +2052,7 @@ $('exportHint').textContent='已使用 gzip 压缩 ('+raw.length+' → '+compres
 $('exportText').value=raw;
 $('exportHint').textContent='当前浏览器不支持压缩，已输出明文';
 }
+closeOtherScrims('exportScrim');
 $('exportScrim').classList.add('show');
 });
 $('exportClose').addEventListener('click',function(){$('exportScrim').classList.remove('show')});
@@ -1970,9 +2089,11 @@ toast('已开始下载');
 
 // ==================== 导入 ====================
 $('sheetImport').addEventListener('click',function(){
+$('listScrim').classList.remove('show');
 $('importText').value='';
 $('importFile').value='';
 $('importFileName').textContent='';
+closeOtherScrims('importScrim');
 $('importScrim').classList.add('show');
 });
 $('importCancel').addEventListener('click',function(){$('importScrim').classList.remove('show')});
@@ -2039,6 +2160,7 @@ state.current=-1;state.playing=false;
 state.lyric='';state.lyricTrans='';state.lyricRoma='';
 state.lyricLoading=false;
 state.audioUrl='';state.quality='';
+state.retrying=false;
 state.editingOrder=false;
 $('sheetEdit').innerHTML=ICON.edit;
 $('sheetEdit').classList.remove('active');
@@ -2214,6 +2336,7 @@ export default {
       if (action === "search") return await handleSearch(body.word || "");
       if (action === "resolve") return await handleResolve(body.url || "");
       if (action === "checkAudio") return await handleCheckAudio(body.url || "");
+      if (action === "checkOfficial") return await handleCheckOfficial(body.id || "");
 
       if (action === "getSongInfo") {
         return await proxy("getSongInfo", { id: body.id, timestamp: Date.now(), ip });
@@ -2444,6 +2567,51 @@ async function handleResolve(rawUrl) {
   }
 
   return json({ code: 404, msg: "无法从链接中提取歌曲 ID" }, 404);
+}
+
+async function handleCheckOfficial(id) {
+  if (!id) return json({ ok: false, msg: "缺少歌曲 ID" });
+  const official =
+    "https://music.163.com/song/media/outer/url?id=" + encodeURIComponent(String(id));
+
+  try {
+    const res = await fetch(official, {
+      method: "GET",
+      headers: {
+        Range: "bytes=0-1023",
+        "User-Agent":
+          "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+        Referer: "https://music.163.com/",
+      },
+      redirect: "follow",
+    });
+
+    try {
+      await res.arrayBuffer();
+    } catch (e) {}
+
+    const rawCt = res.headers.get("Content-Type") || "";
+    const ct = rawCt.toLowerCase().split(";")[0].trim();
+    const finalUrl = (res.url || "").toLowerCase();
+
+    const isAudioCt =
+      ct.indexOf("audio/") === 0 ||
+      ct === "application/octet-stream";
+    const isMp3Url = finalUrl.indexOf(".mp3") !== -1;
+    const isHtml =
+      ct.indexOf("text/html") !== -1 ||
+      ct.indexOf("text/") === 0;
+
+    const ok = (isAudioCt || isMp3Url) && !isHtml;
+
+    return json({
+      ok,
+      contentType: ct,
+      finalUrl: res.url || "",
+    });
+  } catch (e) {
+    return json({ ok: false, msg: String(e.message || e) });
+  }
 }
 
 async function handleCheckAudio(url) {

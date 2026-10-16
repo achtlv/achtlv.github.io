@@ -623,9 +623,7 @@ var PRELOAD_RETRY=10000;
 var URL_SAFETY_BUFFER=60;
 var DEFAULT_EXPI=1200;
 
-// 音频格式
 var AUDIO_FORMATS=['mp3','m4a','aac','flac','wav','ogg','opus','wma','weba','oga','mka','aiff','aif','ape','alac','amr','3ga'];
-// 视频容器格式（同等对待，只取音频流）
 var VIDEO_FORMATS=['m3u8','mp4','flv','wmv','mkv','webm','mov','avi','m4v','ts','3gp','3g2','ogv','mpg','mpeg','m2ts','f4v','rm','rmvb','asf'];
 
 var DOWNLOAD_LEVELS=[
@@ -691,7 +689,6 @@ if(s.indexOf(NETEASE_HOSTS[i])!==-1)return true;
 return false;
 }
 
-// 提取所有 URL（支持多个，去重）
 function extractAllUrlsFromText(text){
 var urls=[];
 var seen={};
@@ -714,7 +711,6 @@ var c=s.charCodeAt(k);
 if(c===32||c===9||c===10||c===13||c===44||c===59||c===34||c===39||c===60||c===62){end=k;break}
 }
 var url=s.substring(0,end);
-// 去掉尾部标点
 while(url.length>0){
 var last=url.charCodeAt(url.length-1);
 if(last===46||last===44||last===59||last===41||last===93||last===125||last===33||last===63){url=url.substring(0,url.length-1);}
@@ -830,6 +826,27 @@ function qualityRank(q){
 if(!q||q==='unavailable'||q==='external')return 0;
 var r=QUALITY_RANK[q];
 return (r===undefined)?0:r;
+}
+
+// ==================== 编码检测（方案C） ====================
+function normalizeCodec(c){
+if(!c)return '';
+return String(c).trim();
+}
+
+function isCodecSupported(mime,codec,useMse){
+if(!codec)return true;
+var type=mime+'; codecs="'+codec+'"';
+if(useMse&&window.MediaSource&&MediaSource.isTypeSupported){
+if(MediaSource.isTypeSupported(type))return true;
+}
+try{
+var testEl=document.createElement('video');
+var result=testEl.canPlayType(type);
+return result==='probably'||result==='maybe';
+}catch(e){
+return false;
+}
 }
 
 // ==================== 时长缓存 ====================
@@ -1015,7 +1032,7 @@ fbEl.style.display='none';
 }
 
 // ==================== URL 过期检查 ====================
-function shouldRefreshUrl(entry, song){
+function shouldRefreshUrl(entry,song){
 if(!entry||!entry.urlExpireAt)return false;
 var now=Date.now();
 var durSec=0;
@@ -1030,7 +1047,7 @@ return now>=deadline;
 return now>=entry.urlExpireAt-15*60*1000;
 }
 
-function shouldRefreshUrlResume(entry, remainingSec){
+function shouldRefreshUrlResume(entry,remainingSec){
 if(!entry||!entry.urlExpireAt)return false;
 if(!remainingSec||remainingSec<=0)return false;
 var now=Date.now();
@@ -1620,20 +1637,156 @@ document.head.appendChild(s);
 return flvLoading;
 }
 
-// ==================== 设置音频源 ====================
-async function setAudioSource(url,format){
-if(isFlvFormat(url,format)){
-if(audio.canPlayType('video/x-flv')){
+// ==================== 带编码检测的媒体加载 ====================
+
+// 普通媒体（mp4/webm/wmv 等原生解码）：靠 loadedmetadata 和 error 判断
+function loadPlainMedia(url){
+return new Promise(function(resolve,reject){
+var settled=false;
+var timer=null;
+function onLoaded(){
+if(settled)return;
+settled=true;
+cleanup();
+audio.play().catch(function(){});
+resolve();
+}
+function onError(){
+if(settled)return;
+settled=true;
+var err=audio.error;
+cleanup();
+var msg='无法播放该音源';
+if(err){
+if(err.code===4)msg='浏览器不支持该视频/音频编码';
+else if(err.code===3)msg='解码失败（编码不支持）';
+else if(err.code===2)msg='网络错误，无法加载';
+else if(err.code===1)msg='播放被中止';
+}
+reject(new Error(msg));
+}
+function cleanup(){
+if(timer)clearTimeout(timer);
+audio.removeEventListener('loadedmetadata',onLoaded);
+audio.removeEventListener('error',onError);
+}
+audio.addEventListener('loadedmetadata',onLoaded);
+audio.addEventListener('error',onError);
+timer=setTimeout(function(){
+if(settled)return;
+settled=true;
+cleanup();
+reject(new Error('加载超时'));
+},15000);
+
 if(hlsInstance){try{hlsInstance.destroy()}catch(e){}hlsInstance=null}
 if(flvInstance){try{flvInstance.destroy()}catch(e){}flvInstance=null}
-audio.src=url;audio.load();
-try{await audio.play()}catch(e){}
+try{
+audio.src=url;
+audio.load();
+}catch(e){
+cleanup();
+reject(new Error('设置音源失败'));
+}
+});
+}
+
+// HLS：先只加载 manifest，拿到 codec 检查后再决定是否 attachMedia
+function loadHlsWithCodecCheck(url){
+if(window.Hls)return loadHlsWithCodecCheckInner(url);
+return loadHlsJs().then(function(){return loadHlsWithCodecCheckInner(url)});
+}
+
+function loadHlsWithCodecCheckInner(url){
+if(!window.Hls||!Hls.isSupported()){
+return Promise.reject(new Error('浏览器不支持 HLS 播放'));
+}
+return new Promise(function(resolve,reject){
+var h=new Hls({enableWorker:true,lowLatencyMode:false});
+var settled=false;
+var timer=null;
+
+function fail(msg){
+if(settled)return;
+settled=true;
+if(timer)clearTimeout(timer);
+try{h.destroy()}catch(e){}
+reject(new Error(msg));
+}
+
+h.on(Hls.Events.MANIFEST_PARSED,function(event,data){
+if(settled)return;
+var levels=(data&&data.levels)||[];
+var unsupported='';
+for(var i=0;i<levels.length;i++){
+var lv=levels[i];
+var vCodec=normalizeCodec(lv.videoCodec);
+var aCodec=normalizeCodec(lv.audioCodec);
+if(vCodec&&!isCodecSupported('video/mp4',vCodec,true)){
+unsupported=vCodec;
+break;
+}
+if(aCodec&&!isCodecSupported('audio/mp4',aCodec,true)){
+unsupported=aCodec;
+break;
+}
+}
+if(unsupported){
+fail('浏览器不支持该视频编码：'+unsupported);
 return;
 }
-try{await loadFlvJs()}catch(e){throw new Error('FLV 加载失败')}
-if(window.flvjs&&flvjs.isSupported()){
-if(hlsInstance){try{hlsInstance.destroy()}catch(e){}hlsInstance=null}
-if(flvInstance){try{flvInstance.destroy()}catch(e){}flvInstance=null}
+settled=true;
+if(timer)clearTimeout(timer);
+if(hlsInstance){try{hlsInstance.destroy()}catch(e){}}
+hlsInstance=h;
+h.attachMedia(audio);
+audio.play().catch(function(){});
+resolve();
+});
+
+h.on(Hls.Events.ERROR,function(e,data){
+if(settled)return;
+if(data&&data.fatal){
+fail('HLS 加载失败：'+(data.details||'未知错误'));
+}
+});
+
+timer=setTimeout(function(){
+if(!settled)fail('HLS 加载超时');
+},15000);
+
+try{
+h.loadSource(url);
+}catch(e){
+fail('HLS 加载失败：'+e.message);
+}
+});
+}
+
+// FLV：flv.js 内部用 MSE，codec 不支持时它会触发 ERROR
+function loadFlvWithCheck(url){
+if(window.flvjs)return loadFlvWithCheckInner(url);
+return loadFlvJs().then(function(){return loadFlvWithCheckInner(url)});
+}
+
+function loadFlvWithCheckInner(url){
+if(!window.flvjs||!flvjs.isSupported()){
+return Promise.reject(new Error('浏览器不支持 FLV 播放'));
+}
+return new Promise(function(resolve,reject){
+var settled=false;
+var timer=null;
+
+function fail(msg){
+if(settled)return;
+settled=true;
+if(timer)clearTimeout(timer);
+try{if(flvInstance)flvInstance.destroy()}catch(e){}
+flvInstance=null;
+reject(new Error(msg));
+}
+
+if(flvInstance){try{flvInstance.destroy()}catch(e){}}
 flvInstance=flvjs.createPlayer({
 type:'flv',
 url:url,
@@ -1641,52 +1794,57 @@ isLive:false,
 hasAudio:true,
 hasVideo:false,
 stashInitialSize:256
-},{enableWorker:true,enableStashBuffer:false});
+},{
+enableWorker:true,
+enableStashBuffer:false
+});
+
+flvInstance.on(flvjs.Events.ERROR,function(errType,errDetail){
+if(settled)return;
+var msg='FLV 播放失败';
+if(errDetail)msg+='：'+errDetail;
+else if(errType)msg+='：'+errType;
+msg+='（可能是不支持的编码）';
+fail(msg);
+});
+
+timer=setTimeout(function(){
+if(!settled)fail('FLV 加载超时');
+},15000);
+
+try{
 flvInstance.attachMediaElement(audio);
 flvInstance.load();
-try{await flvInstance.play()}catch(e){}
-return;
+flvInstance.play().catch(function(){});
+setTimeout(function(){
+if(settled)return;
+settled=true;
+if(timer)clearTimeout(timer);
+resolve();
+},800);
+}catch(e){
+fail('FLV 初始化失败：'+e.message);
 }
-throw new Error('浏览器不支持 FLV 播放');
+});
+}
+
+// ==================== 设置音频源（带编码检测） ====================
+async function setAudioSource(url,format){
+if(isFlvFormat(url,format)){
+if(audio.canPlayType('video/x-flv')){
+return loadPlainMedia(url);
+}
+return loadFlvWithCheck(url);
 }
 
 if(isHlsFormat(url,format)){
 if(audio.canPlayType('application/vnd.apple.mpegurl')){
-if(flvInstance){try{flvInstance.destroy()}catch(e){}flvInstance=null}
-if(hlsInstance){try{hlsInstance.destroy()}catch(e){}hlsInstance=null}
-audio.src=url;audio.load();
-try{await audio.play()}catch(e){}
-return;
+return loadPlainMedia(url);
 }
-try{await loadHlsJs()}catch(e){throw new Error('HLS 加载失败')}
-if(window.Hls&&Hls.isSupported()){
-if(flvInstance){try{flvInstance.destroy()}catch(e){}flvInstance=null}
-if(hlsInstance){try{hlsInstance.destroy()}catch(e){}hlsInstance=null}
-hlsInstance=new Hls({enableWorker:true,lowLatencyMode:false});
-hlsInstance.loadSource(url);
-hlsInstance.attachMedia(audio);
-return new Promise(function(resolve){
-var done=false;
-function onParsed(){
-if(done)return;done=true;
-audio.play().catch(function(){});
-resolve();
-}
-hlsInstance.on(Hls.Events.MANIFEST_PARSED,onParsed);
-hlsInstance.on(Hls.Events.ERROR,function(e,data){
-if(done)return;
-if(data&&data.fatal){done=true;resolve()}
-});
-setTimeout(function(){if(!done){done=true;resolve()}},8000);
-});
-}
-throw new Error('浏览器不支持 HLS 播放');
+return loadHlsWithCodecCheck(url);
 }
 
-if(flvInstance){try{flvInstance.destroy()}catch(e){}flvInstance=null}
-if(hlsInstance){try{hlsInstance.destroy()}catch(e){}hlsInstance=null}
-audio.src=url;audio.load();
-try{await audio.play()}catch(e){}
+return loadPlainMedia(url);
 }
 
 // ==================== Cookie ====================
@@ -1878,7 +2036,6 @@ if(best&&qualityRank(best)>=MAX_PLAY_RANK)break;
 return best;
 }
 
-// 通过网易云链接解析
 async function tryNeteaseLink(url){
 var r=await post('/api/resolve',{url:url});
 if(r&&r.id){
@@ -1892,7 +2049,6 @@ return m;
 return null;
 }
 
-// 通过第三方 URL 检测（音频或视频均可）
 async function tryThirdPartyLink(url){
 var check=await post('/api/checkAudio',{url:url});
 if(check&&check.ok){
@@ -1915,7 +2071,7 @@ async function resolveInput(text){
 text=(text||'').trim();
 if(!text)throw new Error('请输入内容');
 
-// ============ 优先级 1：纯数字 ID ============
+// 优先级 1：纯数字 ID
 if(isSongId(text)){
 var meta=await fetchMetaById(text);
 var q=await detectNeteaseQuality(text);
@@ -1924,10 +2080,9 @@ meta.quality=q;
 return meta;
 }
 
-// ============ 优先级 2：文本中的链接 ============
+// 优先级 2：文本中的链接
 var urls=extractAllUrlsFromText(text);
 if(urls.length>0){
-// 2a. 先找网易云链接（找到就用）
 for(var i=0;i<urls.length;i++){
 if(!isNeteaseUrl(urls[i]))continue;
 try{
@@ -1935,7 +2090,6 @@ var nm=await tryNeteaseLink(urls[i]);
 if(nm)return nm;
 }catch(e){}
 }
-// 2b. 没有网易云或解析失败 → 按顺序找第一个可用的第三方链接
 for(var j=0;j<urls.length;j++){
 if(isNeteaseUrl(urls[j]))continue;
 try{
@@ -1943,10 +2097,9 @@ var em=await tryThirdPartyLink(urls[j]);
 if(em)return em;
 }catch(e){}
 }
-// 2c. 全部失败 → 落到歌名搜索
 }
 
-// ============ 优先级 3：歌名搜索 ============
+// 优先级 3：歌名搜索
 var rs=await post('/api/search',{word:text});
 if(rs&&rs.id){
 var meta3={id:String(rs.id),name:rs.name||text,artist:rs.artist||'未知歌手',pic:rs.pic||'',duration:0};
@@ -2123,6 +2276,7 @@ resetProgressUI();
 state.current=i;
 state.showLyric=false;
 state.audioUrl='';state.quality='';
+state.playing=true;
 
 var song=state.playlist[i];
 var pe=preloadCache[song.id];
@@ -2273,7 +2427,6 @@ var fresh;
 try{fresh=await fetchPlayUrl(song.id);}catch(e){fresh=null;}
 
 if(myToken!==refreshToken){
-// 用户取消了
 refreshingUrl=false;
 return;
 }
@@ -2294,18 +2447,12 @@ state.audioUrl=fresh.url;
 state.quality=fresh.level;
 render();
 
-if(hlsInstance){try{hlsInstance.destroy()}catch(e){}hlsInstance=null}
-if(flvInstance){try{flvInstance.destroy()}catch(e){}flvInstance=null}
-audio.src=fresh.url;
-audio.load();
-
-await new Promise(function(resolve){
-var done=false;
-function fin(){if(done)return;done=true;resolve();}
-audio.addEventListener('loadedmetadata',fin,{once:true});
-audio.addEventListener('error',fin,{once:true});
-setTimeout(fin,3000);
-});
+try{
+await setAudioSource(fresh.url,song.format);
+}catch(e){
+toast(e.message||'重新获取后播放失败');
+return;
+}
 
 try{audio.currentTime=pos;}catch(e){}
 audio.play().catch(function(){});
@@ -2315,7 +2462,6 @@ async function togglePlay(){
 if(!state.playlist.length){openAdd();return}
 if(state.current<0){playIndex(0);return}
 
-// 刷新中点击 → 取消刷新
 if(refreshingUrl){
 refreshToken++;
 refreshingUrl=false;
@@ -3431,7 +3577,6 @@ async function handleCheckAudio(url) {
     const finalUrl = res.url || url;
     const urlLower = finalUrl.toLowerCase();
 
-    // 音频 MIME
     const CT_MAP = {
       "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/x-mp3": "mp3",
       "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/m4a": "m4a",
@@ -3443,7 +3588,6 @@ async function handleCheckAudio(url) {
       "audio/x-ms-wma": "wma", "audio/wma": "wma",
       "audio/webm": "weba", "audio/x-matroska": "mka",
       "audio/aiff": "aiff", "audio/x-aiff": "aiff",
-      // 视频 MIME（作为音源可用）
       "video/mp4": "mp4", "video/x-m4v": "m4v",
       "video/x-flv": "flv", "video/flv": "flv",
       "video/x-ms-wmv": "wmv", "video/wmv": "wmv", "video/x-ms-asf": "wmv",
@@ -3457,20 +3601,17 @@ async function handleCheckAudio(url) {
       "video/ogg": "ogv",
       "video/mpeg": "mpg",
       "video/x-ms-vob": "vob",
-      // 流媒体
       "application/vnd.apple.mpegurl": "m3u8",
       "application/x-mpegurl": "m3u8",
       "application/mpegurl": "m3u8",
       "audio/mpegurl": "m3u8",
       "audio/x-mpegurl": "m3u8",
       "application/vnd.apple.mpegurl.audio": "m3u8",
-      "application/x-mpegURL": "m3u8",
     };
 
     const extFormat = getFormatFromUrl(urlLower);
     let format = CT_MAP[ct] || "";
 
-    // 通用二进制/下载类型，用扩展名判断
     if (!format) {
       const isGeneric =
         !ct ||

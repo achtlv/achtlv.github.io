@@ -3428,13 +3428,13 @@ var raw=await cacheGetRaw(val);
 if(!raw)return '';
 return (await decodeImportText(raw))||'';
 }
-// 'gzip' 或 'plain' 都走 decodeImportText（自动处理 #GZIP 前缀）
 return (await decodeImportText(val))||'';
 }
 
-$('importGo').addEventListener('click',async function(){
-var val=$('importKey').value.trim();
-if(!val){toast('请输入密钥或歌单文本');return}
+// 公共：拉取预览
+async function previewImport(val){
+val=String(val||'').trim();
+if(!val)return false;
 var type=detectImportType(val);
 $('importHint').textContent='正在解析...';
 var text=await resolveImportText(val);
@@ -3442,15 +3442,20 @@ if(!text){
 $('importHint').textContent='';
 if(type==='key'){toast('未找到该密钥对应的歌单');}
 else{toast('无法解析输入内容');}
-return;
+return false;
 }
 var imported=parseListText(text);
 if(!imported.length){
 $('importHint').textContent='';
 toast('未解析到有效歌曲');
-return;
+return false;
 }
 $('importHint').textContent='已找到 '+imported.length+' 首歌曲，点击"确认导入"';
+return true;
+}
+
+$('importGo').addEventListener('click',function(){
+previewImport($('importKey').value);
 });
 
 $('importKey').addEventListener('keydown',function(e){
@@ -3599,18 +3604,27 @@ $('listScrim').classList.remove('show');
 }
 });
 
-// ==================== URL add 参数处理 ====================
-async function handleUrlAdd(){
+// ==================== URL 参数处理（add / key） ====================
+// ?key=xxx → 打开导入弹窗并预填密钥、自动预览
+// ?add=xxx → 原有的添加歌曲流程
+async function handleUrlParams(){
 var params=null;
 try{params=new URLSearchParams(location.search)}catch(e){return}
 if(!params)return;
+
+var keyValue=params.get('key');
 var addValue=params.get('add');
-if(!addValue)return;
+if(!keyValue&&!addValue)return;
 
-try{
-history.replaceState(null,'',location.pathname);
-}catch(e){}
+// 清掉 URL 参数
+try{history.replaceState(null,'',location.pathname)}catch(e){}
 
+if(keyValue){
+await handleKeyFromUrl(String(keyValue).trim());
+return;
+}
+
+if(addValue){
 toast('正在解析分享内容...');
 try{
 var song=await resolveInput(addValue);
@@ -3618,6 +3632,40 @@ showSongConfirm(song,true);
 }catch(e){
 toast('解析失败: '+(e.message||'未知错误'));
 }
+}
+}
+
+// 处理 ?key=xxx 导入
+async function handleKeyFromUrl(key){
+if(!key){return;}
+if(detectImportType(key)!=='key'){
+toast('链接中的密钥格式不正确');
+return;
+}
+
+// 打开导入弹窗，预填密钥
+$('listScrim').classList.remove('show');
+$('importKey').value=key;
+$('importFile').value='';
+$('importFileName').textContent='';
+$('importHint').textContent='正在获取歌单...';
+closeOtherScrims('importScrim');
+$('importScrim').classList.add('show');
+
+// 自动预览
+var text=await resolveImportText(key);
+if(!text){
+$('importHint').textContent='';
+toast('未找到该密钥对应的歌单');
+return;
+}
+var imported=parseListText(text);
+if(!imported.length){
+$('importHint').textContent='';
+toast('未解析到有效歌曲');
+return;
+}
+$('importHint').textContent='来自分享链接，已找到 '+imported.length+' 首歌曲，选择导入方式后点击"确认导入"';
 }
 
 // ==================== 音频设备变化自动暂停 ====================
@@ -3671,7 +3719,7 @@ updateSeekBg(0);
 setupMediaSession();
 restorePlaylist();
 render();
-setTimeout(handleUrlAdd,300);
+setTimeout(handleUrlParams,300);
 })();
 </script>
 </body>

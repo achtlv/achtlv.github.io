@@ -126,6 +126,14 @@ background:color-mix(in srgb,var(--primary) 12%,transparent)}
 font-size:10px;line-height:1.2;color:var(--outline);font-variant-numeric:tabular-nums;
 opacity:.55;user-select:none;white-space:nowrap}
 .lyric-box .line.current .line-time{color:var(--primary);opacity:.75}
+.lyric-box .line-empty{
+display:flex!important;align-items:center;justify-content:center;
+width:100%;min-height:min(42vh,240px);padding:24px 20px;
+grid-template-columns:none!important;column-gap:0}
+.lyric-box .line-empty .line-body{width:100%;text-align:center}
+.lyric-box .line.no-time{display:block;text-align:center;grid-template-columns:none}
+.lyric-box .line.no-time .line-jump,.lyric-box .line.no-time .line-time{display:none}
+.lyric-box .line.no-time .line-body{display:block;width:100%;text-align:center;padding:0 12px}
 .lyric-box .line-main{font-size:15px;line-height:1.6}
 .lyric-box .line.loading .line-main{color:var(--on-surface-variant);font-style:italic;opacity:.7}
 .lyric-box .line-trans{font-size:13.5px;line-height:1.6;margin-top:2px;

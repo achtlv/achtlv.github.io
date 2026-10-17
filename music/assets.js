@@ -26,7 +26,7 @@ export const MANIFEST_JSON = {
 };
 
 export const SW_CODE = [
-  "const CACHE_NAME = 'music-player-v4';",
+  "const CACHE_NAME = 'music-player-v5';",
   "const ASSETS = ['/'];",
   "",
   "self.addEventListener('install', function(event){",

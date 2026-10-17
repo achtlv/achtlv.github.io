@@ -13,13 +13,12 @@ export const HTML = `<!DOCTYPE html>
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="音乐播放器">
 <title>音乐播放器</title>
-<link rel="manifest" href="/manifest.json?v=4">
+<link rel="manifest" href="/manifest.json?v=5">
 <link rel="icon" type="image/png" href="/icon.png">
 <link rel="apple-touch-icon" href="/icon.png">
 <link rel="preconnect" href="https://fonts.font.im" crossorigin>
 <link rel="stylesheet" href="https://fonts.font.im/css2?family=Roboto:wght@400;500;700&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
-<script src="/resolver.js"></script>
 ${STYLE}
 </head>
 <body>

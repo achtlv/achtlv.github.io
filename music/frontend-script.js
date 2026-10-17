@@ -181,6 +181,8 @@ function triggerPreloadNeighbors() {
   if (curIdx < 0 || len < 1) return;
   setTimeout(function() {
     if (state.current !== curIdx) return;
+    let prevSong = state.playlist[(curIdx - 1 + len) % len];
+    let nextSong = state.playlist[(curIdx + 1) % len];
   }, 5000);
 }
 

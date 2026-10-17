@@ -92,12 +92,13 @@ background:var(--surface-container-high)}
 .cover-loading-spinner{width:38px;height:38px;border-radius:50%;
 border:3px solid color-mix(in srgb,var(--primary) 25%,transparent);
 border-top-color:var(--primary);animation:spin .8s linear infinite}
-.lyric-box{display:none;width:100%;height:100%;overflow-y:auto;padding:4px 8px;
-scrollbar-width:none;border-radius:20px;position:relative}
-.lyric-box::-webkit-scrollbar{display:none}
-.lyric-sticky-bar{position:sticky;top:0;height:0;z-index:3;pointer-events:none}
-.lyric-toolbar{display:none;flex-direction:column;align-items:center;justify-content:flex-start;gap:6px;
-position:absolute;top:8px;right:4px;padding:0;pointer-events:auto}
+.lyric-box{display:none;width:100%;height:100%;overflow:hidden;padding:0;
+border-radius:20px;position:relative}
+.lyric-scroll{width:100%;height:100%;overflow-y:auto;padding:4px 8px;
+scrollbar-width:none;border-radius:20px}
+.lyric-scroll::-webkit-scrollbar{display:none}
+.lyric-toolbar{display:none;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;
+position:absolute;bottom:10px;right:10px;z-index:3;padding:0;pointer-events:auto}
 .chip{width:32px;height:32px;padding:0;border-radius:50%;border:1px solid var(--outline-variant);
 background:color-mix(in srgb,var(--surface-container-high) 88%,transparent);color:var(--on-surface-variant);
 font-size:13px;font-family:inherit;cursor:pointer;transition:all .18s;font-weight:600;
@@ -109,16 +110,22 @@ backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 color:var(--primary)}
 .chip.hidden{display:none}
 .lyric-box #lyricText{font-family:inherit;font-size:15px;line-height:1.75;
-color:var(--on-surface-variant);text-align:center;padding:36px 16px 40px}
+color:var(--on-surface-variant);text-align:center;padding:36px 0 48px;width:100%}
 .lyric-box .line{padding:6px 0;transition:color .3s;white-space:pre-wrap;word-break:break-word;
-display:flex;align-items:flex-start;gap:6px;text-align:left}
-.lyric-box .line-jump{flex-shrink:0;width:18px;height:18px;margin-top:2px;padding:0;border:none;
+display:grid;grid-template-columns:40px minmax(0,1fr) 40px;align-items:flex-start;column-gap:4px;
+width:100%;box-sizing:border-box}
+.lyric-box .line-jump{width:28px;height:28px;margin:0;padding:0;border:none;justify-self:center;
 border-radius:50%;background:transparent;color:var(--outline);cursor:pointer;
-display:flex;align-items:center;justify-content:center;opacity:.45;transition:opacity .18s,color .18s,background .18s}
+display:flex;align-items:center;justify-content:center;opacity:.4;transition:opacity .18s,color .18s,background .18s}
 .lyric-box .line-jump:hover,.lyric-box .line-jump:active{opacity:1;color:var(--primary);
 background:color-mix(in srgb,var(--primary) 12%,transparent)}
 .lyric-box .line-jump svg{width:12px;height:12px;fill:currentColor;pointer-events:none}
-.lyric-box .line-body{flex:1;min-width:0;text-align:center}
+.lyric-box .line-jump.ph{visibility:hidden;pointer-events:none;cursor:default}
+.lyric-box .line-body{min-width:0;text-align:center;padding:0 2px}
+.lyric-box .line-time{justify-self:center;align-self:flex-start;margin-top:4px;
+font-size:10px;line-height:1.2;color:var(--outline);font-variant-numeric:tabular-nums;
+opacity:.55;user-select:none;white-space:nowrap}
+.lyric-box .line.current .line-time{color:var(--primary);opacity:.75}
 .lyric-box .line-main{font-size:15px;line-height:1.6}
 .lyric-box .line.loading .line-main{color:var(--on-surface-variant);font-style:italic;opacity:.7}
 .lyric-box .line-trans{font-size:13.5px;line-height:1.6;margin-top:2px;

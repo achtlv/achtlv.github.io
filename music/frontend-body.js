@@ -28,13 +28,12 @@ export const BODY_INNER = `<div class="app">
 </div>
 </div>
 <div class="lyric-box" id="lyricBox">
-<div id="lyricText"></div>
-</div>
-</div>
-
 <div class="lyric-toolbar" id="lyricToolbar">
 <button class="chip hidden" id="transBtn">翻译</button>
 <button class="chip hidden" id="romaBtn">发音</button>
+</div>
+<div id="lyricText"></div>
+</div>
 </div>
 
 <div class="progress-row">

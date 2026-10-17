@@ -81,32 +81,36 @@ background:color-mix(in srgb,var(--primary) 8%,transparent)}
 .empty-add svg{width:20px;height:20px;fill:currentColor}
 .cover-box{display:none;height:100%;max-height:340px;aspect-ratio:1;max-width:100%;
 border-radius:28px;overflow:hidden;position:relative;cursor:pointer;
-background:linear-gradient(135deg,var(--primary-container),var(--surface-container-highest));
+background:var(--surface-container-high);
 transition:transform .3s}
 .cover-box img{width:100%;height:100%;object-fit:cover;display:block}
 .cover-fallback{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
-color:var(--on-primary-container)}
+color:var(--on-surface-variant)}
 .cover-fallback svg{width:80px;height:80px;fill:currentColor;opacity:.55}
 .cover-loading{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
-background:linear-gradient(135deg,var(--primary-container),var(--surface-container-highest))}
+background:var(--surface-container-high)}
 .cover-loading-spinner{width:38px;height:38px;border-radius:50%;
 border:3px solid color-mix(in srgb,var(--primary) 25%,transparent);
 border-top-color:var(--primary);animation:spin .8s linear infinite}
 .lyric-box{display:none;width:100%;height:100%;overflow-y:auto;padding:4px 8px;
 scrollbar-width:none;border-radius:20px;position:relative}
 .lyric-box::-webkit-scrollbar{display:none}
-.lyric-toolbar{display:none;align-items:center;justify-content:center;gap:8px;
-padding:2px 4px 8px;flex-shrink:0}
-.chip{padding:4px 12px;border-radius:12px;border:1px solid var(--outline-variant);
+.lyric-toolbar{display:none;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:6px;
+position:absolute;top:10px;right:10px;z-index:3;padding:0;flex-shrink:0}
+.chip{padding:5px 10px;border-radius:12px;border:1px solid var(--outline-variant);
 background:var(--surface-container-high);color:var(--on-surface-variant);
-font-size:12px;font-family:inherit;cursor:pointer;transition:all .18s;font-weight:500}
+font-size:11px;font-family:inherit;cursor:pointer;transition:all .18s;font-weight:500;
+min-width:40px;text-align:center;box-shadow:0 2px 8px var(--shadow);
+backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .chip:hover{border-color:var(--outline)}
 .chip.on{border-color:var(--primary);background:color-mix(in srgb,var(--primary) 18%,transparent);
 color:var(--primary)}
 .chip.hidden{display:none}
 .lyric-box #lyricText{font-family:inherit;font-size:15px;line-height:1.75;
-color:var(--on-surface-variant);text-align:center;padding:40px 8px 40px}
+color:var(--on-surface-variant);text-align:center;padding:40px 52px 40px 12px}
 .lyric-box .line{padding:6px 0;transition:color .3s;white-space:pre-wrap;word-break:break-word}
+.lyric-box .line.has-time{cursor:pointer}
+.lyric-box .line.has-time:hover .line-main{color:var(--primary)}
 .lyric-box .line-main{font-size:15px;line-height:1.6}
 .lyric-box .line.loading .line-main{color:var(--on-surface-variant);font-style:italic;opacity:.7}
 .lyric-box .line-trans{font-size:13.5px;line-height:1.6;margin-top:2px;
@@ -151,6 +155,9 @@ font-family:inherit;cursor:pointer;transition:background .18s,color .18s;white-s
 .text-btn:hover{background:var(--hover);color:var(--on-surface)}
 .text-btn:active{background:var(--active)}
 .text-btn svg{width:19px;height:19px;fill:currentColor;pointer-events:none}
+.text-btn:focus{outline:none}
+.text-btn:focus:not(:focus-visible){background:transparent;color:var(--on-surface-variant)}
+.text-btn:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 .text-btn.danger{color:var(--danger)}
 .text-btn.danger:hover{background:color-mix(in srgb,var(--danger) 12%,transparent)}
 .scrim{position:fixed;inset:0;background:var(--scrim);display:none;align-items:center;

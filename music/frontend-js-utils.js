@@ -1,5 +1,5 @@
 export const UTILS_SCRIPT = `
-import { LF, CR, BS, COOKIE_NAME, COOKIE_MAX, state } from './state.js';
+import { LF, CR, BS, COOKIE_NAME, COOKIE_MAX, state } from '/frontend-js-state.js';
 
 export function isAllDigits(s){ if(!s)return false; for(let i=0;i<s.length;i++){ let c=s.charCodeAt(i); if(c<48||c>57)return false; } return true; }
 export function isSongId(s){ if(!s)return false; let str=String(s); return str.length>=5 && isAllDigits(str); }

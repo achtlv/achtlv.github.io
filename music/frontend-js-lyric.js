@@ -1,6 +1,6 @@
 export const LYRIC_SCRIPT = `
-import { $, state, audio, LF, CR, LYRIC_RESUME_DELAY } from './state.js';
-import { isAllDigits } from './utils.js';
+import { $, state, audio, LF, CR, LYRIC_RESUME_DELAY } from '/frontend-js-state.js';
+import { isAllDigits } from '/frontend-js-utils.js';
 
 export function parseRichLyric(raw){ if(!raw||typeof raw!=='string')return ''; if(raw.indexOf('{"t":')===-1&&raw.indexOf('"c":[')===-1)return raw; let lines=raw.split(LF),credits=[],lyrics=[]; for(let line of lines){ let tr=line.split(CR).join('').trim(); if(!tr)continue; if(tr.charAt(0)==='{'&&tr.indexOf('"c"')!==-1){try{let obj=JSON.parse(tr);if(obj&&Array.isArray(obj.c)){let txt=obj.c.map(x=>x&&x.tx||'').join('').trim(); if(txt&&!credits.includes(txt))credits.push(txt);}}catch(e){} continue;} lyrics.push(line.split(CR).join('')); } let out=credits.join(LF); if(credits.length&&lyrics.length)out+=LF+LF; return out+lyrics.join(LF); }
 export function parseTimeTagContent(c){ if(!c)return null; let col=c.indexOf(':'); if(col===-1)return null; let m=c.substring(0,col),r=c.substring(col+1); if(!isAllDigits(m))return null; let dot=r.indexOf('.'),s=dot===-1?r:r.substring(0,dot),ms=dot===-1?'':r.substring(dot+1); if(!isAllDigits(s)||(ms&&!isAllDigits(ms)))return null; let min=parseInt(m,10),sec=parseInt(s,10),mi=0; if(ms){ms=(ms+'000').substring(0,3);mi=parseInt(ms,10);} return min*60+sec+mi/1000; }

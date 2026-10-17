@@ -1,5 +1,7 @@
 const UPSTREAM = "https://nextmusic.toubiec.cn";
 
+const FALLBACK_ICON_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
 const MANIFEST_JSON = {
   name: "音乐播放器",
   short_name: "播放器",
@@ -11,13 +13,13 @@ const MANIFEST_JSON = {
   orientation: "portrait",
   icons: [
     {
-      src: "https://a1.boltp.com/2026/10/17/6ad2fcb06efbe.png",
+      src: "/icon.png",
       sizes: "192x192",
       type: "image/png",
       purpose: "any"
     },
     {
-      src: "https://a1.boltp.com/2026/10/17/6ad2fcb06efbe.png",
+      src: "/icon.png",
       sizes: "512x512",
       type: "image/png",
       purpose: "any"
@@ -26,7 +28,7 @@ const MANIFEST_JSON = {
 };
 
 const SW_CODE = [
-  "const CACHE_NAME = 'music-player-v3';",
+  "const CACHE_NAME = 'music-player-v4';",
   "const ASSETS = ['/'];",
   "",
   "self.addEventListener('install', function(event){",
@@ -55,7 +57,8 @@ const SW_CODE = [
   "  var isHtml = (url.pathname === '/' || url.pathname === '/index.html');",
   "  var isManifest = (url.pathname === '/manifest.json');",
   "  var isSw = (url.pathname === '/sw.js');",
-  "  if (isHtml || isManifest || isSw) {",
+  "  var isIcon = (url.pathname === '/icon.png');",
+  "  if (isHtml || isManifest || isSw || isIcon) {",
   "    event.respondWith(",
   "      fetch(req).then(function(res){",
   "        try {",
@@ -95,9 +98,9 @@ const HTML = `<!DOCTYPE html>
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="音乐播放器">
 <title>音乐播放器</title>
-<link rel="manifest" href="/manifest.json?v=2">
-<link rel="icon" type="image/png" href="https://a1.boltp.com/2026/10/17/6ad2fcb06efbe.png">
-<link rel="apple-touch-icon" href="https://a1.boltp.com/2026/10/17/6ad2fcb06efbe.png">
+<link rel="manifest" href="/manifest.json?v=3">
+<link rel="icon" type="image/png" href="/icon.png">
+<link rel="apple-touch-icon" href="/icon.png">
 <link rel="preconnect" href="https://fonts.font.im" crossorigin>
 <link rel="stylesheet" href="https://fonts.font.im/css2?family=Roboto:wght@400;500;700&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
@@ -663,7 +666,7 @@ var LF=String.fromCharCode(10);
 var CR=String.fromCharCode(13);
 var BS=String.fromCharCode(92);
 
-var DEFAULT_ICON='https://a1.boltp.com/2026/10/17/6ad2fcb06efbe.png';
+var DEFAULT_ICON='/icon.png';
 var SITE_TITLE='音乐播放器';
 var LYRIC_RESUME_DELAY=8000;
 
@@ -2011,6 +2014,20 @@ if(seen[k[i]])return true;
 return false;
 }
 
+function findDuplicateIndex(song,list){
+var toKeys=getSongDedupKeys(song);
+if(!toKeys.length)return -1;
+var toSet={};
+for(var a=0;a<toKeys.length;a++)toSet[toKeys[a]]=true;
+for(var i=0;i<list.length;i++){
+var lk=getSongDedupKeys(list[i]);
+for(var j=0;j<lk.length;j++){
+if(toSet[lk[j]])return i;
+}
+}
+return -1;
+}
+
 function addKeysToSeen(seen,song){
 var keys=getSongDedupKeys(song);
 for(var i=0;i<keys.length;i++)seen[keys[i]]=true;
@@ -2346,17 +2363,24 @@ return out;
 }
 function applyImport(imported,mode){
 if(!imported.length)return 0;
-if(mode==='replace'){state.playlist=imported.slice();return imported.length;}
+if(mode==='replace'){
+state.playlist=imported.slice();
+state.current=-1;
+return imported.length;
+}
 var seen={};
 state.playlist.forEach(function(s){addKeysToSeen(seen,s)});
-var added=0;
+var added=[];
 imported.forEach(function(s){
 if(hasAnyKeyInSeen(seen,s))return;
-state.playlist.push(s);
+added.push(s);
 addKeysToSeen(seen,s);
-added++;
 });
-return added;
+if(added.length===0)return 0;
+var oldCurrent=state.current;
+state.playlist=added.concat(state.playlist);
+if(oldCurrent>=0)state.current=oldCurrent+added.length;
+return added.length;
 }
 
 // ==================== 播放链接检测 ====================
@@ -3568,11 +3592,13 @@ var toAdd=pendingSong;
 var fromUrl=toAdd._fromUrl===true;
 delete toAdd._fromUrl;
 
-if(isDuplicateSong(toAdd,state.playlist)){
-toast('歌曲已在播放列表中');
+var dupIdx=findDuplicateIndex(toAdd,state.playlist);
+if(dupIdx>=0){
 pendingSong=null;
 closeAdd();
 $('addHint').textContent='是否将此歌曲加入播放列表？';
+playIndex(dupIdx);
+toast('歌曲已在列表中，已切换播放');
 return;
 }
 
@@ -3814,7 +3840,6 @@ var added=applyImport(imported,mode);
 var after=state.playlist.length;
 
 if(mode==='replace'){
-state.current=-1;
 state.playing=false;
 state.audioUrl='';state.quality='';
 state.lyric='';state.lyricTrans='';state.lyricRoma='';
@@ -4104,6 +4129,10 @@ export default {
       });
     }
 
+    if (url.pathname === "/icon.png") {
+      return await handleIcon();
+    }
+
     if (url.pathname === "/api/download") {
       return await handleDownload(
         url.searchParams.get("u") || "",
@@ -4171,6 +4200,46 @@ async function proxy(endpoint, body) {
   });
   const data = await res.json();
   return json(data, res.status);
+}
+
+// ==================== 图标代理 ====================
+async function handleIcon() {
+  const ICON_URL = "https://a1.boltp.com/2026/10/17/6ad2fcb06efbe.png";
+  try {
+    const res = await fetch(ICON_URL, {
+      method: "GET",
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "image/png,image/*,*/*;q=0.8",
+      },
+      redirect: "follow",
+    });
+    if (!res.ok) return iconFallback();
+    const ct = (res.headers.get("Content-Type") || "").toLowerCase();
+    if (ct.indexOf("image") !== 0 && ct.indexOf("octet-stream") === -1) return iconFallback();
+    const headers = new Headers();
+    headers.set("Content-Type", "image/png");
+    headers.set("Cache-Control", "public, max-age=86400");
+    headers.set("Access-Control-Allow-Origin", "*");
+    return new Response(res.body, { status: 200, headers });
+  } catch (e) {
+    return iconFallback();
+  }
+}
+
+function iconFallback() {
+  const bin = atob(FALLBACK_ICON_B64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Response(arr, {
+    status: 200,
+    headers: {
+      "Content-Type": "image/png",
+      "Cache-Control": "public, max-age=3600",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
 }
 
 // ==================== textdb 缓存中转 ====================

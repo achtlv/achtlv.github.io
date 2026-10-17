@@ -1,5 +1,87 @@
 const UPSTREAM = "https://nextmusic.toubiec.cn";
 
+const MANIFEST_JSON = {
+  name: "音乐播放器",
+  short_name: "播放器",
+  start_url: "/",
+  scope: "/",
+  display: "standalone",
+  background_color: "#F7FBF1",
+  theme_color: "#386A20",
+  orientation: "portrait",
+  icons: [
+    {
+      src: "https://img.icons8.com/?size=192&id=59862&format=png&color=000000",
+      sizes: "192x192",
+      type: "image/png",
+      purpose: "any maskable"
+    },
+    {
+      src: "https://img.icons8.com/?size=512&id=59862&format=png&color=000000",
+      sizes: "512x512",
+      type: "image/png",
+      purpose: "any maskable"
+    }
+  ]
+};
+
+const SW_CODE = [
+  "const CACHE_NAME = 'music-player-v1';",
+  "const ASSETS = ['/', '/manifest.json'];",
+  "",
+  "self.addEventListener('install', function(event){",
+  "  event.waitUntil(",
+  "    caches.open(CACHE_NAME).then(function(cache){ return cache.addAll(ASSETS); })",
+  "  );",
+  "  self.skipWaiting();",
+  "});",
+  "",
+  "self.addEventListener('activate', function(event){",
+  "  event.waitUntil(",
+  "    caches.keys().then(function(keys){",
+  "      return Promise.all(keys.filter(function(k){ return k !== CACHE_NAME; }).map(function(k){ return caches.delete(k); }));",
+  "    })",
+  "  );",
+  "  self.clients.claim();",
+  "});",
+  "",
+  "self.addEventListener('fetch', function(event){",
+  "  var req = event.request;",
+  "  if (req.method !== 'GET') return;",
+  "  var url;",
+  "  try { url = new URL(req.url); } catch (e) { return; }",
+  "  if (url.origin !== self.location.origin) return;",
+  "  if (url.pathname.indexOf('/api/') === 0) return;",
+  "  var isHtml = (url.pathname === '/' || url.pathname === '/index.html');",
+  "  if (isHtml) {",
+  "    event.respondWith(",
+  "      fetch(req).then(function(res){",
+  "        try {",
+  "          var copy = res.clone();",
+  "          caches.open(CACHE_NAME).then(function(cache){ cache.put(req, copy); });",
+  "        } catch (e) {}",
+  "        return res;",
+  "      }).catch(function(){ return caches.match(req); })",
+  "    );",
+  "    return;",
+  "  }",
+  "  event.respondWith(",
+  "    caches.match(req).then(function(cached){",
+  "      if (cached) return cached;",
+  "      return fetch(req).then(function(res){",
+  "        try {",
+  "          if (res && res.status === 200) {",
+  "            var copy = res.clone();",
+  "            caches.open(CACHE_NAME).then(function(cache){ cache.put(req, copy); });",
+  "          }",
+  "        } catch (e) {}",
+  "        return res;",
+  "      });",
+  "    })",
+  "  );",
+  "});"
+].join("\n");
+
 const HTML = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -7,9 +89,13 @@ const HTML = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#F7FBF1" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#11140F" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="音乐播放器">
 <title>音乐播放器</title>
+<link rel="manifest" href="/manifest.json">
 <link rel="icon" type="image/png" href="https://img.icons8.com/?size=100&id=59862&format=png&color=000000">
-<link rel="apple-touch-icon" href="https://img.icons8.com/?size=100&id=59862&format=png&color=000000">
+<link rel="apple-touch-icon" href="https://img.icons8.com/?size=192&id=59862&format=png&color=000000">
 <link rel="preconnect" href="https://fonts.font.im" crossorigin>
 <link rel="stylesheet" href="https://fonts.font.im/css2?family=Roboto:wght@400;500;700&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
@@ -1847,7 +1933,6 @@ return QUALITY_LABEL[quality]||'';
 }
 
 // ==================== 去重工具 ====================
-// URL 规范化：协议无关、尾斜杠无关、主机名大小写无关、IDN 自动转 punycode
 function normalizeUrlForKey(u){
 if(!u)return '';
 var s=String(u).trim();
@@ -1869,7 +1954,6 @@ if(port)key+=':'+port;
 key+=path+search;
 return key;
 }catch(e){
-// 兜底：去掉协议头（无正则，符合项目约定）
 var m=s;
 var ml=m.toLowerCase();
 if(ml.indexOf('http://')===0)m=m.substring(7);
@@ -1880,7 +1964,6 @@ return m.toLowerCase();
 }
 }
 
-// 一首歌可能对应多个去重键（外部音源同时看 srcUrl 和 url）
 function getSongDedupKeys(song){
 var keys=[];
 if(!song)return keys;
@@ -3022,6 +3105,7 @@ audio.addEventListener('play',function(){
 state.playing=true;
 render();
 updateMediaSessionPlaybackState();
+updateMediaSessionMetadata();
 });
 audio.addEventListener('pause',function(){
 state.playing=false;
@@ -3339,26 +3423,20 @@ toast('FLV 流媒体暂不支持下载');
 return;
 }
 var url=song.url;
-try{
-var res=await fetch(url);
-var blob=await res.blob();
-var a=document.createElement('a');
-a.href=URL.createObjectURL(blob);
+if(!url){toast('缺少下载链接');return}
 var ext='.mp3';
 var fm=song.format||'';
 if(!fm)fm=getFormatFromUrl(url);
 if(fm)ext='.'+fm;
 var fname=safeFileName((song.name||'song')+' - '+(song.artist||''))+ext;
+var proxyUrl=location.origin+'/api/download?u='+encodeURIComponent(url)+'&name='+encodeURIComponent(fname);
+var a=document.createElement('a');
+a.href=proxyUrl;
 a.download=fname;
 document.body.appendChild(a);
 a.click();
 a.remove();
-setTimeout(function(){URL.revokeObjectURL(a.href)},3000);
 toast('开始下载');
-}catch(e){
-window.open(url,'_blank');
-toast('已在新窗口打开');
-}
 return;
 }
 openDownloadDialog(song);
@@ -3586,7 +3664,6 @@ ta.remove();
 }
 });
 
-// txt 导出：始终用 gzip 压缩，不考虑变长变短
 $('exportDownload').addEventListener('click',async function(){
 if(!state.playlist.length){toast('播放列表为空');return}
 var raw=exportListText();
@@ -3935,12 +4012,25 @@ setInterval(check,1500);
 check();
 })();
 
+// ==================== 后台恢复兜底 ====================
+document.addEventListener('visibilitychange',function(){
+if(document.visibilityState==='visible'&&state.playing&&audio.paused){
+audio.play().catch(function(){});
+}
+});
+
 // ==================== 启动 ====================
 updateSeekBg(0);
 setupMediaSession();
 restorePlaylist();
 render();
 setTimeout(handleUrlParams,300);
+
+if('serviceWorker' in navigator){
+window.addEventListener('load',function(){
+navigator.serviceWorker.register('/sw.js').catch(function(){});
+});
+}
 })();
 </script>
 </body>
@@ -3954,8 +4044,8 @@ export default {
       return new Response(null, {
         headers: {
           "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type",
+          "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Range",
         },
       });
     }
@@ -3964,6 +4054,33 @@ export default {
       return new Response(HTML, {
         headers: { "Content-Type": "text/html;charset=UTF-8" },
       });
+    }
+
+    if (url.pathname === "/manifest.json") {
+      return new Response(JSON.stringify(MANIFEST_JSON), {
+        headers: {
+          "Content-Type": "application/manifest+json;charset=UTF-8",
+          "Cache-Control": "public, max-age=3600",
+        },
+      });
+    }
+
+    if (url.pathname === "/sw.js") {
+      return new Response(SW_CODE, {
+        headers: {
+          "Content-Type": "application/javascript;charset=UTF-8",
+          "Cache-Control": "no-cache",
+          "Service-Worker-Allowed": "/",
+        },
+      });
+    }
+
+    if (url.pathname === "/api/download") {
+      return await handleDownload(
+        url.searchParams.get("u") || "",
+        url.searchParams.get("name") || "",
+        request
+      );
     }
 
     if (request.method !== "POST") {
@@ -4391,4 +4508,93 @@ async function handleCheckAudio(url) {
   } catch (e) {
     return json({ ok: false, msg: "请求失败: " + e.message });
   }
+}
+
+// ==================== 下载代理（GET，带 Content-Disposition） ====================
+async function handleDownload(targetUrl, name, req) {
+  if (!targetUrl) return new Response("缺少 url", { status: 400 });
+  const u = String(targetUrl).toLowerCase();
+  if (u.indexOf("http://") !== 0 && u.indexOf("https://") !== 0) {
+    return new Response("无效 url", { status: 400 });
+  }
+
+  const forwardHeaders = {
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "*/*",
+  };
+
+  const range = req.headers.get("Range");
+  if (range) forwardHeaders["Range"] = range;
+
+  if (
+    u.indexOf("bilivideo.com") !== -1 ||
+    u.indexOf("bilibili.com") !== -1 ||
+    u.indexOf("hdslb.com") !== -1
+  ) {
+    forwardHeaders["Referer"] = "https://www.bilibili.com/";
+    forwardHeaders["Origin"] = "https://www.bilibili.com";
+  }
+
+  let res;
+  try {
+    res = await fetch(targetUrl, {
+      method: "GET",
+      headers: forwardHeaders,
+      redirect: "follow",
+    });
+  } catch (e) {
+    return new Response("下载失败: " + e.message, { status: 502 });
+  }
+
+  const rawCt = res.headers.get("Content-Type") || "";
+  const ct = rawCt.toLowerCase().split(";")[0].trim();
+  if (ct === "text/html" || ct.indexOf("application/json") === 0) {
+    try { if (res.body) await res.body.cancel(); } catch (e) {}
+    return new Response("目标不是音频/视频文件 (" + (rawCt || "未知类型") + ")", { status: 502 });
+  }
+
+  const respHeaders = new Headers();
+  respHeaders.set("Access-Control-Allow-Origin", "*");
+  respHeaders.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+  respHeaders.set(
+    "Access-Control-Expose-Headers",
+    "Content-Length, Content-Range, Accept-Ranges, Content-Type, Content-Disposition"
+  );
+
+  const passHeaders = [
+    "Content-Type",
+    "Content-Length",
+    "Content-Range",
+    "Accept-Ranges",
+    "Last-Modified",
+    "ETag",
+  ];
+  for (const h of passHeaders) {
+    const v = res.headers.get(h);
+    if (v) respHeaders.set(h, v);
+  }
+  if (!respHeaders.get("Accept-Ranges")) respHeaders.set("Accept-Ranges", "bytes");
+
+  let fname = String(name || "").trim();
+  if (!fname) {
+    try {
+      const uo = new URL(res.url || targetUrl);
+      const segs = uo.pathname.split("/");
+      fname = decodeURIComponent(segs[segs.length - 1] || "") || "download";
+    } catch (e) {
+      fname = "download";
+    }
+  }
+  fname = fname.replace(/[\r\n"\\]/g, "_");
+  const asciiFallback = fname.replace(/[^\x20-\x7E]/g, "_");
+  respHeaders.set(
+    "Content-Disposition",
+    "attachment; filename=\"" + asciiFallback + "\"; filename*=UTF-8''" + encodeURIComponent(fname)
+  );
+
+  return new Response(res.body, {
+    status: res.status,
+    headers: respHeaders,
+  });
 }

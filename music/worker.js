@@ -280,6 +280,11 @@ color:var(--on-surface-variant);display:flex;align-items:center;justify-content:
 cursor:pointer;flex-shrink:0;transition:all .18s}
 .song-row-del:hover{background:color-mix(in srgb,var(--primary) 18%,transparent);color:var(--primary)}
 .song-row-del svg{width:18px;height:18px;fill:currentColor;pointer-events:none}
+.song-row-rename{width:36px;height:36px;border-radius:50%;border:none;background:transparent;
+color:var(--on-surface-variant);display:flex;align-items:center;justify-content:center;
+cursor:pointer;flex-shrink:0;transition:all .18s}
+.song-row-rename:hover{background:color-mix(in srgb,var(--primary) 18%,transparent);color:var(--primary)}
+.song-row-rename svg{width:18px;height:18px;fill:currentColor;pointer-events:none}
 
 .toast{position:fixed;bottom:110px;left:50%;transform:translateX(-50%) translateY(20px);
 background:var(--surface-container-highest);color:var(--on-surface);padding:12px 20px;
@@ -452,6 +457,20 @@ footer{padding:8px 0 6px}
 <div class="dlg-actions">
 <button class="text-btn" id="clearCancel">取消</button>
 <button class="filled-btn danger" id="clearConfirm">确认清空</button>
+</div>
+</div>
+</div>
+
+<div class="scrim" id="renameScrim">
+<div class="dialog">
+<h2>重命名</h2>
+<div class="input-row">
+<input id="renameInput" placeholder="输入新名称" autocomplete="off" maxlength="100" enterkeyhint="done">
+<button class="filled-icon" id="renameGo" aria-label="确认"></button>
+</div>
+<div class="dlg-actions">
+<button class="text-btn" id="renameCancel">取消</button>
+<button class="filled-btn" id="renameConfirm">确认</button>
 </div>
 </div>
 </div>
@@ -636,7 +655,7 @@ var hlsLoading=null;
 var flvInstance=null;
 var flvLoading=null;
 
-var ALL_SCRIMS=['addScrim','clearScrim','shareScrim','downloadScrim','exportScrim','importScrim','listScrim'];
+var ALL_SCRIMS=['addScrim','clearScrim','renameScrim','shareScrim','downloadScrim','exportScrim','importScrim','listScrim'];
 
 $('shareBtn').innerHTML=ICON.share;
 $('prevBtn').innerHTML=ICON.prev;
@@ -651,6 +670,7 @@ $('retryBtn').innerHTML=ICON.refresh;
 $('downloadRetryBtn').innerHTML=ICON.refresh;
 $('exportCopy').innerHTML=ICON.copy;
 $('importGo').innerHTML=ICON.arrow;
+$('renameGo').innerHTML=ICON.check;
 
 function closeOtherScrims(exceptId){
 for(var i=0;i<ALL_SCRIMS.length;i++){
@@ -724,7 +744,7 @@ if(s.length===15&&s.indexOf('|')===-1)return 'key';
 return 'plain';
 }
 
-// 【已修复】不再把逗号/分号当 URL 终止符（B 站等 CDN 的 URL 参数里合法含逗号）
+// 不再把逗号/分号当 URL 终止符（B 站等 CDN 的 URL 参数里合法含逗号）
 // 只在空格、Tab、换行、引号、尖括号处终止
 function extractAllUrlsFromText(text){
 var urls=[];
@@ -1800,6 +1820,79 @@ if(quality==='unavailable')return '不可用';
 return QUALITY_LABEL[quality]||'';
 }
 
+// ==================== 去重工具 ====================
+// URL 规范化：协议无关、尾斜杠无关、主机名大小写无关、IDN 自动转 punycode
+function normalizeUrlForKey(u){
+if(!u)return '';
+var s=String(u).trim();
+if(!s)return '';
+var low=s.toLowerCase();
+if(low.indexOf('http://')!==0&&low.indexOf('https://')!==0){
+s='https://'+s;
+}
+try{
+var uo=new URL(s);
+var host=(uo.hostname||'').toLowerCase();
+var port=uo.port||'';
+var path=uo.pathname||'/';
+while(path.length>1&&path.charAt(path.length-1)==='/')path=path.substring(0,path.length-1);
+if(path==='/')path='';
+var search=uo.search||'';
+var key=host;
+if(port)key+=':'+port;
+key+=path+search;
+return key;
+}catch(e){
+var m=s.replace(/^[a-zA-Z]+:\/\//,'');
+var cut=m.indexOf('/');
+if(cut!==-1)m=m.substring(0,cut);
+return m.toLowerCase();
+}
+}
+
+// 一首歌可能对应多个去重键（外部音源同时看 srcUrl 和 url）
+function getSongDedupKeys(song){
+var keys=[];
+if(!song)return keys;
+if(song.external){
+var u1=normalizeUrlForKey(song.url||'');
+if(u1)keys.push('ext:'+u1);
+var u2=normalizeUrlForKey(song.srcUrl||'');
+if(u2&&u2!==u1)keys.push('ext:'+u2);
+}else{
+if(song.id)keys.push('id:'+String(song.id));
+}
+return keys;
+}
+
+// 目标歌曲与列表内任一歌曲有任一 key 相同 → 重复
+function isDuplicateSong(song,list){
+var k=getSongDedupKeys(song);
+if(!k.length)return false;
+var seen={};
+for(var i=0;i<list.length;i++){
+var lk=getSongDedupKeys(list[i]);
+for(var j=0;j<lk.length;j++)seen[lk[j]]=true;
+}
+for(var i=0;i<k.length;i++){
+if(seen[k[i]])return true;
+}
+return false;
+}
+
+function addKeysToSeen(seen,song){
+var keys=getSongDedupKeys(song);
+for(var i=0;i<keys.length;i++)seen[keys[i]]=true;
+}
+
+function hasAnyKeyInSeen(seen,song){
+var keys=getSongDedupKeys(song);
+for(var i=0;i<keys.length;i++){
+if(seen[keys[i]])return true;
+}
+return false;
+}
+
 // ==================== HLS / FLV 加载 ====================
 function loadHlsJs(){
 if(window.Hls)return Promise.resolve();
@@ -2050,13 +2143,13 @@ return null;
 function savePlaylist(){
 var data=state.playlist.map(function(s){
 var obj={id:s.id,name:s.name||'',artist:s.artist||''};
-if(s.external){obj.ext=true;obj.url=s.url||'';obj.format=s.format||'';}
+if(s.external){obj.ext=true;obj.url=s.url||'';obj.srcUrl=s.srcUrl||'';obj.format=s.format||'';}
 return obj;
 });
 while(data.length>0){
 var encoded=encodeURIComponent(JSON.stringify(data));
 if(encoded.length<=COOKIE_MAX){break}
-data.shift();
+data.pop();
 }
 try{setCookieRaw(COOKIE_NAME,encodeURIComponent(JSON.stringify(data)))}catch(e){}
 }
@@ -2068,7 +2161,7 @@ var list=JSON.parse(decodeURIComponent(raw));
 if(!Array.isArray(list))return;
 state.playlist=list.map(function(s){
 var obj={id:String(s.id||''),name:s.name||'未知歌曲',artist:s.artist||'未知歌手',pic:'',duration:0};
-if(s.ext){obj.external=true;obj.url=String(s.url||'');obj.format=String(s.format||'');}
+if(s.ext){obj.external=true;obj.url=String(s.url||'');obj.srcUrl=String(s.srcUrl||'');obj.format=String(s.format||'');}
 return obj;
 }).filter(function(s){
 if(!s.id)return false;
@@ -2086,8 +2179,10 @@ function exportListText(){
 return state.playlist.map(function(s){
 var name=(s.name||'').split('|').join(' ');
 var artist=(s.artist||'').split('|').join(' ');
-var key=s.external?(s.url||''):s.id;
-return key+'|'+name+'|'+artist;
+if(s.external){
+return (s.url||'')+'|'+name+'|'+artist+'|'+(s.srcUrl||'');
+}
+return s.id+'|'+name+'|'+artist;
 }).join(LF);
 }
 function parseListText(text){
@@ -2101,25 +2196,34 @@ if(line.charAt(0)==='#')continue;
 var parts=line.split('|');
 var key=(parts[0]||'').trim();
 if(!key)continue;
-if(seen[key])continue;
+
+var item=null;
 if(isSongId(key)){
-seen[key]=true;
-out.push({id:key,name:(parts[1]||'').trim()||'未知歌曲',artist:(parts[2]||'').trim()||'未知歌手',pic:'',duration:0});
+item={id:key,name:(parts[1]||'').trim()||'未知歌曲',artist:(parts[2]||'').trim()||'未知歌手',pic:'',duration:0};
 }else if(isHttpUrl(key)){
-seen[key]=true;
-out.push({id:uid(),name:(parts[1]||'').trim()||'外部音源',artist:(parts[2]||'').trim()||'外部音源',pic:'',external:true,url:key,format:getFormatFromUrl(key)});
+var srcUrl=(parts[3]||'').trim();
+if(!isHttpUrl(srcUrl))srcUrl='';
+item={id:uid(),name:(parts[1]||'').trim()||'外部音源',artist:(parts[2]||'').trim()||'外部音源',pic:'',external:true,url:key,srcUrl:srcUrl,format:getFormatFromUrl(key)};
 }
+if(!item)continue;
+
+if(hasAnyKeyInSeen(seen,item))continue;
+addKeysToSeen(seen,item);
+out.push(item);
 }
 return out;
 }
 function applyImport(imported,mode){
 if(!imported.length)return 0;
 if(mode==='replace'){state.playlist=imported.slice();return imported.length;}
-var existing={};
-state.playlist.forEach(function(s){existing[s.id]=true});
+var seen={};
+state.playlist.forEach(function(s){addKeysToSeen(seen,s)});
 var added=0;
 imported.forEach(function(s){
-if(!existing[s.id]){state.playlist.push(s);existing[s.id]=true;added++;}
+if(hasAnyKeyInSeen(seen,s))return;
+state.playlist.push(s);
+addKeysToSeen(seen,s);
+added++;
 });
 return added;
 }
@@ -2332,6 +2436,7 @@ artist:isVideoFormat(fmt)?'视频音源':'外部音源',
 pic:'',
 external:true,
 url:check.url||url,
+srcUrl:url,
 format:fmt,
 quality:'external'
 };
@@ -2411,7 +2516,9 @@ var newRank=qualityRank(q);
 if(q&&newRank>curRank){
 state.quality=q;
 toast('已找到更高音质：'+(QUALITY_LABEL[q]||q));
-playIndex(state.current,q);
+var pos=0;
+try{pos=audio.currentTime||0;}catch(e){}
+playIndex(state.current,q,pos);
 return;
 }
 if(q&&newRank===curRank){
@@ -2528,14 +2635,53 @@ html+='<div class="song-row-actions">'+
 '<button class="song-row-move" data-down="'+i+'" '+(i===state.playlist.length-1?'disabled':'')+' aria-label="下移">'+ICON.arrowDown+'</button>'+
 '</div>';
 }
+if(s.external){
+html+='<button class="song-row-rename" data-rename="'+i+'" aria-label="重命名">'+ICON.edit+'</button>';
+}
 html+='<button class="song-row-del" data-del="'+i+'" aria-label="删除">'+ICON.del+'</button>'+
 '</div>';
 });
 box.innerHTML=html;
 }
 
+// ==================== 改名 ====================
+var renamingIndex=-1;
+
+function openRename(idx){
+if(idx<0||idx>=state.playlist.length)return;
+var song=state.playlist[idx];
+if(!song||!song.external)return;
+renamingIndex=idx;
+$('renameInput').value=song.name||'';
+closeOtherScrims('renameScrim');
+$('renameScrim').classList.add('show');
+setTimeout(function(){
+$('renameInput').focus();
+try{$('renameInput').select()}catch(e){}
+},120);
+}
+
+function closeRename(){
+$('renameScrim').classList.remove('show');
+$('renameInput').blur();
+renamingIndex=-1;
+}
+
+function confirmRename(){
+if(renamingIndex<0||renamingIndex>=state.playlist.length){closeRename();return}
+var newName=$('renameInput').value.trim();
+if(!newName){toast('名称不能为空');return}
+var song=state.playlist[renamingIndex];
+if(!song){closeRename();return}
+song.name=newName;
+savePlaylist();
+closeRename();
+render();
+toast('已重命名');
+}
+
 // ==================== 播放 ====================
-async function playIndex(i,forcedQuality){
+async function playIndex(i,forcedQuality,startPos){
 if(i<0||i>=state.playlist.length)return;
 var token=++playToken;
 
@@ -2604,6 +2750,9 @@ e2.urlExpireAt=Date.now()+((result.expi||DEFAULT_EXPI)*1000);
 }
 render();
 await setAudioSource(result.url,song.format);
+if(startPos&&startPos>0){
+try{audio.currentTime=startPos;}catch(e){}
+}
 }catch(e){
 if(token!==playToken)return;
 state.playing=false;
@@ -2894,6 +3043,15 @@ render();
 $('retryBtn').addEventListener('click',function(e){
 e.stopPropagation();
 retryQuality();
+});
+
+// ==================== 改名事件 ====================
+$('renameCancel').addEventListener('click',closeRename);
+$('renameConfirm').addEventListener('click',confirmRename);
+$('renameGo').addEventListener('click',confirmRename);
+$('renameScrim').addEventListener('click',function(e){if(e.target===this)closeRename()});
+$('renameInput').addEventListener('keydown',function(e){
+if(e.key==='Enter'){e.preventDefault();confirmRename()}
 });
 
 // ==================== 分享菜单 ====================
@@ -3263,6 +3421,15 @@ if(!pendingSong)return;
 var toAdd=pendingSong;
 var fromUrl=toAdd._fromUrl===true;
 delete toAdd._fromUrl;
+
+if(isDuplicateSong(toAdd,state.playlist)){
+toast('歌曲已在播放列表中');
+pendingSong=null;
+closeAdd();
+$('addHint').textContent='是否将此歌曲加入播放列表？';
+return;
+}
+
 state.playlist.unshift(toAdd);
 var wasEmpty=state.playlist.length===1;
 if(state.current>=0)state.current++;
@@ -3509,6 +3676,23 @@ for(var i=0;i<radios.length;i++){if(radios[i].checked){mode=radios[i].value;brea
 var added=applyImport(imported,mode);
 var after=state.playlist.length;
 
+if(mode==='replace'){
+state.current=-1;
+state.playing=false;
+state.audioUrl='';state.quality='';
+state.lyric='';state.lyricTrans='';state.lyricRoma='';
+state.lyricLoading=false;
+state.retrying=false;
+state.editingOrder=false;
+$('sheetEdit').innerHTML=ICON.edit;
+$('sheetEdit').classList.remove('active');
+stopAudio();
+resetProgressUI();
+state._lastMediaKey=null;
+updateMediaSessionMetadata();
+updateMediaSessionPlaybackState();
+}
+
 savePlaylist();
 render();
 $('importScrim').classList.remove('show');
@@ -3523,6 +3707,14 @@ toast('新增 '+added+' 首，共 '+after+' 首');
 
 // ==================== 列表交互 ====================
 $('sheetList').addEventListener('click',function(e){
+var renameBtn=e.target.closest('[data-rename]');
+if(renameBtn){
+e.stopPropagation();
+var ridx=parseInt(renameBtn.getAttribute('data-rename'),10);
+openRename(ridx);
+return;
+}
+
 var del=e.target.closest('[data-del]');
 if(del){
 e.stopPropagation();
@@ -4004,25 +4196,50 @@ async function handleResolve(rawUrl) {
   let id = extractIdFromUrl(link);
   if (id) return json({ code: 200, id });
 
+  const UA =
+    "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+
+  // 第一跳：manual 拿 Location（快路径）
   try {
     const res = await fetch(link, {
       method: "GET",
       redirect: "manual",
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-      },
+      headers: { "User-Agent": UA },
     });
-
     const location = res.headers.get("Location");
     if (location) {
       id = extractIdFromUrl(location);
       if (id) return json({ code: 200, id });
     }
+    try { if (res.body) await res.body.cancel(); } catch (e) {}
+  } catch (e) {}
 
-    const text = await res.text();
-    id = extractIdFromUrl(text);
-    if (id) return json({ code: 200, id });
+  // 第二跳：follow 从最终 URL 提取（兜底多跳）
+  try {
+    const res = await fetch(link, {
+      method: "GET",
+      redirect: "follow",
+      headers: { "User-Agent": UA },
+    });
+    id = extractIdFromUrl(res.url || "");
+    if (id) {
+      try { if (res.body) await res.body.cancel(); } catch (e) {}
+      return json({ code: 200, id });
+    }
+    const finalUrl = String(res.url || "").toLowerCase();
+    const isNetease =
+      finalUrl.indexOf("music.163.com") !== -1 ||
+      finalUrl.indexOf("163cn.tv") !== -1 ||
+      finalUrl.indexOf("y.music.163.com") !== -1;
+    if (isNetease) {
+      try {
+        const text = await res.text();
+        id = extractIdFromUrl(text);
+        if (id) return json({ code: 200, id });
+      } catch (e) {}
+    } else {
+      try { if (res.body) await res.body.cancel(); } catch (e) {}
+    }
   } catch (e) {
     return json({ code: 500, msg: "链接解析失败: " + e.message }, 500);
   }
@@ -4044,7 +4261,7 @@ async function handleCheckAudio(url) {
       "User-Agent":
         "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
     };
-    // 【已修复】B 站 CDN 防盗链：必须带 Referer，否则返回 HTML 页面
+    // B 站 CDN 防盗链：必须带 Referer，否则返回 HTML 页面
     if (
       urlLower0.indexOf("bilivideo.com") !== -1 ||
       urlLower0.indexOf("bilibili.com") !== -1 ||
@@ -4059,8 +4276,13 @@ async function handleCheckAudio(url) {
       redirect: "follow",
     });
 
+    // 只读 2KB 后取消，避免把整个大文件读进内存
     try {
-      await res.arrayBuffer();
+      if (res.body) {
+        const reader = res.body.getReader();
+        await reader.read();
+        try { await reader.cancel(); } catch (e) {}
+      }
     } catch (e) {}
 
     const rawCt = res.headers.get("Content-Type") || "";
@@ -4120,7 +4342,7 @@ async function handleCheckAudio(url) {
     if (!format && urlLower.indexOf(".flv") !== -1) format = "flv";
     if (!format && ct.indexOf("audio/") === 0) format = "audio";
     if (!format && ct.indexOf("video/") === 0) format = "video";
-    // 【已修复】兜底：扩展名明确且非 HTML 页面，视为可用（B 站等 CDN 可能返回自定义 MIME）
+    // 兜底：扩展名明确且非 HTML 页面，视为可用（B 站等 CDN 可能返回自定义 MIME）
     if (!format && extFormat && ct.indexOf("text/html") === -1) {
       format = extFormat;
     }

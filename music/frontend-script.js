@@ -6,7 +6,7 @@ import { setAudioSource, stopAudio, resetProgressUI, probeOfficialLocal } from '
 
 let playToken = 0, refreshToken = 0, refreshingUrl = false;
 let pendingSong = null, pendingDownloadSong = null, downloadDetectToken = 0, renamingIndex = -1, exportGenerating = false;
-let preloadTimers = {}; 
+let preloadTimers = {};
 
 const ICON = {
   play: '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>', pause: '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>',
@@ -181,8 +181,6 @@ function triggerPreloadNeighbors() {
   if (curIdx < 0 || len < 1) return;
   setTimeout(function() {
     if (state.current !== curIdx) return;
-    let prevSong = state.playlist[(curIdx - 1 + len) % len], nextSong = state.playlist[(curIdx + 1) % len];
-    // 简单预加载逻辑
   }, 5000);
 }
 

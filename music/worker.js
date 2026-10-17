@@ -26,8 +26,8 @@ const MANIFEST_JSON = {
 };
 
 const SW_CODE = [
-  "const CACHE_NAME = 'music-player-v2';",
-  "const ASSETS = ['/', '/manifest.json'];",
+  "const CACHE_NAME = 'music-player-v3';",
+  "const ASSETS = ['/'];",
   "",
   "self.addEventListener('install', function(event){",
   "  event.waitUntil(",
@@ -53,7 +53,9 @@ const SW_CODE = [
   "  if (url.origin !== self.location.origin) return;",
   "  if (url.pathname.indexOf('/api/') === 0) return;",
   "  var isHtml = (url.pathname === '/' || url.pathname === '/index.html');",
-  "  if (isHtml) {",
+  "  var isManifest = (url.pathname === '/manifest.json');",
+  "  var isSw = (url.pathname === '/sw.js');",
+  "  if (isHtml || isManifest || isSw) {",
   "    event.respondWith(",
   "      fetch(req).then(function(res){",
   "        try {",
@@ -93,7 +95,7 @@ const HTML = `<!DOCTYPE html>
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="音乐播放器">
 <title>音乐播放器</title>
-<link rel="manifest" href="/manifest.json">
+<link rel="manifest" href="/manifest.json?v=2">
 <link rel="icon" type="image/png" href="https://a1.boltp.com/2026/10/17/6ad2fcb06efbe.png">
 <link rel="apple-touch-icon" href="https://a1.boltp.com/2026/10/17/6ad2fcb06efbe.png">
 <link rel="preconnect" href="https://fonts.font.im" crossorigin>
@@ -175,7 +177,9 @@ cursor:pointer;transition:background .18s,color .18s;flex-shrink:0}
 
 #stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
 position:relative;overflow:hidden;padding:8px 0}
-.empty-add{display:none;flex-direction:row;align-items:center;justify-content:center;gap:8px;
+.empty-actions{display:none;flex-direction:row;align-items:center;justify-content:center;
+gap:12px;flex-wrap:wrap;max-width:100%;max-height:100%}
+.empty-add{display:flex;flex-direction:row;align-items:center;justify-content:center;gap:8px;
 padding:10px 22px;border:1px dashed var(--outline-variant);border-radius:20px;
 background:transparent;color:var(--on-surface-variant);cursor:pointer;font-size:14px;
 font-family:inherit;transition:all .2s;max-height:100%}
@@ -200,7 +204,8 @@ border-top-color:var(--primary);animation:spin .8s linear infinite}
 .lyric-box{display:none;width:100%;height:100%;overflow-y:auto;padding:4px 8px;
 scrollbar-width:none;border-radius:20px;position:relative}
 .lyric-box::-webkit-scrollbar{display:none}
-.lyric-toolbar{position:absolute;top:6px;right:6px;display:flex;gap:6px;z-index:3}
+.lyric-toolbar{display:none;align-items:center;justify-content:center;gap:8px;
+padding:2px 4px 8px;flex-shrink:0}
 .chip{padding:4px 12px;border-radius:12px;border:1px solid var(--outline-variant);
 background:var(--surface-container-high);color:var(--on-surface-variant);
 font-size:12px;font-family:inherit;cursor:pointer;transition:all .18s;font-weight:500}
@@ -470,10 +475,16 @@ footer{padding:8px 0 6px}
 </header>
 
 <div id="stage">
+<div class="empty-actions" id="emptyActions">
 <button class="empty-add" id="emptyAdd" aria-label="添加歌曲">
 <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
 <span>添加歌曲</span>
 </button>
+<button class="empty-add" id="emptyImport" aria-label="导入歌曲">
+<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+<span>导入歌曲</span>
+</button>
+</div>
 <div class="cover-box" id="coverBox">
 <img id="coverImg" alt="">
 <div class="cover-fallback" id="coverFallback">
@@ -484,12 +495,13 @@ footer{padding:8px 0 6px}
 </div>
 </div>
 <div class="lyric-box" id="lyricBox">
+<div id="lyricText"></div>
+</div>
+</div>
+
 <div class="lyric-toolbar" id="lyricToolbar">
 <button class="chip hidden" id="transBtn">翻译</button>
 <button class="chip hidden" id="romaBtn">发音</button>
-</div>
-<div id="lyricText"></div>
-</div>
 </div>
 
 <div class="progress-row">
@@ -653,6 +665,7 @@ var BS=String.fromCharCode(92);
 
 var DEFAULT_ICON='https://a1.boltp.com/2026/10/17/6ad2fcb06efbe.png';
 var SITE_TITLE='音乐播放器';
+var LYRIC_RESUME_DELAY=8000;
 
 var ICON={
 play:'<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',
@@ -1799,6 +1812,7 @@ state.lyricLines=mainLines;
 state.lyricHasTime=parsed.hasTime;
 state.lyricCurrent=-1;
 state.lyricUserScrolled=false;
+if(state._lyricScrollTimer){clearTimeout(state._lyricScrollTimer);state._lyricScrollTimer=null;}
 
 var box=$('lyricText');
 box.innerHTML='';
@@ -1892,9 +1906,14 @@ catch(e){outer.scrollTop=target}
 }
 
 function markLyricUserScrolled(){
+if(!state.lyricHasTime)return;
 state.lyricUserScrolled=true;
 if(state._lyricScrollTimer)clearTimeout(state._lyricScrollTimer);
-state._lyricScrollTimer=setTimeout(function(){state.lyricUserScrolled=false},4000);
+state._lyricScrollTimer=setTimeout(function(){
+state._lyricScrollTimer=null;
+state.lyricUserScrolled=false;
+updateLyricScroll(true);
+},LYRIC_RESUME_DELAY);
 }
 
 // ==================== 其他解析工具 ====================
@@ -2688,9 +2707,14 @@ $('retryBtn').disabled=!!state.retrying;
 $('retryBtn').style.display='none';
 }
 
-$('emptyAdd').style.display=hasSongs?'none':'flex';
+$('emptyActions').style.display=hasSongs?'none':'flex';
 $('coverBox').style.display=(hasSongs&&!state.showLyric)?'block':'none';
 $('lyricBox').style.display=(hasSongs&&state.showLyric)?'block':'none';
+
+var hasTrans=!!(state.lyricTrans&&state.lyricTrans.trim());
+var hasRoma=!!(state.lyricRoma&&state.lyricRoma.trim());
+var showLyricToolbar=!!(hasSongs&&state.showLyric&&(hasTrans||hasRoma));
+$('lyricToolbar').style.display=showLyricToolbar?'flex':'none';
 
 updateCoverDisplay();
 scheduleMediaSessionUpdate();
@@ -3143,6 +3167,7 @@ state.showLyric=false;render();
 });
 $('lyricBox').addEventListener('wheel',markLyricUserScrolled,{passive:true});
 $('lyricBox').addEventListener('touchmove',markLyricUserScrolled,{passive:true});
+$('lyricBox').addEventListener('pointerdown',markLyricUserScrolled,{passive:true});
 
 $('transBtn').addEventListener('click',function(e){
 e.stopPropagation();
@@ -3456,7 +3481,17 @@ function closeAdd(){
 $('addScrim').classList.remove('show');
 $('addInput').blur();
 }
+function openImportDialog(){
+closeOtherScrims('importScrim');
+$('importKey').value='';
+$('importFile').value='';
+$('importFileName').textContent='';
+$('importHint').textContent='';
+$('importScrim').classList.add('show');
+setTimeout(function(){$('importKey').focus()},120);
+}
 $('emptyAdd').addEventListener('click',openAdd);
+$('emptyImport').addEventListener('click',openImportDialog);
 $('listBtn').addEventListener('click',function(){
 closeOtherScrims('listScrim');
 $('listScrim').classList.add('show');
@@ -3687,13 +3722,7 @@ toast('已开始下载');
 // ==================== 导入 ====================
 $('sheetImport').addEventListener('click',function(){
 $('listScrim').classList.remove('show');
-$('importKey').value='';
-$('importFile').value='';
-$('importFileName').textContent='';
-$('importHint').textContent='';
-closeOtherScrims('importScrim');
-$('importScrim').classList.add('show');
-setTimeout(function(){$('importKey').focus()},120);
+openImportDialog();
 });
 $('importCancel').addEventListener('click',function(){$('importScrim').classList.remove('show')});
 $('importScrim').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show')});
@@ -4060,7 +4089,7 @@ export default {
       return new Response(JSON.stringify(MANIFEST_JSON), {
         headers: {
           "Content-Type": "application/manifest+json;charset=UTF-8",
-          "Cache-Control": "public, max-age=3600",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
         },
       });
     }

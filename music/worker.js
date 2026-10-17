@@ -11,22 +11,22 @@ const MANIFEST_JSON = {
   orientation: "portrait",
   icons: [
     {
-      src: "https://img.icons8.com/?size=192&id=59862&format=png&color=000000",
+      src: "https://a1.boltp.com/2026/10/17/6ad2fcb06efbe.png",
       sizes: "192x192",
       type: "image/png",
-      purpose: "any maskable"
+      purpose: "any"
     },
     {
-      src: "https://img.icons8.com/?size=512&id=59862&format=png&color=000000",
+      src: "https://a1.boltp.com/2026/10/17/6ad2fcb06efbe.png",
       sizes: "512x512",
       type: "image/png",
-      purpose: "any maskable"
+      purpose: "any"
     }
   ]
 };
 
 const SW_CODE = [
-  "const CACHE_NAME = 'music-player-v1';",
+  "const CACHE_NAME = 'music-player-v2';",
   "const ASSETS = ['/', '/manifest.json'];",
   "",
   "self.addEventListener('install', function(event){",
@@ -94,8 +94,8 @@ const HTML = `<!DOCTYPE html>
 <meta name="apple-mobile-web-app-title" content="音乐播放器">
 <title>音乐播放器</title>
 <link rel="manifest" href="/manifest.json">
-<link rel="icon" type="image/png" href="https://img.icons8.com/?size=100&id=59862&format=png&color=000000">
-<link rel="apple-touch-icon" href="https://img.icons8.com/?size=192&id=59862&format=png&color=000000">
+<link rel="icon" type="image/png" href="https://a1.boltp.com/2026/10/17/6ad2fcb06efbe.png">
+<link rel="apple-touch-icon" href="https://a1.boltp.com/2026/10/17/6ad2fcb06efbe.png">
 <link rel="preconnect" href="https://fonts.font.im" crossorigin>
 <link rel="stylesheet" href="https://fonts.font.im/css2?family=Roboto:wght@400;500;700&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
@@ -651,7 +651,7 @@ var LF=String.fromCharCode(10);
 var CR=String.fromCharCode(13);
 var BS=String.fromCharCode(92);
 
-var DEFAULT_ICON='https://img.icons8.com/?size=100&id=59862&format=png&color=000000';
+var DEFAULT_ICON='https://a1.boltp.com/2026/10/17/6ad2fcb06efbe.png';
 var SITE_TITLE='音乐播放器';
 
 var ICON={

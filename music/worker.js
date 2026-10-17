@@ -12,6 +12,7 @@ const HTML = `<!DOCTYPE html>
 <link rel="apple-touch-icon" href="https://img.icons8.com/?size=100&id=59862&format=png&color=000000">
 <link rel="preconnect" href="https://fonts.font.im" crossorigin>
 <link rel="stylesheet" href="https://fonts.font.im/css2?family=Roboto:wght@400;500;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
@@ -708,7 +709,6 @@ if(s.indexOf(NETEASE_HOSTS[i])!==-1)return true;
 return false;
 }
 
-// 生成 15 字符分享密钥（字母数字 + URL-safe 符号 - _）
 function genShareKey(){
 var chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 var key='';
@@ -732,10 +732,6 @@ key=key.substring(shift)+key.substring(0,shift);
 return key;
 }
 
-// 判断输入内容类型：
-// 1. 以 #GZIP 开头且长度 > 15 → 'gzip'
-// 2. 长度恰好 15 且不含 '|' → 'key'
-// 3. 其他 → 'plain'
 function detectImportType(val){
 var s=String(val||'').trim();
 if(!s)return 'empty';
@@ -744,8 +740,6 @@ if(s.length===15&&s.indexOf('|')===-1)return 'key';
 return 'plain';
 }
 
-// 不再把逗号/分号当 URL 终止符（B 站等 CDN 的 URL 参数里合法含逗号）
-// 只在空格、Tab、换行、引号、尖括号处终止
 function extractAllUrlsFromText(text){
 var urls=[];
 var seen={};
@@ -765,11 +759,9 @@ var s=t.substring(start);
 var end=s.length;
 for(var k=0;k<s.length;k++){
 var c=s.charCodeAt(k);
-// 终止符：空格、Tab、换行、双引号、单引号、<、>
 if(c===32||c===9||c===10||c===13||c===34||c===39||c===60||c===62){end=k;break}
 }
 var url=s.substring(0,end);
-// 尾部只剥离明显不是 URL 字符的包裹标点（括号、方括号、花括号、感叹号）
 while(url.length>0){
 var last=url.charCodeAt(url.length-1);
 if(last===41||last===93||last===125||last===33){url=url.substring(0,url.length-1);}
@@ -882,7 +874,6 @@ var r=QUALITY_RANK[q];
 return (r===undefined)?0:r;
 }
 
-// ==================== 编码检测 ====================
 function normalizeCodec(c){
 if(!c)return '';
 return String(c).trim();
@@ -903,7 +894,7 @@ return false;
 }
 }
 
-// ==================== textdb 缓存封装（全部通过 Worker 中转） ====================
+// ==================== textdb 缓存封装 ====================
 async function cacheGetRaw(key){
 try{
 var r=await post('/api/cacheGet',{key:key});
@@ -1014,6 +1005,41 @@ var obj={l:main||'',t:trans||'',r:roma||''};
 var jsonStr=JSON.stringify(obj);
 var value=String(expireAt)+'|'+encodeURIComponent(jsonStr);
 await cacheSetRaw(key,value);
+}
+
+// ==================== 封面解析（内嵌 ID3 APIC） ====================
+async function extractCoverFromUrl(url){
+if(!url||!window.jsmediatags)return '';
+var low=String(url).toLowerCase();
+if(low.indexOf('.m3u8')!==-1||low.indexOf('.flv')!==-1||
+   low.indexOf('.mp4')!==-1||low.indexOf('.ts')!==-1)return '';
+var blob=null;
+try{
+var res=await fetch(url,{headers:{Range:'bytes=0-1572864'}});
+if(!res.ok)return '';
+blob=await res.blob();
+}catch(e){return '';}
+return new Promise(function(resolve){
+try{
+jsmediatags.read(blob,{
+onSuccess:function(tag){
+var pic=tag&&tag.tags&&tag.tags.picture;
+if(!pic||!pic.data)return resolve('');
+try{
+var bytes=pic.data;
+var bin='';
+var CHUNK=0x8000;
+for(var i=0;i<bytes.length;i+=CHUNK){
+var sub=bytes.subarray(i,i+CHUNK);
+bin+=String.fromCharCode.apply(null,sub);
+}
+resolve('data:'+(pic.format||'image/jpeg')+';base64,'+btoa(bin));
+}catch(e){resolve('');}
+},
+onError:function(){resolve('');}
+});
+}catch(e){resolve('');}
+});
 }
 
 // ==================== Media Session ====================
@@ -1843,7 +1869,11 @@ if(port)key+=':'+port;
 key+=path+search;
 return key;
 }catch(e){
-var m=s.replace(/^[a-zA-Z]+:\/\//,'');
+// 兜底：去掉协议头（无正则，符合项目约定）
+var m=s;
+var ml=m.toLowerCase();
+if(ml.indexOf('http://')===0)m=m.substring(7);
+else if(ml.indexOf('https://')===0)m=m.substring(8);
 var cut=m.indexOf('/');
 if(cut!==-1)m=m.substring(0,cut);
 return m.toLowerCase();
@@ -1865,7 +1895,6 @@ if(song.id)keys.push('id:'+String(song.id));
 return keys;
 }
 
-// 目标歌曲与列表内任一歌曲有任一 key 相同 → 重复
 function isDuplicateSong(song,list){
 var k=getSongDedupKeys(song);
 if(!k.length)return false;
@@ -2429,11 +2458,15 @@ async function tryThirdPartyLink(url){
 var check=await post('/api/checkAudio',{url:url});
 if(check&&check.ok){
 var fmt=check.format||getFormatFromUrl(url);
+var pic='';
+try{
+pic=await extractCoverFromUrl(check.url||url);
+}catch(e){pic='';}
 return {
 id:uid(),
 name:check.name||'外部音源',
 artist:isVideoFormat(fmt)?'视频音源':'外部音源',
-pic:'',
+pic:pic,
 external:true,
 url:check.url||url,
 srcUrl:url,
@@ -3589,7 +3622,6 @@ $('importCancel').addEventListener('click',function(){$('importScrim').classList
 $('importScrim').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show')});
 $('importPickFile').addEventListener('click',function(){$('importFile').click()});
 
-// 统一解析：按 detectImportType 判断
 async function resolveImportText(val){
 val=String(val||'').trim();
 if(!val)return '';
@@ -3602,7 +3634,6 @@ return (await decodeImportText(raw))||'';
 return (await decodeImportText(val))||'';
 }
 
-// 公共：拉取预览
 async function previewImport(val){
 val=String(val||'').trim();
 if(!val)return false;
@@ -3800,7 +3831,7 @@ $('listScrim').classList.remove('show');
 }
 });
 
-// ==================== URL 参数处理（add / key） ====================
+// ==================== URL 参数处理 ====================
 async function handleUrlParams(){
 var params=null;
 try{params=new URLSearchParams(location.search)}catch(e){return}
@@ -4199,7 +4230,6 @@ async function handleResolve(rawUrl) {
   const UA =
     "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
 
-  // 第一跳：manual 拿 Location（快路径）
   try {
     const res = await fetch(link, {
       method: "GET",
@@ -4214,7 +4244,6 @@ async function handleResolve(rawUrl) {
     try { if (res.body) await res.body.cancel(); } catch (e) {}
   } catch (e) {}
 
-  // 第二跳：follow 从最终 URL 提取（兜底多跳）
   try {
     const res = await fetch(link, {
       method: "GET",
@@ -4261,7 +4290,6 @@ async function handleCheckAudio(url) {
       "User-Agent":
         "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
     };
-    // B 站 CDN 防盗链：必须带 Referer，否则返回 HTML 页面
     if (
       urlLower0.indexOf("bilivideo.com") !== -1 ||
       urlLower0.indexOf("bilibili.com") !== -1 ||
@@ -4276,7 +4304,6 @@ async function handleCheckAudio(url) {
       redirect: "follow",
     });
 
-    // 只读 2KB 后取消，避免把整个大文件读进内存
     try {
       if (res.body) {
         const reader = res.body.getReader();
@@ -4342,7 +4369,6 @@ async function handleCheckAudio(url) {
     if (!format && urlLower.indexOf(".flv") !== -1) format = "flv";
     if (!format && ct.indexOf("audio/") === 0) format = "audio";
     if (!format && ct.indexOf("video/") === 0) format = "video";
-    // 兜底：扩展名明确且非 HTML 页面，视为可用（B 站等 CDN 可能返回自定义 MIME）
     if (!format && extFormat && ct.indexOf("text/html") === -1) {
       format = extFormat;
     }

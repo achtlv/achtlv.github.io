@@ -724,6 +724,8 @@ if(s.length===15&&s.indexOf('|')===-1)return 'key';
 return 'plain';
 }
 
+// 【已修复】不再把逗号/分号当 URL 终止符（B 站等 CDN 的 URL 参数里合法含逗号）
+// 只在空格、Tab、换行、引号、尖括号处终止
 function extractAllUrlsFromText(text){
 var urls=[];
 var seen={};
@@ -743,12 +745,14 @@ var s=t.substring(start);
 var end=s.length;
 for(var k=0;k<s.length;k++){
 var c=s.charCodeAt(k);
-if(c===32||c===9||c===10||c===13||c===44||c===59||c===34||c===39||c===60||c===62){end=k;break}
+// 终止符：空格、Tab、换行、双引号、单引号、<、>
+if(c===32||c===9||c===10||c===13||c===34||c===39||c===60||c===62){end=k;break}
 }
 var url=s.substring(0,end);
+// 尾部只剥离明显不是 URL 字符的包裹标点（括号、方括号、花括号、感叹号）
 while(url.length>0){
 var last=url.charCodeAt(url.length-1);
-if(last===46||last===44||last===59||last===41||last===93||last===125||last===33||last===63){url=url.substring(0,url.length-1);}
+if(last===41||last===93||last===125||last===33){url=url.substring(0,url.length-1);}
 else break;
 }
 if(url&&isHttpUrl(url)&&!seen[url]){
@@ -3605,8 +3609,6 @@ $('listScrim').classList.remove('show');
 });
 
 // ==================== URL 参数处理（add / key） ====================
-// ?key=xxx → 打开导入弹窗并预填密钥、自动预览
-// ?add=xxx → 原有的添加歌曲流程
 async function handleUrlParams(){
 var params=null;
 try{params=new URLSearchParams(location.search)}catch(e){return}
@@ -3616,7 +3618,6 @@ var keyValue=params.get('key');
 var addValue=params.get('add');
 if(!keyValue&&!addValue)return;
 
-// 清掉 URL 参数
 try{history.replaceState(null,'',location.pathname)}catch(e){}
 
 if(keyValue){
@@ -3635,15 +3636,13 @@ toast('解析失败: '+(e.message||'未知错误'));
 }
 }
 
-// 处理 ?key=xxx 导入
 async function handleKeyFromUrl(key){
-if(!key){return;}
+if(!key)return;
 if(detectImportType(key)!=='key'){
 toast('链接中的密钥格式不正确');
 return;
 }
 
-// 打开导入弹窗，预填密钥
 $('listScrim').classList.remove('show');
 $('importKey').value=key;
 $('importFile').value='';
@@ -3652,7 +3651,6 @@ $('importHint').textContent='正在获取歌单...';
 closeOtherScrims('importScrim');
 $('importScrim').classList.add('show');
 
-// 自动预览
 var text=await resolveImportText(key);
 if(!text){
 $('importHint').textContent='';
@@ -4040,13 +4038,24 @@ async function handleCheckAudio(url) {
   }
 
   try {
+    const urlLower0 = String(url).toLowerCase();
+    const reqHeaders = {
+      Range: "bytes=0-2047",
+      "User-Agent":
+        "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+    };
+    // 【已修复】B 站 CDN 防盗链：必须带 Referer，否则返回 HTML 页面
+    if (
+      urlLower0.indexOf("bilivideo.com") !== -1 ||
+      urlLower0.indexOf("bilibili.com") !== -1 ||
+      urlLower0.indexOf("hdslb.com") !== -1
+    ) {
+      reqHeaders["Referer"] = "https://www.bilibili.com/";
+      reqHeaders["Origin"] = "https://www.bilibili.com";
+    }
     const res = await fetch(url, {
       method: "GET",
-      headers: {
-        Range: "bytes=0-2047",
-        "User-Agent":
-          "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-      },
+      headers: reqHeaders,
       redirect: "follow",
     });
 
@@ -4111,6 +4120,10 @@ async function handleCheckAudio(url) {
     if (!format && urlLower.indexOf(".flv") !== -1) format = "flv";
     if (!format && ct.indexOf("audio/") === 0) format = "audio";
     if (!format && ct.indexOf("video/") === 0) format = "video";
+    // 【已修复】兜底：扩展名明确且非 HTML 页面，视为可用（B 站等 CDN 可能返回自定义 MIME）
+    if (!format && extFormat && ct.indexOf("text/html") === -1) {
+      format = extFormat;
+    }
 
     if (!format) {
       return json({ ok: false, msg: "不是音频或视频文件 (" + (rawCt || "未知类型") + ")" });

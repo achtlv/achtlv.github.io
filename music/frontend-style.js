@@ -95,22 +95,30 @@ border-top-color:var(--primary);animation:spin .8s linear infinite}
 .lyric-box{display:none;width:100%;height:100%;overflow-y:auto;padding:4px 8px;
 scrollbar-width:none;border-radius:20px;position:relative}
 .lyric-box::-webkit-scrollbar{display:none}
-.lyric-toolbar{display:none;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:6px;
-position:absolute;top:10px;right:10px;z-index:3;padding:0;flex-shrink:0}
-.chip{padding:5px 10px;border-radius:12px;border:1px solid var(--outline-variant);
-background:var(--surface-container-high);color:var(--on-surface-variant);
-font-size:11px;font-family:inherit;cursor:pointer;transition:all .18s;font-weight:500;
-min-width:40px;text-align:center;box-shadow:0 2px 8px var(--shadow);
-backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-.chip:hover{border-color:var(--outline)}
-.chip.on{border-color:var(--primary);background:color-mix(in srgb,var(--primary) 18%,transparent);
+.lyric-sticky-bar{position:sticky;top:0;height:0;z-index:3;pointer-events:none}
+.lyric-toolbar{display:none;flex-direction:column;align-items:center;justify-content:flex-start;gap:6px;
+position:absolute;top:8px;right:4px;padding:0;pointer-events:auto}
+.chip{width:32px;height:32px;padding:0;border-radius:50%;border:1px solid var(--outline-variant);
+background:color-mix(in srgb,var(--surface-container-high) 88%,transparent);color:var(--on-surface-variant);
+font-size:13px;font-family:inherit;cursor:pointer;transition:all .18s;font-weight:600;
+display:flex;align-items:center;justify-content:center;line-height:1;
+box-shadow:0 2px 8px var(--shadow);
+backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.chip:hover{border-color:var(--outline);color:var(--on-surface)}
+.chip.on{border-color:var(--primary);background:color-mix(in srgb,var(--primary) 22%,transparent);
 color:var(--primary)}
 .chip.hidden{display:none}
 .lyric-box #lyricText{font-family:inherit;font-size:15px;line-height:1.75;
-color:var(--on-surface-variant);text-align:center;padding:40px 52px 40px 12px}
-.lyric-box .line{padding:6px 0;transition:color .3s;white-space:pre-wrap;word-break:break-word}
-.lyric-box .line.has-time{cursor:pointer}
-.lyric-box .line.has-time:hover .line-main{color:var(--primary)}
+color:var(--on-surface-variant);text-align:center;padding:36px 16px 40px}
+.lyric-box .line{padding:6px 0;transition:color .3s;white-space:pre-wrap;word-break:break-word;
+display:flex;align-items:flex-start;gap:6px;text-align:left}
+.lyric-box .line-jump{flex-shrink:0;width:18px;height:18px;margin-top:2px;padding:0;border:none;
+border-radius:50%;background:transparent;color:var(--outline);cursor:pointer;
+display:flex;align-items:center;justify-content:center;opacity:.45;transition:opacity .18s,color .18s,background .18s}
+.lyric-box .line-jump:hover,.lyric-box .line-jump:active{opacity:1;color:var(--primary);
+background:color-mix(in srgb,var(--primary) 12%,transparent)}
+.lyric-box .line-jump svg{width:12px;height:12px;fill:currentColor;pointer-events:none}
+.lyric-box .line-body{flex:1;min-width:0;text-align:center}
 .lyric-box .line-main{font-size:15px;line-height:1.6}
 .lyric-box .line.loading .line-main{color:var(--on-surface-variant);font-style:italic;opacity:.7}
 .lyric-box .line-trans{font-size:13.5px;line-height:1.6;margin-top:2px;

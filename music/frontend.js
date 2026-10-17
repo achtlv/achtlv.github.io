@@ -1,6 +1,16 @@
 import { STYLE } from './frontend-style.js';
 import { BODY_INNER } from './frontend-body.js';
-import { SCRIPT } from './frontend-script.js';
+
+const SCRIPT_TAGS = [
+  '/frontend-js-state.js',
+  '/frontend-js-utils.js',
+  '/frontend-js-cache.js',
+  '/frontend-js-lyric.js',
+  '/frontend-js-player.js',
+  '/frontend-js-preload.js',
+  '/frontend-js-resolve.js',
+  '/frontend-js-app.js',
+].map((src) => `<script src="${src}"></script>`).join('\n');
 
 export const HTML = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -23,6 +33,6 @@ ${STYLE}
 </head>
 <body>
 ${BODY_INNER}
-${SCRIPT}
+${SCRIPT_TAGS}
 </body>
 </html>`;

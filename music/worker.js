@@ -1,5 +1,10 @@
 import { HTML } from './frontend.js';
 import { handleIcon, MANIFEST_JSON, SW_CODE } from './assets.js';
+import { RESOLVER_SCRIPT } from './resolver.js';
+import { STATE_SCRIPT } from './frontend-js-state.js';
+import { UTILS_SCRIPT } from './frontend-js-utils.js';
+import { LYRIC_SCRIPT } from './frontend-js-lyric.js';
+import { PLAYER_SCRIPT } from './frontend-js-player.js';
 import {
   handleSearch,
   handleResolve,
@@ -24,6 +29,7 @@ export default {
       });
     }
 
+    // ==================== 页面与资源路由 ====================
     if (url.pathname === "/" || url.pathname === "/index.html") {
       return new Response(HTML, {
         headers: { "Content-Type": "text/html;charset=UTF-8" },
@@ -53,6 +59,38 @@ export default {
       return await handleIcon();
     }
 
+    // ==================== 前端模块化 JS 路由 ====================
+    if (url.pathname === "/resolver.js") {
+      return new Response(RESOLVER_SCRIPT, {
+        headers: { "Content-Type": "application/javascript;charset=UTF-8", "Cache-Control": "no-cache" },
+      });
+    }
+
+    if (url.pathname === "/frontend-js-state.js") {
+      return new Response(STATE_SCRIPT, {
+        headers: { "Content-Type": "application/javascript;charset=UTF-8", "Cache-Control": "no-cache" },
+      });
+    }
+
+    if (url.pathname === "/frontend-js-utils.js") {
+      return new Response(UTILS_SCRIPT, {
+        headers: { "Content-Type": "application/javascript;charset=UTF-8", "Cache-Control": "no-cache" },
+      });
+    }
+
+    if (url.pathname === "/frontend-js-lyric.js") {
+      return new Response(LYRIC_SCRIPT, {
+        headers: { "Content-Type": "application/javascript;charset=UTF-8", "Cache-Control": "no-cache" },
+      });
+    }
+
+    if (url.pathname === "/frontend-js-player.js") {
+      return new Response(PLAYER_SCRIPT, {
+        headers: { "Content-Type": "application/javascript;charset=UTF-8", "Cache-Control": "no-cache" },
+      });
+    }
+
+    // ==================== API 路由 ====================
     if (url.pathname === "/api/download") {
       return await handleDownload(
         url.searchParams.get("u") || "",

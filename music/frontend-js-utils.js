@@ -1,0 +1,33 @@
+export const UTILS_SCRIPT = `
+import { LF, CR, BS, COOKIE_NAME, COOKIE_MAX, state } from './state.js';
+
+export function isAllDigits(s){ if(!s)return false; for(let i=0;i<s.length;i++){ let c=s.charCodeAt(i); if(c<48||c>57)return false; } return true; }
+export function isSongId(s){ if(!s)return false; let str=String(s); return str.length>=5 && isAllDigits(str); }
+export function isHttpUrl(u){ if(!u)return false; let s=String(u).toLowerCase(); return s.indexOf('http://')===0 || s.indexOf('https://')===0; }
+export function isVideoFormat(fmt){ if(!fmt)return false; let f=String(fmt).toLowerCase(); let v=['m3u8','mp4','flv','wmv','mkv','webm','mov','avi','m4v','ts','3gp','3g2','ogv','mpg','mpeg','m2ts','f4v','rm','rmvb','asf']; return v.includes(f); }
+export function isHlsFormat(url,format){ return format==='m3u8' || (url && String(url).toLowerCase().indexOf('.m3u8')!==-1); }
+export function isFlvFormat(url,format){ return format==='flv' || (url && String(url).toLowerCase().indexOf('.flv')!==-1); }
+export function getFormatFromUrl(u){ if(!u)return ''; let s=String(u).toLowerCase(); let qi=s.indexOf('?'); if(qi!==-1)s=s.substring(0,qi); let hi=s.indexOf('#'); if(hi!==-1)s=s.substring(0,hi); let a=['mp3','m4a','aac','flac','wav','ogg','opus','wma','weba','oga','mka','aiff','aif','ape','alac','amr','3ga','m3u8','mp4','flv','wmv','mkv','webm','mov','avi','m4v','ts','3gp','3g2','ogv','mpg','mpeg','m2ts','f4v','rm','rmvb','asf']; for(let e of a){ if(s.endsWith('.'+e))return e; } return ''; }
+export function safeFileName(s){ if(!s)return 'song'; let bad=BS+'/:*?"<>|'; let out=''; for(let i=0;i<s.length;i++){ let c=s.charAt(i); out += (bad.indexOf(c)!==-1 ? '_' : c); } return out; }
+export function fmt(s){ s=Math.floor(s||0); if(!isFinite(s)||s<0)s=0; return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+export function post(path,body){ return fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()); }
+export function toast(msg){ let t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t); requestAnimationFrame(()=>t.classList.add('show')); setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=>t.remove(),320); },2200); }
+
+export function normalizeUrlForKey(u){ if(!u)return ''; let s=String(u).trim(); if(!s)return ''; if(!s.toLowerCase().startsWith('http')) s='https://'+s; try{ let uo=new URL(s); let host=uo.hostname.toLowerCase(); let port=uo.port||''; let path=uo.pathname||'/'; while(path.length>1 && path.endsWith('/')) path=path.slice(0,-1); if(path==='/')path=''; return (host + (port?':'+port:'') + path + uo.search); }catch(e){ return s.toLowerCase(); } }
+export function getSongDedupKeys(song){ let keys=[]; if(!song)return keys; if(song.external){ let u1=normalizeUrlForKey(song.url); if(u1)keys.push('ext:'+u1); let u2=normalizeUrlForKey(song.srcUrl); if(u2 && u2!==u1)keys.push('ext:'+u2); } else { if(song.id)keys.push('id:'+String(song.id)); } return keys; }
+export function findDuplicateIndex(song,list){ let k=getSongDedupKeys(song); if(!k.length)return -1; let set={}; k.forEach(x=>set[x]=true); for(let i=0;i<list.length;i++){ let lk=getSongDedupKeys(list[i]); for(let x of lk) if(set[x]) return i; } return -1; }
+export function addKeysToSeen(seen,song){ getSongDedupKeys(song).forEach(k=>seen[k]=true); }
+export function hasAnyKeyInSeen(seen,song){ let keys=getSongDedupKeys(song); for(let k of keys) if(seen[k]) return true; return false; }
+
+export function savePlaylist(){ let data=state.playlist.map(s=>{ let o={id:s.id,name:s.name||'',artist:s.artist||''}; if(s.external){o.ext=true;o.url=s.url||'';o.srcUrl=s.srcUrl||'';o.format=s.format||'';} return o; }); while(data.length>0 && encodeURIComponent(JSON.stringify(data)).length>COOKIE_MAX) data.pop(); try{ document.cookie=COOKIE_NAME+'='+encodeURIComponent(JSON.stringify(data))+'; expires='+new Date(Date.now()+365*864e5).toUTCString()+'; path=/; SameSite=Lax'; }catch(e){} }
+export function restorePlaylist(){ let p=document.cookie.split(';').map(x=>x.trim()).find(x=>x.startsWith(COOKIE_NAME+'=')); if(!p)return; try{ let list=JSON.parse(decodeURIComponent(p.substring(COOKIE_NAME.length+1))); if(!Array.isArray(list))return; state.playlist=list.map(s=>{ let o={id:String(s.id||''),name:s.name||'未知歌曲',artist:s.artist||'未知歌手',pic:'',duration:0}; if(s.ext){o.external=true;o.url=String(s.url||'');o.srcUrl=String(s.srcUrl||'');o.format=String(s.format||'');} return o; }).filter(s=>s.id && (!s.external || s.url)); }catch(e){ state.playlist=[]; } }
+export function clearPlaylistCookie(){ document.cookie=COOKIE_NAME+'=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax'; }
+
+export function uid(){ return 'ext_'+Date.now()+'_'+Math.random().toString(36).slice(2,8); }
+export function genShareKey(){ let c='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_',k='',t=Date.now(),r1=Math.floor(Math.random()*16777216),r2=Math.floor(Math.random()*16777216); for(let i=0;i<8;i++){k+=c.charAt(t%64);t=Math.floor(t/64);} let s2=r1*16777216+r2; for(let j=0;j<7;j++){k+=c.charAt(s2%64);s2=Math.floor(s2/64);} let shift=r1%15; if(shift>0)k=k.substring(shift)+k.substring(0,shift); return k; }
+export function detectImportType(v){ let s=String(v||'').trim(); if(!s)return 'empty'; if(s.startsWith('#GZIP')&&s.length>15)return 'gzip'; if(s.length===15&&s.indexOf('|')===-1)return 'key'; return 'plain'; }
+
+export async function gzipCompress(text){ if(typeof CompressionStream==='undefined')return null; try{ let cs=new CompressionStream('gzip'),w=cs.writable.getWriter(); w.write(new TextEncoder().encode(text)); w.close(); let c=[],r=cs.readable.getReader(); while(true){let v=await r.read();if(v.done)break;c.push(v.value);} let tot=c.reduce((a,b)=>a+b.length,0),all=new Uint8Array(tot),off=0; for(let x of c){all.set(x,off);off+=x.length;} return btoa(String.fromCharCode.apply(null,all)); }catch(e){return null;} }
+export async function gzipDecompress(b64){ if(typeof DecompressionStream==='undefined')return null; try{ let bin=atob(b64),bytes=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i); let ds=new DecompressionStream('gzip'),w=ds.writable.getWriter(); w.write(bytes); w.close(); let c=[],r=ds.readable.getReader(); while(true){let v=await r.read();if(v.done)break;c.push(v.value);} let tot=c.reduce((a,b)=>a+b.length,0),all=new Uint8Array(tot),off=0; for(let x of c){all.set(x,off);off+=x.length;} return new TextDecoder().decode(all); }catch(e){return null;} }
+export async function decodeImportText(text){ let s=String(text||'').trim(); if(!s)return null; if(s.startsWith('#GZIP')) return await gzipDecompress(s.substring(6).trim()); return s; }
+`;

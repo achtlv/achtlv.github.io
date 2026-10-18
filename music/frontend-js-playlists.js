@@ -178,23 +178,41 @@ playIndex(startIndex);
 }
 }
 
+var plSortMode='time'; // 默认按最近修改
+var viewingPlId=null;
+
 function sortPlaylists(mode){
 // mode: 'alpha' | 'time'
+if(!state.playlists)state.playlists=[];
 if(mode==='alpha'){
-state.playlists.sort(function(a,b){return String(a.name||'').localeCompare(String(b.name||''),'zh');});
+state.playlists.sort(function(a,b){
+return String(a.name||'').localeCompare(String(b.name||''),'zh-CN');
+});
 }else{
-state.playlists.sort(function(a,b){return (b.updatedAt||0)-(a.updatedAt||0);});
+state.playlists.sort(function(a,b){
+return (b.updatedAt||0)-(a.updatedAt||0);
+});
 }
-savePlaylistsLocal();
 }
 
-var plSortMode='time';
-var viewingPlId=null;
+function applyPlaylistSort(){
+sortPlaylists(plSortMode||'time');
+}
+
+function togglePlaylistSort(){
+plSortMode=(plSortMode==='time')?'alpha':'time';
+applyPlaylistSort();
+savePlaylistsLocal();
+if(typeof markLocalChange==='function'){/* 仅排序不强制同步 */}
+renderPlaylistsPage();
+toast(plSortMode==='alpha'?'按名称排序':'按最近修改排序');
+}
 
 function renderPlaylistsPage(){
 var box=$('plList');
 if(!box)return;
 box.innerHTML='';
+applyPlaylistSort();
 var list=(state.playlists||[]).slice();
 if(!list.length){
 box.innerHTML='<div class="sheet-empty">暂无歌单，点击右上角新建</div>';

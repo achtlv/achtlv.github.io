@@ -750,8 +750,8 @@ if(e.key==='Enter'){e.preventDefault();confirmRename()}
 });
 
 // ==================== 分享菜单 ====================
-$('shareBtn').addEventListener('click',function(){
-try{this.blur();}catch(e){}
+$('shareBtn').addEventListener('click',function(ev){
+try{(ev.currentTarget||this).blur();}catch(e){}
 var song=state.playlist[state.current];
 if(!song){toast('没有可分享的歌曲');return}
 $('shareSongName').textContent=(song.name||'未知歌曲')+' - '+(song.artist||'');
@@ -989,9 +989,9 @@ if(!pendingDownloadSong)return;
 runQualityDetection(pendingDownloadSong);
 });
 
-$('downloadBtn').addEventListener('click',async function(){
+$('downloadBtn').addEventListener('click',async function(ev){
+try{(ev.currentTarget||this).blur();}catch(e){}
 var song=state.playlist[state.current];
-try{this.blur()}catch(e){}
 if(!song){toast('没有可下载的歌曲');return}
 if(song.external){
 if(isHlsFormat(song.url,song.format)){
@@ -1671,11 +1671,11 @@ function isStandaloneApp(){
 
 // ==================== 新控件与页面绑定 ====================
 if($('favBtn')){
-$('favBtn').addEventListener('click',function(){
-try{this.blur();}catch(e){}
+$('favBtn').addEventListener('click',function(ev){
+try{(ev.currentTarget||this).blur();}catch(e){}
 var song=state.playlist[state.current];
 if(!song){toast('没有可收藏的歌曲');return;}
-openFavDialog(song);
+try{openFavDialog(song);}catch(err){toast('收藏失败');console.error(err);}
 });
 }
 function openFavDialog(song){
@@ -1717,24 +1717,27 @@ setTimeout(function(){$('plNameInput').focus();},100);
 (function bindTabs(){
 function onTabClick(ev){
 var btn=ev.target;
-while(btn&&btn!==document&&!(btn.classList&&btn.classList.contains('tab-item'))){
+while(btn&&btn!==document.body&&!(btn.getAttribute&&btn.getAttribute('data-tab'))){
 btn=btn.parentNode;
 }
 if(!btn||!btn.getAttribute)return;
 var tab=btn.getAttribute('data-tab');
 if(!tab)return;
-ev.preventDefault();
-ev.stopPropagation();
-if(typeof switchTab==='function')switchTab(tab);
+try{ev.preventDefault();ev.stopPropagation();}catch(e){}
+if(typeof switchTab==='function'){
+try{switchTab(tab);}catch(err){console.error('switchTab',err);toast('切换失败');}
+}
 }
 var bar=$('tabbar');
 if(bar){
+bar.style.zIndex='9999';
+bar.style.pointerEvents='auto';
 bar.addEventListener('click',onTabClick,true);
-}else{
+}
 document.querySelectorAll('.tab-item').forEach(function(btn){
+btn.style.pointerEvents='auto';
 btn.addEventListener('click',onTabClick,true);
 });
-}
 })();
 
 window._plNameMode='create';

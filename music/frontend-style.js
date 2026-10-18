@@ -408,12 +408,12 @@ html[data-theme="red"]{
 .page-head{display:flex;align-items:center;gap:8px;padding:12px 4px 8px;flex-shrink:0}
 .page-head h1{font-size:20px;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .page-head-actions{display:flex;gap:2px;flex-shrink:0}
-.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:50;
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:9999;pointer-events:auto;
 display:flex;align-items:stretch;justify-content:space-around;
 height:calc(56px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);
 background:var(--surface);border:none;border-top:none;box-shadow:none;
 max-width:520px;margin:0 auto}
-.tab-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+.tab-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;pointer-events:auto;
 border:none;background:transparent;color:var(--on-surface-variant);cursor:pointer;
 font-size:11px;font-family:inherit;padding:6px 0;transition:color .18s}
 .tab-item svg{width:24px;height:24px;fill:currentColor}

@@ -409,7 +409,7 @@ btn.classList.toggle('active',btn.getAttribute('data-tab')===tab);
 });
 if(tab==='playlists'&&typeof renderPlaylistsPage==='function')renderPlaylistsPage();
 if(tab==='me'&&typeof renderMePage==='function')renderMePage();
-if(tab==='player'&&typeof render==='function'){
+if(tab==='player'&&typeof render==='function'&&state._booted){
 try{render();}catch(e){}
 }
 }

@@ -2214,10 +2214,8 @@ try{restoreListHistory();}catch(e){}
 try{restoreAuthLocal();}catch(e){}
 try{if(typeof restoreSyncMetaLocal==='function')restoreSyncMetaLocal();}catch(e){}
 try{restorePlaylist();}catch(e){}
-function doRender(){
 try{render();}catch(e){console.error('render',e);}
 try{if(typeof updateFavBtn==='function')updateFavBtn();}catch(e){}
-// 无歌曲时强制显示添加/导入
 try{
 if(!state.playlist||!state.playlist.length){
 if($('emptyActions'))$('emptyActions').style.display='flex';
@@ -2225,10 +2223,6 @@ if($('coverBox'))$('coverBox').style.display='none';
 if($('lyricBox'))$('lyricBox').style.display='none';
 }
 }catch(e){}
-}
-doRender();
-setTimeout(doRender,0);
-setTimeout(doRender,50);
 try{if(typeof __bindTabBar==='function')__bindTabBar();}catch(e){}
 try{
 document.querySelectorAll('#tabbar .tab-item').forEach(function(btn){
@@ -2321,6 +2315,7 @@ if(typeof notifyDataChanged==='function')notifyDataChanged('settings');
 };
 })();
 
+state._booted=true;
 if('serviceWorker' in navigator){
 window.addEventListener('load',function(){
 navigator.serviceWorker.register('/sw.js').catch(function(){});

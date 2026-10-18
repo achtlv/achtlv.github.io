@@ -65,7 +65,6 @@ export const BODY_INNER = `<div class="app">
 <div class="page-head-actions">
 <button class="icon-btn" id="plSortBtn" title="排序" aria-label="排序"></button>
 <button class="icon-btn" id="plImportBtn" title="导入" aria-label="导入"></button>
-<button class="icon-btn" id="plExportBtn" title="导出" aria-label="导出"></button>
 <button class="icon-btn" id="plAddBtn" title="新建歌单" aria-label="新建歌单"></button>
 </div>
 </div>
@@ -77,6 +76,7 @@ export const BODY_INNER = `<div class="app">
 <button class="icon-btn" id="plDetailBack" aria-label="返回"></button>
 <h1 id="plDetailTitle">歌单</h1>
 <div class="page-head-actions">
+<button class="icon-btn" id="plDetailExport" title="导出歌单" aria-label="导出歌单"></button>
 <button class="icon-btn" id="plDetailPlay" title="播放歌单" aria-label="播放歌单"></button>
 <button class="icon-btn" id="plDetailRename" title="重命名" aria-label="重命名"></button>
 <button class="icon-btn" id="plDetailDelete" title="删除歌单" aria-label="删除歌单"></button>
@@ -118,7 +118,7 @@ export const BODY_INNER = `<div class="app">
 <span>播放</span>
 </button>
 <button class="tab-item" data-tab="playlists" aria-label="歌单">
-<svg viewBox="0 0 24 24"><path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/></svg>
+<svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v3zm-4 4H9v-3h6v3zm4-8H9V5h10v3z"/></svg>
 <span>歌单</span>
 </button>
 <button class="tab-item" data-tab="me" aria-label="我的">
@@ -225,7 +225,6 @@ export const BODY_INNER = `<div class="app">
 <h2>导入播放列表</h2>
 <div class="input-row">
 <input id="importKey" placeholder="密钥 / GZIP / 明文歌单" autocomplete="off" maxlength="8000">
-<button class="filled-icon" id="importGo" aria-label="获取"></button>
 </div>
 <input type="file" id="importFile" accept=".txt,text/plain" style="display:none">
 <div class="import-toolbar">
@@ -233,9 +232,9 @@ export const BODY_INNER = `<div class="app">
 <span class="file-name" id="importFileName"></span>
 </div>
 <div class="import-mode">
-<label><input type="radio" name="importMode" value="merge" checked>合并到原列表</label>
-<label><input type="radio" name="importMode" value="replace">覆盖原列表</label>
-<label><input type="radio" name="importMode" value="new">新建列表（当前进历史）</label>
+<label><input type="radio" name="importMode" value="new" checked>新建</label>
+<label><input type="radio" name="importMode" value="merge">合并</label>
+<label><input type="radio" name="importMode" value="replace">覆盖</label>
 </div>
 <p class="hint" id="importHint"></p>
 <div class="dlg-actions">
@@ -330,11 +329,10 @@ export const BODY_INNER = `<div class="app">
 <h2>导入歌单</h2>
 <div class="input-row">
 <input id="plImportKey" placeholder="密钥 / GZIP / 明文" autocomplete="off">
-<button class="filled-icon" id="plImportGo" aria-label="获取"></button>
 </div>
 <div class="import-mode">
-<label><input type="radio" name="plImportMode" value="new" checked>新建歌单</label>
-<label><input type="radio" name="plImportMode" value="merge">合并到已有</label>
+<label><input type="radio" name="plImportMode" value="new" checked>新建</label>
+<label><input type="radio" name="plImportMode" value="merge">合并</label>
 </div>
 <select id="plImportTarget" style="display:none;width:100%;margin-top:8px;height:40px;border-radius:12px;border:1px solid var(--outline);background:transparent;color:var(--on-surface);padding:0 12px"></select>
 <p class="hint" id="plImportHint"></p>
@@ -345,3 +343,48 @@ export const BODY_INNER = `<div class="app">
 </div>
 </div>
 `;
+
+<div class="scrim" id="urlKeyScrim">
+<div class="dialog">
+<h2>导入内容</h2>
+<p class="dialog-text" id="urlKeyHint">检测到分享密钥，请选择导入位置</p>
+<div class="dlg-actions" style="flex-direction:column;align-items:stretch">
+<button class="filled-btn block" id="urlKeyToList">导入到歌曲列表</button>
+<button class="filled-btn block" id="urlKeyToPl">导入到歌单</button>
+<button class="text-btn block" id="urlKeyCancel" style="justify-content:center">取消</button>
+</div>
+</div>
+</div>
+<div class="scrim" id="logoutScrim">
+<div class="dialog">
+<h2>退出登录</h2>
+<p class="dialog-text">退出后将清空本地歌单与登录信息（保留当前歌曲列表与主题）。确定退出？</p>
+<div class="dlg-actions">
+<button class="text-btn" id="logoutCancel">取消</button>
+<button class="filled-btn danger" id="logoutConfirm">退出登录</button>
+</div>
+</div>
+</div>
+<div class="scrim" id="plExportScrim">
+<div class="dialog">
+<h2>导出歌单</h2>
+<p class="dialog-text" id="plExportName">—</p>
+<div class="share-menu">
+<button class="filled-btn block" id="plExportKeyBtn">导出为密钥并复制</button>
+<button class="filled-btn block" id="plExportGzipBtn">下载 GZIP 文本</button>
+<button class="text-btn block" id="plExportCancel" style="justify-content:center">取消</button>
+</div>
+</div>
+</div>
+<div class="scrim" id="plNameScrim">
+<div class="dialog">
+<h2 id="plNameTitle">新建歌单</h2>
+<div class="input-row">
+<input id="plNameInput" placeholder="输入名称（可留空用默认名）" autocomplete="off" maxlength="40" enterkeyhint="done">
+</div>
+<div class="dlg-actions">
+<button class="text-btn" id="plNameCancel">取消</button>
+<button class="filled-btn" id="plNameConfirm">创建</button>
+</div>
+</div>
+</div>

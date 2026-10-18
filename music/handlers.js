@@ -42,15 +42,16 @@ export async function handleCacheGet(key) {
 }
 
 export async function handleCacheSet(key, value) {
-  if (!key || !value) return json({ ok: false, msg: "缺少参数" });
+  if (!key || value === undefined || value === null) return json({ ok: false, msg: "缺少参数" });
   const safeKey = String(key).replace(/[^a-zA-Z0-9_-]/g, "");
   if (!safeKey) return json({ ok: false, msg: "无效 key" });
+  const val = String(value);
   try {
     const url =
       "https://textdb.online/update/?key=" +
       encodeURIComponent(safeKey) +
       "&value=" +
-      encodeURIComponent(String(value));
+      encodeURIComponent(val);
     const res = await fetch(url, {
       method: "GET",
       headers: {
@@ -59,9 +60,24 @@ export async function handleCacheSet(key, value) {
       },
       redirect: "follow",
     });
+    let bodyText = "";
     try {
-      await res.text();
+      bodyText = await res.text();
     } catch (e) {}
+    // 回读校验是否写入成功
+    const check = await fetch("https://textdb.online/" + safeKey, {
+      method: "GET",
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+      },
+      redirect: "follow",
+    });
+    const got = (await check.text()).trim();
+    const ok = got === val.trim() || got.indexOf(val.trim().slice(0, Math.min(80, val.length))) === 0;
+    if (!ok) {
+      return json({ ok: false, msg: "写入校验失败", debug: (bodyText || "").slice(0, 120) });
+    }
     return json({ ok: true });
   } catch (e) {
     return json({ ok: false, msg: String(e.message || e) });

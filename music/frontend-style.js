@@ -68,10 +68,10 @@ cursor:pointer;transition:background .18s,color .18s;flex-shrink:0}
 .icon-btn svg{width:22px;height:22px;fill:currentColor;pointer-events:none}
 .icon-btn:disabled{opacity:.4;cursor:default;pointer-events:none}
 .icon-btn.active{background:color-mix(in srgb,var(--primary) 18%,transparent);color:var(--primary)}
-#stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
+#stage{flex:1;min-height:120px;display:flex;align-items:center;justify-content:center;
 position:relative;overflow:hidden;padding:8px 0}
-.empty-actions{display:none;flex-direction:row;align-items:center;justify-content:center;
-gap:12px;flex-wrap:wrap;max-width:100%;max-height:100%}
+.empty-actions{display:flex;flex-direction:row;align-items:center;justify-content:center;
+gap:12px;flex-wrap:wrap;max-width:100%;max-height:100%;flex-shrink:0}
 .empty-add{display:flex;flex-direction:row;align-items:center;justify-content:center;gap:8px;
 padding:10px 22px;border:1px dashed var(--outline-variant);border-radius:20px;
 background:transparent;color:var(--on-surface-variant);cursor:pointer;font-size:14px;

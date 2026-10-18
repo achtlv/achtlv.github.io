@@ -411,7 +411,7 @@ html[data-theme="red"]{
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:50;
 display:flex;align-items:stretch;justify-content:space-around;
 height:calc(56px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);
-background:var(--surface-container);border-top:1px solid var(--outline-variant);
+background:var(--surface);border:none;border-top:none;box-shadow:none;
 max-width:520px;margin:0 auto}
 .tab-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
 border:none;background:transparent;color:var(--on-surface-variant);cursor:pointer;
@@ -462,7 +462,7 @@ font-size:11px;font-family:inherit;padding:6px 0;transition:color .18s}
 .fav-pl-item.on{border-color:var(--primary);background:color-mix(in srgb,var(--primary) 12%,transparent)}
 
 @media (min-width:640px){
-.tabbar{max-width:600px;border-radius:0 0 32px 32px}
+.tabbar{max-width:600px;border-radius:0 0 32px 32px;background:var(--surface-container);border:none;box-shadow:none}
 .app{padding-bottom:56px}
 }
 

@@ -761,7 +761,7 @@ if(e.key==='Enter'){e.preventDefault();confirmRename()}
 
 // ==================== 分享菜单 ====================
 if($('shareBtn'))$('shareBtn').addEventListener('click',function(ev){
-try{(ev.currentTarget||this).blur();}catch(e){}
+try{var b=ev.currentTarget||this;b.blur();if(document.activeElement)document.activeElement.blur();}catch(e){}
 var song=state.playlist[state.current];
 if(!song){toast('没有可分享的歌曲');return}
 $('shareSongName').textContent=(song.name||'未知歌曲')+' - '+(song.artist||'');
@@ -999,8 +999,8 @@ if(!pendingDownloadSong)return;
 runQualityDetection(pendingDownloadSong);
 });
 
-if($('downloadBtn'))$('downloadBtn').addEventListener('click',async function(ev){
-try{(ev.currentTarget||this).blur();}catch(e){}
+if($('downloadBtn'))if($('downloadBtn'))$('downloadBtn').addEventListener('click',async function(ev){
+try{var b=ev.currentTarget||this;b.blur();if(document.activeElement)document.activeElement.blur();}catch(e){}
 var song=state.playlist[state.current];
 if(!song){toast('没有可下载的歌曲');return}
 if(song.external){

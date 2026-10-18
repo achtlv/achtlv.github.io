@@ -65,6 +65,8 @@ color:var(--on-surface-variant);display:flex;align-items:center;justify-content:
 cursor:pointer;transition:background .18s,color .18s;flex-shrink:0}
 .icon-btn:hover{background:var(--hover);color:var(--on-surface)}
 .icon-btn:active{background:var(--active)}
+.icon-btn:focus,.side-btn:focus,.play-btn:focus{outline:none}
+.icon-btn:focus-visible,.side-btn:focus-visible{background:var(--hover)}
 .icon-btn svg{width:22px;height:22px;fill:currentColor;pointer-events:none}
 .icon-btn:disabled{opacity:.4;cursor:default;pointer-events:none}
 .icon-btn.active{background:color-mix(in srgb,var(--primary) 18%,transparent);color:var(--primary)}
@@ -163,8 +165,9 @@ border:none;cursor:pointer;transition:box-shadow .2s}
 .controls .icon-btn:disabled:hover{background:transparent;color:var(--on-surface-variant)}
 .play-btn{width:70px;height:70px;border:none;border-radius:50%;background:var(--primary);
 color:var(--on-primary);display:flex;align-items:center;justify-content:center;cursor:pointer;
-transition:transform .15s,background .3s;
-box-shadow:none;height:34px;fill:currentColor;pointer-events:none}
+transition:transform .15s,background .3s;box-shadow:none}
+.play-btn:active{transform:scale(.93)}
+.play-btn svg{width:34px;height:34px;fill:currentColor;pointer-events:none}
 footer{display:flex;align-items:center;justify-content:space-between;gap:6px;
 padding:6px 0 14px;flex-shrink:0}
 .text-btn{display:flex;align-items:center;gap:6px;height:40px;padding:0 12px;border:none;

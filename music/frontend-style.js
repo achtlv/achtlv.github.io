@@ -188,7 +188,7 @@ backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:fadeIn .2s
 .scrim.bottom{align-items:flex-end;padding:0}
 .dialog{background:var(--surface-container-high);border-radius:28px;padding:24px;width:100%;
 max-width:440px;animation:pop .22s cubic-bezier(.2,.8,.2,1);
-box-shadow:0 16px 48px var(--shadow-2);max-height:calc(100dvh - 40px);overflow-y:auto}
+box-shadow:none;max-height:calc(100dvh - 40px);overflow-y:auto}
 @keyframes pop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
 .dialog h2{font-size:18px;font-weight:500;margin-bottom:16px;color:var(--on-surface)}
 .dialog .dialog-text{font-size:14px;color:var(--on-surface-variant);line-height:1.6;word-break:break-all}
@@ -208,6 +208,7 @@ flex-shrink:0;transition:box-shadow .2s,opacity .2s,transform .15s}
 .filled-icon:active{transform:scale(.94)}
 .filled-icon:disabled{opacity:.5;cursor:default;box-shadow:none}
 .filled-icon svg{width:22px;height:22px;fill:currentColor;pointer-events:none}
+.filled-icon.with-text{width:auto;min-width:48px;padding:0 16px;border-radius:24px;font-size:14px;font-weight:500;font-family:inherit}
 .hint{font-size:12px;color:var(--on-surface-variant);margin-top:10px;line-height:1.5}
 .found{background:var(--surface-container-highest);border-radius:16px;padding:14px 16px;margin-bottom:4px}
 .found-name{font-size:15px;color:var(--on-surface);word-break:break-all}
@@ -236,7 +237,7 @@ padding:0 16px;border-radius:16px;font-size:15px}
 .sheet{background:var(--surface-container-high);width:100%;max-width:520px;
 border-radius:28px 28px 0 0;max-height:75dvh;display:flex;flex-direction:column;
 animation:slideUp .26s cubic-bezier(.2,.8,.2,1);padding-bottom:env(safe-area-inset-bottom);
-box-shadow:0 -8px 40px var(--shadow-2)}
+box-shadow:none}
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;
 padding:18px 12px 10px 18px;flex-shrink:0;gap:8px}

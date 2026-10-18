@@ -95,6 +95,11 @@ export const BODY_INNER = `<div class="app">
 <button class="text-btn block" id="meLogoutBtn" style="display:none;justify-content:center">退出登录</button>
 <button class="text-btn block" id="meSyncBtn" style="display:none;justify-content:center">立即同步</button>
 </div>
+<div class="me-card" id="meSyncOpts" style="display:none">
+<div class="me-label">同步内容</div>
+<label class="me-check"><input type="checkbox" id="syncPlaylists" checked> 歌单</label>
+<label class="me-check"><input type="checkbox" id="syncSettings" checked> 设置项</label>
+</div>
 <div class="me-card">
 <div class="me-label">主题颜色</div>
 <div class="theme-row" id="themeRow">
@@ -103,11 +108,6 @@ export const BODY_INNER = `<div class="app">
 <button class="theme-dot" data-theme="purple" title="紫色"></button>
 <button class="theme-dot" data-theme="red" title="红色"></button>
 </div>
-</div>
-<div class="me-card" id="meSyncOpts" style="display:none">
-<div class="me-label">同步内容</div>
-<label class="me-check"><input type="checkbox" id="syncPlaylists" checked> 歌单</label>
-<label class="me-check"><input type="checkbox" id="syncSettings" checked> 设置项</label>
 </div>
 </div>
 </div>
@@ -285,7 +285,7 @@ export const BODY_INNER = `<div class="app">
 </div>
 <div class="input-row">
 <input id="changePassNew2" type="password" placeholder="确认新密码" autocomplete="new-password" disabled>
-<button class="filled-icon" id="changePassGo" aria-label="确认"></button>
+<button class="filled-icon with-text" id="changePassGo" aria-label="确认">确认</button>
 </div>
 <p class="hint" id="changePassHint">请先输入旧密码并验证</p>
 <div class="dlg-actions">
@@ -302,7 +302,7 @@ export const BODY_INNER = `<div class="app">
 </div>
 <div class="input-row">
 <input id="loginPass" type="password" placeholder="密码" autocomplete="current-password" enterkeyhint="go">
-<button class="filled-icon" id="loginGo" aria-label="确认"></button>
+<button class="filled-icon with-text" id="loginGo" aria-label="确认">确认</button>
 </div>
 <p class="hint">若账号不存在将自动注册。数据存储于 textdb，请妥善保管密码。</p>
 <div class="dlg-actions">

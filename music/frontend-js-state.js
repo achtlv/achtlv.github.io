@@ -149,4 +149,23 @@ if(el)el.classList.remove('show');
 }
 }
 
+
+
+function __bindTabBar(){
+var bar=document.getElementById('tabbar');
+if(!bar)return;
+bar.querySelectorAll('.tab-item').forEach(function(btn){
+btn.onclick=function(ev){
+if(ev){try{ev.preventDefault();}catch(e){}}
+var tab=btn.getAttribute('data-tab');
+if(!tab)return;
+if(typeof switchTab==='function'){
+try{switchTab(tab);}catch(err){console.error(err);}
+}else{
+window.__pendingTab=tab;
+}
+};
+});
+}
+__bindTabBar();
 `;

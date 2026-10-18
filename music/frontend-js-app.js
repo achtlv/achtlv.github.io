@@ -1715,28 +1715,14 @@ setTimeout(function(){$('plNameInput').focus();},100);
 });
 
 (function bindTabs(){
-function onTabClick(ev){
-var btn=ev.target;
-while(btn&&btn!==document.body&&!(btn.getAttribute&&btn.getAttribute('data-tab'))){
-btn=btn.parentNode;
-}
-if(!btn||!btn.getAttribute)return;
-var tab=btn.getAttribute('data-tab');
+if(typeof __bindTabBar==='function')__bindTabBar();
+document.querySelectorAll('#tabbar .tab-item, .tab-item').forEach(function(btn){
+btn.onclick=function(ev){
+if(ev){try{ev.preventDefault();}catch(e){}}
+var tab=this.getAttribute('data-tab');
 if(!tab)return;
-try{ev.preventDefault();ev.stopPropagation();}catch(e){}
-if(typeof switchTab==='function'){
-try{switchTab(tab);}catch(err){console.error('switchTab',err);toast('切换失败');}
-}
-}
-var bar=$('tabbar');
-if(bar){
-bar.style.zIndex='9999';
-bar.style.pointerEvents='auto';
-bar.addEventListener('click',onTabClick,true);
-}
-document.querySelectorAll('.tab-item').forEach(function(btn){
-btn.style.pointerEvents='auto';
-btn.addEventListener('click',onTabClick,true);
+if(typeof switchTab==='function')switchTab(tab);
+};
 });
 })();
 
@@ -2238,6 +2224,15 @@ if($('lyricBox'))$('lyricBox').style.display='none';
 doRender();
 setTimeout(doRender,0);
 setTimeout(doRender,50);
+try{if(typeof __bindTabBar==='function')__bindTabBar();}catch(e){}
+try{
+document.querySelectorAll('#tabbar .tab-item').forEach(function(btn){
+btn.onclick=function(){
+var tab=this.getAttribute('data-tab');
+if(tab&&typeof switchTab==='function')switchTab(tab);
+};
+});
+}catch(e){}
 try{rebindCriticalUI();}catch(e){}
 setTimeout(function(){try{rebindCriticalUI();}catch(e){}},100);
 try{if(typeof switchTab==='function')switchTab('player');}catch(e){}

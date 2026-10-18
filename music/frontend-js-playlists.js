@@ -370,6 +370,8 @@ dot.classList.toggle('active',dot.getAttribute('data-theme')===(state.theme||'gr
 }
 
 function switchTab(tab){
+if(window.__pendingTab){var p=window.__pendingTab;window.__pendingTab=null;if(!tab)tab=p;}
+
 if(!tab)return;
 state.tab=tab;
 var map={player:'pagePlayer',playlists:'pagePlaylists',me:'pageMe'};
@@ -440,4 +442,7 @@ if(typeof renderPlaylistsPage==='function')renderPlaylistsPage();
 })();
 });
 }
+
+if(typeof __bindTabBar==='function')__bindTabBar();
+if(window.__pendingTab&&typeof switchTab==='function'){var _t=window.__pendingTab;window.__pendingTab=null;switchTab(_t);}
 `;

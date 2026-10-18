@@ -366,4 +366,104 @@ footer{padding:8px 0 6px}
 .sheet-head .head-actions .icon-btn{width:34px;height:34px}
 .song-row-move{width:28px;height:28px}
 }
+
+/* ===== 主题 ===== */
+html[data-theme="blue"]{
+--primary:#1565C0;--on-primary:#FFFFFF;--primary-container:#D1E4FF;--on-primary-container:#001D36;
+--shadow:rgba(21,101,192,.22);--shadow-2:rgba(21,101,192,.35);
+--hover:rgba(21,101,192,.08);--active:rgba(21,101,192,.14);
+}
+html[data-theme="purple"]{
+--primary:#7B1FA2;--on-primary:#FFFFFF;--primary-container:#F3D8FF;--on-primary-container:#2E004E;
+--shadow:rgba(123,31,162,.22);--shadow-2:rgba(123,31,162,.35);
+--hover:rgba(123,31,162,.08);--active:rgba(123,31,162,.14);
+}
+html[data-theme="red"]{
+--primary:#C62828;--on-primary:#FFFFFF;--primary-container:#FFDAD6;--on-primary-container:#410002;
+--shadow:rgba(198,40,40,.22);--shadow-2:rgba(198,40,40,.35);
+--hover:rgba(198,40,40,.08);--active:rgba(198,40,40,.14);
+}
+@media (prefers-color-scheme: dark){
+html[data-theme="blue"]{
+--primary:#90CAF9;--on-primary:#003258;--primary-container:#0D47A1;--on-primary-container:#D1E4FF;
+--shadow:rgba(0,0,0,.4);--shadow-2:rgba(0,0,0,.55);
+--hover:rgba(225,228,218,.08);--active:rgba(225,228,218,.14);
+}
+html[data-theme="purple"]{
+--primary:#CE93D8;--on-primary:#4A0072;--primary-container:#6A1B9A;--on-primary-container:#F3D8FF;
+--shadow:rgba(0,0,0,.4);--shadow-2:rgba(0,0,0,.55);
+--hover:rgba(225,228,218,.08);--active:rgba(225,228,218,.14);
+}
+html[data-theme="red"]{
+--primary:#EF9A9A;--on-primary:#690005;--primary-container:#B71C1C;--on-primary-container:#FFDAD6;
+--shadow:rgba(0,0,0,.4);--shadow-2:rgba(0,0,0,.55);
+--hover:rgba(225,228,218,.08);--active:rgba(225,228,218,.14);
+}
+}
+
+/* ===== 布局：页面与底栏 ===== */
+.app{padding-bottom:calc(56px + env(safe-area-inset-bottom))}
+.page{display:none;flex-direction:column;flex:1;min-height:0;width:100%}
+.page.page-active{display:flex}
+.page-head{display:flex;align-items:center;gap:8px;padding:12px 4px 8px;flex-shrink:0}
+.page-head h1{font-size:20px;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.page-head-actions{display:flex;gap:2px;flex-shrink:0}
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:50;
+display:flex;align-items:stretch;justify-content:space-around;
+height:calc(56px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);
+background:var(--surface-container);border-top:1px solid var(--outline-variant);
+max-width:520px;margin:0 auto}
+.tab-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+border:none;background:transparent;color:var(--on-surface-variant);cursor:pointer;
+font-size:11px;font-family:inherit;padding:6px 0;transition:color .18s}
+.tab-item svg{width:24px;height:24px;fill:currentColor}
+.tab-item.active{color:var(--primary)}
+.side-row{display:flex;align-items:center;justify-content:space-between;padding:0 4px;flex-shrink:0}
+.side-btn{width:40px;height:40px}
+.side-btn.fav-on{color:var(--primary)}
+.controls{gap:12px}
+.controls .icon-btn{width:48px;height:48px}
+.controls .icon-btn svg{width:26px;height:26px}
+
+/* 歌单页 */
+.pl-list,.pl-detail-list{flex:1;overflow-y:auto;padding:0 4px 16px;min-height:0}
+.pl-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:16px;cursor:pointer;transition:background .15s}
+.pl-item:hover{background:var(--hover)}
+.pl-cover{width:52px;height:52px;border-radius:12px;object-fit:cover;background:var(--surface-container-high);flex-shrink:0}
+.pl-cover-ph{width:52px;height:52px;border-radius:12px;background:var(--surface-container-high);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--on-surface-variant)}
+.pl-cover-ph svg{width:28px;height:28px;fill:currentColor;opacity:.5}
+.pl-info{flex:1;min-width:0}
+.pl-name{font-size:15px;color:var(--on-surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-meta{font-size:12px;color:var(--on-surface-variant);margin-top:2px}
+.pl-song-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:14px}
+.pl-song-row:hover{background:var(--hover)}
+.pl-song-info{flex:1;min-width:0}
+.pl-song-name{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-song-artist{font-size:12px;color:var(--on-surface-variant);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-song-actions{display:flex;gap:2px;flex-shrink:0}
+
+/* 我的 */
+.me-section{padding:8px 4px 24px;overflow-y:auto;flex:1;min-height:0}
+.me-card{background:var(--surface-container-high);border-radius:20px;padding:16px;margin-bottom:12px}
+.me-user{font-size:16px;font-weight:500;margin-bottom:12px}
+.me-label{font-size:13px;color:var(--on-surface-variant);margin-bottom:10px}
+.me-check{display:flex;align-items:center;gap:8px;padding:8px 0;font-size:14px;cursor:pointer}
+.me-check input{accent-color:var(--primary)}
+.theme-row{display:flex;gap:14px;padding:4px 0}
+.theme-dot{width:36px;height:36px;border-radius:50%;border:3px solid transparent;cursor:pointer;padding:0}
+.theme-dot[data-theme="green"]{background:#386A20}
+.theme-dot[data-theme="blue"]{background:#1565C0}
+.theme-dot[data-theme="purple"]{background:#7B1FA2}
+.theme-dot[data-theme="red"]{background:#C62828}
+.theme-dot.active{border-color:var(--on-surface);box-shadow:0 0 0 2px var(--surface)}
+.fav-pl-list{display:flex;flex-direction:column;gap:8px;max-height:40vh;overflow-y:auto;margin-bottom:8px}
+.fav-pl-item{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;border:1px solid var(--outline-variant);cursor:pointer;background:transparent;font-family:inherit;font-size:14px;color:var(--on-surface);text-align:left;width:100%}
+.fav-pl-item:hover{border-color:var(--primary);background:color-mix(in srgb,var(--primary) 8%,transparent)}
+.fav-pl-item.on{border-color:var(--primary);background:color-mix(in srgb,var(--primary) 12%,transparent)}
+
+@media (min-width:640px){
+.tabbar{max-width:600px;border-radius:0 0 32px 32px}
+.app{padding-bottom:56px}
+}
+
 </style>`;

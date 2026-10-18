@@ -9,6 +9,8 @@ const SCRIPT_TAGS = [
   '/frontend-js-player.js',
   '/frontend-js-preload.js',
   '/frontend-js-resolve.js',
+  '/frontend-js-playlists.js',
+  '/frontend-js-auth.js',
   '/frontend-js-app.js',
 ].map((src) => `<script src="${src}"></script>`).join('\n');
 

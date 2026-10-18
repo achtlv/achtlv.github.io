@@ -1,4 +1,5 @@
 export const BODY_INNER = `<div class="app">
+<div class="page page-active" id="pagePlayer">
 <header>
 <button class="icon-btn" id="shareBtn" title="分享" aria-label="分享"></button>
 <div class="meta">
@@ -38,6 +39,11 @@ export const BODY_INNER = `<div class="app">
 </div>
 </div>
 
+<div class="side-row">
+<button class="icon-btn side-btn" id="favBtn" title="收藏" aria-label="收藏"></button>
+<button class="icon-btn side-btn" id="downloadBtn" title="下载" aria-label="下载"></button>
+</div>
+
 <div class="progress-row">
 <span id="curTime">0:00</span>
 <input type="range" id="seek" min="0" max="1000" value="0" step="1" aria-label="播放进度">
@@ -45,16 +51,80 @@ export const BODY_INNER = `<div class="app">
 </div>
 
 <div class="controls">
+<button class="icon-btn" id="modeBtn" title="播放模式" aria-label="播放模式"></button>
 <button class="icon-btn" id="prevBtn" disabled aria-label="上一首"></button>
 <button class="play-btn" id="playBtn" aria-label="播放/暂停"></button>
 <button class="icon-btn" id="nextBtn" disabled aria-label="下一首"></button>
+<button class="icon-btn" id="listBtn" title="播放列表" aria-label="播放列表"></button>
+</div>
 </div>
 
-<footer>
-<button class="text-btn" id="modeBtn"></button>
-<button class="text-btn" id="downloadBtn"></button>
-<button class="text-btn" id="listBtn"></button>
-</footer>
+<div class="page" id="pagePlaylists">
+<div class="page-head">
+<h1>歌单</h1>
+<div class="page-head-actions">
+<button class="icon-btn" id="plSortBtn" title="排序" aria-label="排序"></button>
+<button class="icon-btn" id="plImportBtn" title="导入" aria-label="导入"></button>
+<button class="icon-btn" id="plExportBtn" title="导出" aria-label="导出"></button>
+<button class="icon-btn" id="plAddBtn" title="新建歌单" aria-label="新建歌单"></button>
+</div>
+</div>
+<div class="pl-list" id="plList"></div>
+</div>
+
+<div class="page" id="pagePlaylistDetail" style="display:none">
+<div class="page-head">
+<button class="icon-btn" id="plDetailBack" aria-label="返回"></button>
+<h1 id="plDetailTitle">歌单</h1>
+<div class="page-head-actions">
+<button class="icon-btn" id="plDetailPlay" title="播放歌单" aria-label="播放歌单"></button>
+<button class="icon-btn" id="plDetailRename" title="重命名" aria-label="重命名"></button>
+<button class="icon-btn" id="plDetailDelete" title="删除歌单" aria-label="删除歌单"></button>
+</div>
+</div>
+<div class="pl-detail-list" id="plDetailList"></div>
+</div>
+
+<div class="page" id="pageMe">
+<div class="page-head"><h1>我的</h1></div>
+<div class="me-section">
+<div class="me-card" id="meAuthCard">
+<div class="me-user" id="meUserLabel">未登录</div>
+<button class="filled-btn block" id="meLoginBtn">登录 / 注册</button>
+<button class="text-btn block" id="meLogoutBtn" style="display:none;justify-content:center">退出登录</button>
+<button class="text-btn block" id="meSyncBtn" style="display:none;justify-content:center">立即同步</button>
+</div>
+<div class="me-card">
+<div class="me-label">主题颜色</div>
+<div class="theme-row" id="themeRow">
+<button class="theme-dot" data-theme="green" title="绿色"></button>
+<button class="theme-dot" data-theme="blue" title="蓝色"></button>
+<button class="theme-dot" data-theme="purple" title="紫色"></button>
+<button class="theme-dot" data-theme="red" title="红色"></button>
+</div>
+</div>
+<div class="me-card" id="meSyncOpts" style="display:none">
+<div class="me-label">同步内容</div>
+<label class="me-check"><input type="checkbox" id="syncPlaylists" checked> 歌单</label>
+<label class="me-check"><input type="checkbox" id="syncSettings" checked> 设置项</label>
+</div>
+</div>
+</div>
+
+<nav class="tabbar" id="tabbar">
+<button class="tab-item active" data-tab="player" aria-label="播放器">
+<svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+<span>播放</span>
+</button>
+<button class="tab-item" data-tab="playlists" aria-label="歌单">
+<svg viewBox="0 0 24 24"><path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/></svg>
+<span>歌单</span>
+</button>
+<button class="tab-item" data-tab="me" aria-label="我的">
+<svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+<span>我的</span>
+</button>
+</nav>
 </div>
 
 <div class="scrim" id="addScrim">
@@ -164,6 +234,7 @@ export const BODY_INNER = `<div class="app">
 <div class="import-mode">
 <label><input type="radio" name="importMode" value="merge" checked>合并到原列表</label>
 <label><input type="radio" name="importMode" value="replace">覆盖原列表</label>
+<label><input type="radio" name="importMode" value="new">新建列表（当前进历史）</label>
 </div>
 <p class="hint" id="importHint"></p>
 <div class="dlg-actions">
@@ -176,7 +247,9 @@ export const BODY_INNER = `<div class="app">
 <div class="scrim bottom" id="listScrim">
 <div class="sheet">
 <div class="sheet-head">
+<button class="icon-btn" id="sheetHistPrev" title="上一个列表" aria-label="上一个列表" style="display:none"></button>
 <h2 id="sheetTitle">播放列表</h2>
+<button class="icon-btn" id="sheetHistNext" title="下一个列表" aria-label="下一个列表" style="display:none"></button>
 <div class="head-actions">
 <button class="icon-btn" id="sheetEdit" aria-label="编辑顺序" title="编辑顺序"></button>
 <button class="icon-btn" id="sheetImport" aria-label="导入列表" title="导入列表"></button>
@@ -186,6 +259,68 @@ export const BODY_INNER = `<div class="app">
 </div>
 </div>
 <div class="sheet-list" id="sheetList"></div>
+</div>
+</div>
+
+<div class="scrim" id="favScrim">
+<div class="dialog">
+<h2>收藏到歌单</h2>
+<div id="favPlList" class="fav-pl-list"></div>
+<div class="dlg-actions">
+<button class="text-btn" id="favNewPl">新建歌单并收藏</button>
+<button class="text-btn" id="favCancel">取消</button>
+</div>
+</div>
+</div>
+
+<div class="scrim" id="loginScrim">
+<div class="dialog">
+<h2>登录 / 注册</h2>
+<div class="input-row" style="margin-bottom:10px">
+<input id="loginUser" placeholder="用户名" autocomplete="username">
+</div>
+<div class="input-row">
+<input id="loginPass" type="password" placeholder="密码" autocomplete="current-password" enterkeyhint="go">
+<button class="filled-icon" id="loginGo" aria-label="确认"></button>
+</div>
+<p class="hint">若账号不存在将自动注册。数据存储于 textdb，请妥善保管密码。</p>
+<div class="dlg-actions">
+<button class="text-btn" id="loginCancel">取消</button>
+</div>
+</div>
+</div>
+
+<div class="scrim" id="syncChoiceScrim">
+<div class="dialog">
+<h2>同步选项</h2>
+<p class="dialog-text">选择首次同步时如何处理本地数据</p>
+<label class="me-check"><input type="radio" name="syncPlMode" value="merge" checked> 同步登录前的歌单</label>
+<label class="me-check"><input type="radio" name="syncPlMode" value="discard"> 删除登录前的本地歌单</label>
+<label class="me-check"><input type="radio" name="syncSetMode" value="merge" checked> 同步登录前的设置</label>
+<label class="me-check"><input type="radio" name="syncSetMode" value="discard"> 使用云端设置</label>
+<div class="dlg-actions">
+<button class="filled-btn" id="syncChoiceOk">确认</button>
+</div>
+</div>
+</div>
+
+<div class="scrim" id="plImportScrim">
+<div class="dialog">
+<h2>导入歌单</h2>
+<div class="input-row">
+<input id="plImportKey" placeholder="密钥 / GZIP / 明文" autocomplete="off">
+<button class="filled-icon" id="plImportGo" aria-label="获取"></button>
+</div>
+<div class="import-mode">
+<label><input type="radio" name="plImportMode" value="new" checked>新建歌单</label>
+<label><input type="radio" name="plImportMode" value="merge">合并到已有</label>
+</div>
+<select id="plImportTarget" style="display:none;width:100%;margin-top:8px;height:40px;border-radius:12px;border:1px solid var(--outline);background:transparent;color:var(--on-surface);padding:0 12px"></select>
+<p class="hint" id="plImportHint"></p>
+<div class="dlg-actions">
+<button class="text-btn" id="plImportCancel">取消</button>
+<button class="filled-btn" id="plImportConfirm">确认导入</button>
+</div>
 </div>
 </div>
 `;

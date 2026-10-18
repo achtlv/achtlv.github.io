@@ -7,6 +7,8 @@ import { LYRIC_SCRIPT } from './frontend-js-lyric.js';
 import { PLAYER_SCRIPT } from './frontend-js-player.js';
 import { PRELOAD_SCRIPT } from './frontend-js-preload.js';
 import { RESOLVE_SCRIPT } from './frontend-js-resolve.js';
+import { PLAYLISTS_SCRIPT } from './frontend-js-playlists.js';
+import { AUTH_SCRIPT } from './frontend-js-auth.js';
 import { APP_SCRIPT } from './frontend-js-app.js';
 import {
   handleSearch,
@@ -31,6 +33,8 @@ const JS_ROUTES = {
   '/frontend-js-player.js': PLAYER_SCRIPT,
   '/frontend-js-preload.js': PRELOAD_SCRIPT,
   '/frontend-js-resolve.js': RESOLVE_SCRIPT,
+  '/frontend-js-playlists.js': PLAYLISTS_SCRIPT,
+  '/frontend-js-auth.js': AUTH_SCRIPT,
   '/frontend-js-app.js': APP_SCRIPT,
 };
 

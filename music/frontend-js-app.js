@@ -2214,6 +2214,7 @@ try{restoreListHistory();}catch(e){}
 try{restoreAuthLocal();}catch(e){}
 try{if(typeof restoreSyncMetaLocal==='function')restoreSyncMetaLocal();}catch(e){}
 try{restorePlaylist();}catch(e){}
+try{state.current=-1;state.playing=false;state.audioUrl='';state.quality='';}catch(e){}
 try{render();}catch(e){console.error('render',e);}
 try{if(typeof updateFavBtn==='function')updateFavBtn();}catch(e){}
 try{

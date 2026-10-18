@@ -488,3 +488,56 @@ export async function handleDownload(targetUrl, name, req) {
     headers: respHeaders,
   });
 }
+
+export async function handleOfficialResolve(id) {
+  const songId = String(id || "").trim();
+  if (!songId || !/^\d+$/.test(songId)) {
+    return json({ ok: false, msg: "无效歌曲 ID" });
+  }
+  const resolveUrl =
+    "https://ebnr.xiyang6666.top/resolve/https://music.163.com/song?id=" +
+    encodeURIComponent(songId);
+  try {
+    const res = await fetch(resolveUrl, {
+      method: "GET",
+      redirect: "manual",
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+      },
+    });
+    let audioUrl = "";
+    if (res.status >= 300 && res.status < 400) {
+      audioUrl = res.headers.get("Location") || res.headers.get("location") || "";
+    } else if (res.ok) {
+      const ct = (res.headers.get("content-type") || "").toLowerCase();
+      if (ct.indexOf("json") !== -1) {
+        try {
+          const data = await res.json();
+          audioUrl = data.url || data.data?.url || data.audio || "";
+        } catch (e) {}
+      } else if (ct.indexOf("audio") !== -1 || ct.indexOf("mpeg") !== -1) {
+        audioUrl = resolveUrl;
+      } else {
+        // may still be redirect body empty
+        audioUrl = res.headers.get("Location") || "";
+      }
+    }
+    if (!audioUrl || !/^https?:\/\//i.test(audioUrl)) {
+      // fallback: use resolve proxy URL itself
+      audioUrl = resolveUrl;
+    }
+    // NetEase CDN links typically ~20min; default 1200s
+    let expi = 1200;
+    try {
+      const m = audioUrl.match(/\/(20\d{12})\//);
+      if (m) {
+        // timestamp in path is generation time; assume ~2h validity remaining unknown → keep default
+        expi = 1200;
+      }
+    } catch (e) {}
+    return json({ ok: true, url: audioUrl, expi: expi, level: "official" });
+  } catch (e) {
+    return json({ ok: false, msg: String(e.message || e) });
+  }
+}

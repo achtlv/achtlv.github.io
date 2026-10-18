@@ -7,9 +7,9 @@ var url=extractUrl(r);
 if(url&&isHttpUrl(url)){return {url:url,level:LEVELS[i],expi:extractExpi(r)};}
 }catch(e){}
 }
-var officialUrl=await probeOfficialLocal(id);
-if(officialUrl){
-return {url:officialUrl,level:'official',expi:0};
+var off=await probeOfficialLocal(id);
+if(off&&off.url){
+return {url:off.url,level:'official',expi:off.expi||0,fromCache:!!off.fromCache};
 }
 return null;
 }
@@ -29,29 +29,25 @@ return {url:url,level:LEVELS[i],expi:expi};
 }
 }catch(e){}
 }
-var officialUrl=await probeOfficialLocal(id);
-if(officialUrl){
-return {url:officialUrl,level:'official',expi:0};
+var off=await probeOfficialLocal(id);
+if(off&&off.url){
+return {url:off.url,level:'official',expi:off.expi||0,fromCache:!!off.fromCache};
 }
 return null;
 }
 
 async function tryGetLevelWithCache(id,level,minRemainSec){
-if(level!=='official'){
 var cached=await getCachedAudioUrl(id,level,minRemainSec);
 if(cached){
 var expi=Math.max(1,Math.floor((cached.expireAt-Date.now())/1000));
 return {url:cached.url,level:level,expi:expi,fromCache:true};
 }
-}
 for(var i=0;i<DETECT_TIMES;i++){
 try{
 var r=await fetchPlayUrlLevelOnce(id,level);
 if(r&&r.url){
-if(level!=='official'){
-await saveAudioUrlToCache(id,level,r.url,r.expi);
-}
-return {url:r.url,level:level,expi:r.expi};
+await saveAudioUrlToCache(id,level,r.url,r.expi||DEFAULT_EXPI);
+return {url:r.url,level:level,expi:r.expi||DEFAULT_EXPI};
 }
 }catch(e){}
 }
@@ -68,9 +64,9 @@ if(r1)return r1;
 var r2=await tryGetLevelWithCache(id,'standard',needRemain);
 if(r2)return r2;
 
-var officialUrl=await probeOfficialLocal(id);
-if(officialUrl){
-return {url:officialUrl,level:'official',expi:0};
+var off=await probeOfficialLocal(id);
+if(off&&off.url){
+return {url:off.url,level:'official',expi:off.expi||0,fromCache:!!off.fromCache};
 }
 
 throw new Error('暂无可用音源');
@@ -78,9 +74,9 @@ throw new Error('暂无可用音源');
 
 async function fetchPlayUrlLevelOnce(id,level){
 if(level==='official'){
-var officialUrl=await probeOfficialLocal(id);
-if(officialUrl){
-return {url:officialUrl,expi:0};
+var off=await probeOfficialLocal(id);
+if(off&&off.url){
+return {url:off.url,expi:off.expi||0,fromCache:!!off.fromCache};
 }
 return null;
 }
@@ -179,8 +175,11 @@ return LEVELS[i];
 }
 }catch(e){}
 }
-var officialUrl=await probeOfficialLocal(id);
-if(officialUrl)return 'official';
+var off=await probeOfficialLocal(id, needRemain||60);
+if(off&&off.url){
+try{await saveAudioUrlToCache(id,'official',off.url,off.expi||DEFAULT_EXPI);}catch(e){}
+return 'official';
+}
 return '';
 }
 

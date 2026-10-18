@@ -1,6 +1,23 @@
 export const PLAYER_SCRIPT = String.raw`// ==================== 官方接口探测（第三方代理） ====================
-function probeOfficialLocal(id){
-return Promise.resolve(OFFICIAL_PREFIX+encodeURIComponent(String(id)));
+async function probeOfficialLocal(id,minRemainSec){
+id=String(id||'');
+if(!id)return null;
+var need=typeof minRemainSec==='number'?minRemainSec:60;
+try{
+var cached=await getCachedAudioUrl(id,'official',need);
+if(cached&&cached.url)return {url:cached.url,expi:Math.max(1,Math.floor((cached.expireAt-Date.now())/1000)),fromCache:true};
+}catch(e){}
+try{
+var r=await post('/api/officialResolve',{id:id});
+if(r&&r.ok&&r.url&&isHttpUrl(r.url)){
+var expi=r.expi||DEFAULT_EXPI;
+try{await saveAudioUrlToCache(id,'official',r.url,expi);}catch(e){}
+return {url:r.url,expi:expi,fromCache:false};
+}
+}catch(e){}
+// 兜底：直接使用官方代理地址（可播放，但不缓存真实 CDN）
+var fallback=OFFICIAL_PREFIX+encodeURIComponent(id);
+return {url:fallback,expi:DEFAULT_EXPI,fromCache:false};
 }
 
 // ==================== 音频源控制 ====================

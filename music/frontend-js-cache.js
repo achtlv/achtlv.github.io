@@ -38,7 +38,6 @@ return {expireAt:exp,url:url};
 }
 
 async function getCachedAudioUrl(id,level,minRemainSec){
-if(level==='official')return null;
 if(level==='external')return null;
 var key=level+String(id);
 var text=await cacheGetRaw(key);
@@ -50,7 +49,6 @@ return data;
 }
 
 async function saveAudioUrlToCache(id,level,url,expi){
-if(level==='official')return;
 if(level==='external')return;
 if(!url)return;
 var expireAt=Date.now()+(expi||DEFAULT_EXPI)*1000;

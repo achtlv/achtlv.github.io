@@ -17,6 +17,7 @@ import {
   handleCacheGet,
   handleCacheSet,
   handleDownload,
+  handleOfficialResolve,
   proxy,
 } from './handlers.js';
 
@@ -111,6 +112,7 @@ export default {
       if (action === 'checkAudio') return await handleCheckAudio(body.url || '');
       if (action === 'cacheGet') return await handleCacheGet(body.key || '');
       if (action === 'cacheSet') return await handleCacheSet(body.key || '', body.value || '');
+      if (action === 'officialResolve') return await handleOfficialResolve(body.id || '');
 
       if (action === 'getSongInfo') {
         return await proxy('getSongInfo', { id: body.id, timestamp: Date.now(), ip });

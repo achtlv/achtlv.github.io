@@ -163,11 +163,8 @@ border:none;cursor:pointer;transition:box-shadow .2s}
 .controls .icon-btn:disabled:hover{background:transparent;color:var(--on-surface-variant)}
 .play-btn{width:70px;height:70px;border:none;border-radius:50%;background:var(--primary);
 color:var(--on-primary);display:flex;align-items:center;justify-content:center;cursor:pointer;
-transition:transform .15s,box-shadow .25s,background .3s;
-box-shadow:0 4px 16px var(--shadow)}
-@media (hover:hover){
-.play-btn:hover{box-shadow:0 6px 26px var(--shadow-2)}
-}
+transition:transform .15s,background .3s;
+box-shadow:none}
 .play-btn:active{transform:scale(.93)}
 .play-btn svg{width:34px;height:34px;fill:currentColor;pointer-events:none}
 footer{display:flex;align-items:center;justify-content:space-between;gap:6px;
@@ -290,7 +287,7 @@ cursor:pointer;flex-shrink:0;transition:all .18s}
 .toast{position:fixed;bottom:110px;left:50%;transform:translateX(-50%) translateY(20px);
 background:var(--surface-container-highest);color:var(--on-surface);padding:12px 20px;
 border-radius:12px;font-size:14px;opacity:0;transition:all .3s cubic-bezier(.2,.8,.2,1);
-pointer-events:none;z-index:200;box-shadow:0 6px 20px var(--shadow-2);max-width:88vw;text-align:center}
+pointer-events:none;z-index:200;box-shadow:none;max-width:88vw;text-align:center}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .import-toolbar{display:flex;align-items:center;gap:10px;margin-top:10px}
 .file-name{font-size:12px;color:var(--on-surface-variant);flex:1;min-width:0;

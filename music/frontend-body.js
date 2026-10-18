@@ -91,6 +91,7 @@ export const BODY_INNER = `<div class="app">
 <div class="me-card" id="meAuthCard">
 <div class="me-user" id="meUserLabel">未登录</div>
 <button class="filled-btn block" id="meLoginBtn">登录 / 注册</button>
+<button class="text-btn block" id="meChangePassBtn" style="display:none;justify-content:center">更改密码</button>
 <button class="text-btn block" id="meLogoutBtn" style="display:none;justify-content:center">退出登录</button>
 <button class="text-btn block" id="meSyncBtn" style="display:none;justify-content:center">立即同步</button>
 </div>
@@ -269,6 +270,26 @@ export const BODY_INNER = `<div class="app">
 <div class="dlg-actions">
 <button class="text-btn" id="favNewPl">新建歌单并收藏</button>
 <button class="text-btn" id="favCancel">取消</button>
+</div>
+</div>
+</div>
+
+<div class="scrim" id="changePassScrim">
+<div class="dialog">
+<h2>更改密码</h2>
+<div class="input-row" style="margin-bottom:10px">
+<input id="changePassOld" type="password" placeholder="旧密码" autocomplete="current-password">
+</div>
+<div class="input-row" style="margin-bottom:10px">
+<input id="changePassNew" type="password" placeholder="新密码（先验证旧密码）" autocomplete="new-password" disabled>
+</div>
+<div class="input-row">
+<input id="changePassNew2" type="password" placeholder="确认新密码" autocomplete="new-password" disabled>
+<button class="filled-icon" id="changePassGo" aria-label="确认"></button>
+</div>
+<p class="hint" id="changePassHint">请先输入旧密码并验证</p>
+<div class="dlg-actions">
+<button class="text-btn" id="changePassCancel">取消</button>
 </div>
 </div>
 </div>

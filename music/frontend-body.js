@@ -342,7 +342,6 @@ export const BODY_INNER = `<div class="app">
 </div>
 </div>
 </div>
-`;
 
 <div class="scrim" id="urlKeyScrim">
 <div class="dialog">
@@ -388,3 +387,4 @@ export const BODY_INNER = `<div class="app">
 </div>
 </div>
 </div>
+`;

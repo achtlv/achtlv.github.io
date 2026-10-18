@@ -609,7 +609,7 @@ toast(e.message||'跳转失败');
 }
 }
 
-$('seek').addEventListener('input',function(){
+if($('seek'))$('seek').addEventListener('input',function(){
 isSeeking=true;
 var pct=parseFloat(this.value)/10;
 updateSeekBg(pct);
@@ -627,9 +627,9 @@ var t=(parseFloat($('seek').value)/1000)*audio.duration;
 seekWithUrlCheck(t);
 }
 }
-$('seek').addEventListener('change',finishSeek);
-$('seek').addEventListener('pointerup',finishSeek);
-$('seek').addEventListener('touchend',finishSeek);
+if($('seek'))$('seek').addEventListener('change',finishSeek);
+if($('seek'))$('seek').addEventListener('pointerup',finishSeek);
+if($('seek'))$('seek').addEventListener('touchend',finishSeek);
 
 function onTimeUpdate(){
 var d=audio.duration||0;
@@ -682,11 +682,11 @@ audio.play().catch(function(){});
 });
 
 // ==================== 事件绑定 ====================
-$('playBtn').addEventListener('click',togglePlay);
-$('prevBtn').addEventListener('click',prevSong);
-$('nextBtn').addEventListener('click',nextSong);
+if($('playBtn'))$('playBtn').addEventListener('click',togglePlay);
+if($('prevBtn'))$('prevBtn').addEventListener('click',prevSong);
+if($('nextBtn'))$('nextBtn').addEventListener('click',nextSong);
 
-$('modeBtn').addEventListener('click',function(){
+if($('modeBtn'))$('modeBtn').addEventListener('click',function(){
 var order=['order','single','shuffle'];
 var i=order.indexOf(state.mode);
 state.mode=order[(i+1)%3];
@@ -696,12 +696,12 @@ if(typeof notifyDataChanged==='function')notifyDataChanged('settings');
 render();
 });
 
-$('coverBox').addEventListener('click',function(){
+if($('coverBox'))$('coverBox').addEventListener('click',function(){
 if(!state.playlist.length)return;
 state.showLyric=true;
 render();
 });
-$('lyricBox').addEventListener('click',function(e){
+if($('lyricBox'))$('lyricBox').addEventListener('click',function(e){
 if(e.target.closest&&e.target.closest('#lyricToolbar'))return;
 var jump=e.target.closest&&e.target.closest('.line-jump');
 if(jump&&jump.getAttribute('data-time')!=null){
@@ -722,35 +722,35 @@ sc.addEventListener('touchmove',markLyricUserScrolled,{passive:true});
 sc.addEventListener('pointerdown',markLyricUserScrolled,{passive:true});
 })();
 
-$('transBtn').addEventListener('click',function(e){
+if($('transBtn'))$('transBtn').addEventListener('click',function(e){
 e.stopPropagation();
 state.transEnabled=!state.transEnabled;
 state._lastLyricKey=null;
 render();
 });
-$('romaBtn').addEventListener('click',function(e){
+if($('romaBtn'))$('romaBtn').addEventListener('click',function(e){
 e.stopPropagation();
 state.romaEnabled=!state.romaEnabled;
 state._lastLyricKey=null;
 render();
 });
 
-$('retryBtn').addEventListener('click',function(e){
+if($('retryBtn'))$('retryBtn').addEventListener('click',function(e){
 e.stopPropagation();
 retryQuality();
 });
 
 // ==================== 改名事件 ====================
-$('renameCancel').addEventListener('click',closeRename);
-$('renameConfirm').addEventListener('click',confirmRename);
-$('renameGo').addEventListener('click',confirmRename);
-$('renameScrim').addEventListener('click',function(e){if(e.target===this)closeRename()});
-$('renameInput').addEventListener('keydown',function(e){
+if($('renameCancel'))$('renameCancel').addEventListener('click',closeRename);
+if($('renameConfirm'))$('renameConfirm').addEventListener('click',confirmRename);
+if($('renameGo'))$('renameGo').addEventListener('click',confirmRename);
+if($('renameScrim'))$('renameScrim').addEventListener('click',function(e){if(e.target===this)closeRename()});
+if($('renameInput'))$('renameInput').addEventListener('keydown',function(e){
 if(e.key==='Enter'){e.preventDefault();confirmRename()}
 });
 
 // ==================== 分享菜单 ====================
-$('shareBtn').addEventListener('click',function(ev){
+if($('shareBtn'))$('shareBtn').addEventListener('click',function(ev){
 try{(ev.currentTarget||this).blur();}catch(e){}
 var song=state.playlist[state.current];
 if(!song){toast('没有可分享的歌曲');return}
@@ -758,10 +758,10 @@ $('shareSongName').textContent=(song.name||'未知歌曲')+' - '+(song.artist||'
 closeOtherScrims('shareScrim');
 $('shareScrim').classList.add('show');
 });
-$('shareCancel').addEventListener('click',function(){$('shareScrim').classList.remove('show')});
-$('shareScrim').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show')});
+if($('shareCancel'))$('shareCancel').addEventListener('click',function(){$('shareScrim').classList.remove('show')});
+if($('shareScrim'))$('shareScrim').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show')});
 
-$('shareCopyLink').addEventListener('click',async function(){
+if($('shareCopyLink'))$('shareCopyLink').addEventListener('click',async function(){
 var song=state.playlist[state.current];
 if(!song)return;
 var link=buildShareLink(song);
@@ -782,7 +782,7 @@ ta.remove();
 $('shareScrim').classList.remove('show');
 });
 
-$('shareSystem').addEventListener('click',async function(){
+if($('shareSystem'))$('shareSystem').addEventListener('click',async function(){
 var song=state.playlist[state.current];
 if(!song)return;
 if(!navigator.share){
@@ -972,24 +972,24 @@ toast('已在新窗口打开');
 }
 }
 
-$('downloadCancel').addEventListener('click',function(){
+if($('downloadCancel'))$('downloadCancel').addEventListener('click',function(){
 pendingDownloadSong=null;
 downloadDetectToken++;
 $('downloadScrim').classList.remove('show');
 });
-$('downloadScrim').addEventListener('click',function(e){
+if($('downloadScrim'))$('downloadScrim').addEventListener('click',function(e){
 if(e.target===this){
 pendingDownloadSong=null;
 downloadDetectToken++;
 this.classList.remove('show');
 }
 });
-$('downloadRetryBtn').addEventListener('click',function(){
+if($('downloadRetryBtn'))$('downloadRetryBtn').addEventListener('click',function(){
 if(!pendingDownloadSong)return;
 runQualityDetection(pendingDownloadSong);
 });
 
-$('downloadBtn').addEventListener('click',async function(ev){
+if($('downloadBtn'))$('downloadBtn').addEventListener('click',async function(ev){
 try{(ev.currentTarget||this).blur();}catch(e){}
 var song=state.playlist[state.current];
 if(!song){toast('没有可下载的歌曲');return}
@@ -1045,18 +1045,18 @@ $('importHint').textContent='';
 $('importScrim').classList.add('show');
 setTimeout(function(){$('importKey').focus()},120);
 }
-$('emptyAdd').addEventListener('click',openAdd);
-$('emptyImport').addEventListener('click',openImportDialog);
-$('listBtn').addEventListener('click',function(){
+if($('emptyAdd'))$('emptyAdd').addEventListener('click',openAdd);
+if($('emptyImport'))$('emptyImport').addEventListener('click',openImportDialog);
+if($('listBtn'))$('listBtn').addEventListener('click',function(){
 closeOtherScrims('listScrim');
 listHistIndex=-1;refreshHistButtons();$('sheetTitle').textContent='播放列表';$('listScrim').classList.add('show');
 });
-$('sheetAdd').addEventListener('click',function(){
+if($('sheetAdd'))$('sheetAdd').addEventListener('click',function(){
 $('listScrim').classList.remove('show');
 setTimeout(openAdd,180);
 });
-$('addScrim').addEventListener('click',function(e){if(e.target===this)closeAdd()});
-$('listScrim').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show')});
+if($('addScrim'))$('addScrim').addEventListener('click',function(e){if(e.target===this)closeAdd()});
+if($('listScrim'))$('listScrim').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show')});
 
 function showSongConfirm(song,fromUrl){
 pendingSong=song;
@@ -1106,18 +1106,18 @@ toast(e.message||'解析失败');
 $('addGo').disabled=false;
 $('addGo').innerHTML=ICON.arrow;
 }
-$('addGo').addEventListener('click',doResolve);
-$('addInput').addEventListener('keydown',function(e){
+if($('addGo'))$('addGo').addEventListener('click',doResolve);
+if($('addInput'))$('addInput').addEventListener('keydown',function(e){
 if(e.key==='Enter'){e.preventDefault();doResolve()}
 });
-$('addCancel').addEventListener('click',function(){
+if($('addCancel'))$('addCancel').addEventListener('click',function(){
 pendingSong=null;
 $('addStage2').style.display='none';
 $('addStage1').style.display='block';
 $('addHint').textContent='是否将此歌曲加入播放列表？';
 setTimeout(function(){$('addInput').focus()},100);
 });
-$('addConfirm').addEventListener('click',function(){
+if($('addConfirm'))$('addConfirm').addEventListener('click',function(){
 if(!pendingSong)return;
 var toAdd=pendingSong;
 var fromUrl=toAdd._fromUrl===true;
@@ -1149,14 +1149,14 @@ render();
 });
 
 // ==================== 清空列表 ====================
-$('sheetClear').addEventListener('click',function(){
+if($('sheetClear'))$('sheetClear').addEventListener('click',function(){
 if(!state.playlist.length){toast('播放列表已为空');return}
 closeOtherScrims('clearScrim');
 $('clearScrim').classList.add('show');
 });
-$('clearCancel').addEventListener('click',function(){$('clearScrim').classList.remove('show')});
-$('clearScrim').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show')});
-$('clearConfirm').addEventListener('click',function(){
+if($('clearCancel'))$('clearCancel').addEventListener('click',function(){$('clearScrim').classList.remove('show')});
+if($('clearScrim'))$('clearScrim').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show')});
+if($('clearConfirm'))$('clearConfirm').addEventListener('click',function(){
 state.playlist=[];
 state.current=-1;
 state.playing=false;
@@ -1182,7 +1182,7 @@ toast('播放列表已清空');
 });
 
 // ==================== 编辑顺序 ====================
-$('sheetEdit').addEventListener('click',function(){
+if($('sheetEdit'))$('sheetEdit').addEventListener('click',function(){
 state.editingOrder=!state.editingOrder;
 $('sheetEdit').innerHTML=state.editingOrder?ICON.check:ICON.edit;
 if(state.editingOrder)$('sheetEdit').classList.add('active');
@@ -1192,7 +1192,7 @@ render();
 
 // ==================== 网络导出 ====================
 var exportGenerating=false;
-$('sheetExport').addEventListener('click',async function(){
+if($('sheetExport'))$('sheetExport').addEventListener('click',async function(){
 if(!state.playlist.length){toast('播放列表为空');return}
 $('listScrim').classList.remove('show');
 if(exportGenerating)return;
@@ -1235,9 +1235,9 @@ $('exportCopy').disabled=true;
 $('exportHint').textContent='上传失败，请检查网络后重试';
 }
 });
-$('exportClose').addEventListener('click',function(){$('exportScrim').classList.remove('show')});
-$('exportScrim').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show')});
-$('exportCopy').addEventListener('click',async function(){
+if($('exportClose'))$('exportClose').addEventListener('click',function(){$('exportScrim').classList.remove('show')});
+if($('exportScrim'))$('exportScrim').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show')});
+if($('exportCopy'))$('exportCopy').addEventListener('click',async function(){
 var key=$('exportKey').value;
 if(!key||detectImportType(key)!=='key'){toast('请等待上传完成');return}
 try{
@@ -1256,7 +1256,7 @@ ta.remove();
 }
 });
 
-$('exportDownload').addEventListener('click',async function(){
+if($('exportDownload'))$('exportDownload').addEventListener('click',async function(){
 if(!state.playlist.length){toast('播放列表为空');return}
 var raw=exportListText();
 var compressed=await gzipCompress(raw);
@@ -1277,13 +1277,13 @@ toast('已开始下载');
 });
 
 // ==================== 导入 ====================
-$('sheetImport').addEventListener('click',function(){
+if($('sheetImport'))$('sheetImport').addEventListener('click',function(){
 $('listScrim').classList.remove('show');
 openImportDialog();
 });
-$('importCancel').addEventListener('click',function(){$('importScrim').classList.remove('show')});
-$('importScrim').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show')});
-$('importPickFile').addEventListener('click',function(){$('importFile').click()});
+if($('importCancel'))$('importCancel').addEventListener('click',function(){$('importScrim').classList.remove('show')});
+if($('importScrim'))$('importScrim').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show')});
+if($('importPickFile'))$('importPickFile').addEventListener('click',function(){$('importFile').click()});
 
 async function resolveImportText(val){
 val=String(val||'').trim();
@@ -1319,15 +1319,15 @@ $('importHint').textContent='已找到 '+imported.length+' 首歌曲，点击"�
 return true;
 }
 
-$('importGo').addEventListener('click',function(){
+if($('importGo'))$('importGo').addEventListener('click',function(){
 previewImport($('importKey').value);
 });
 
-$('importKey').addEventListener('keydown',function(e){
-if(e.key==='Enter'){e.preventDefault();$('importGo').click()}
+if($('importKey'))$('importKey').addEventListener('keydown',function(e){
+if(e.key==='Enter'){e.preventDefault();$('importGo')&&$('importGo').click()}
 });
 
-$('importFile').addEventListener('change',function(){
+if($('importFile'))$('importFile').addEventListener('change',function(){
 var file=this.files&&this.files[0];
 if(!file)return;
 var reader=new FileReader();
@@ -1345,7 +1345,7 @@ reader.onerror=function(){toast('读取文件失败')};
 reader.readAsText(file,'utf-8');
 });
 
-$('importConfirm').addEventListener('click',async function(){
+if($('importConfirm'))$('importConfirm').addEventListener('click',async function(){
 var val=$('importKey').value.trim();
 if(!val){toast('请输入密钥、歌单文本或选择文件');return}
 var type=detectImportType(val);
@@ -1399,7 +1399,7 @@ toast('新增 '+added+' 首，共 '+after+' 首');
 });
 
 // ==================== 列表交互 ====================
-$('sheetList').addEventListener('click',function(e){
+if($('sheetList'))$('sheetList').addEventListener('click',function(e){
 var renameBtn=e.target.closest('[data-rename]');
 if(renameBtn){
 e.stopPropagation();
@@ -1671,7 +1671,7 @@ function isStandaloneApp(){
 
 // ==================== 新控件与页面绑定 ====================
 if($('favBtn')){
-$('favBtn').addEventListener('click',function(ev){
+if($('favBtn'))$('favBtn').addEventListener('click',function(ev){
 try{(ev.currentTarget||this).blur();}catch(e){}
 var song=state.playlist[state.current];
 if(!song){toast('没有可收藏的歌曲');return;}
@@ -2240,6 +2240,86 @@ if(state.user){
 try{syncAndMaybeRefreshKey().catch(function(){});}catch(e){}
 }
 setTimeout(function(){try{handleUrlParams();}catch(e){}},300);
+
+// 确保歌单/我的页按钮一定有事件（防前面脚本中断）
+(function ensurePageBtnBinds(){
+function bind(id,fn){
+var el=$(id);if(!el)return;
+el.onclick=fn;
+}
+bind('plAddBtn',function(){
+window._plNameMode='create';window._plNameSong=null;
+if($('plNameTitle'))$('plNameTitle').textContent='新建歌单';
+if($('plNameInput'))$('plNameInput').value='';
+if($('plNameScrim'))$('plNameScrim').classList.add('show');
+});
+bind('plImportBtn',function(){if($('plImportScrim'))$('plImportScrim').classList.add('show');});
+bind('plSortBtn',function(){
+if(typeof plSortMode==='undefined')return;
+plSortMode=plSortMode==='time'?'alpha':'time';
+if(typeof sortPlaylists==='function')sortPlaylists(plSortMode);
+toast(plSortMode==='alpha'?'按名称排序':'按最近修改排序');
+if(typeof renderPlaylistsPage==='function')renderPlaylistsPage();
+});
+bind('meLoginBtn',function(){if($('loginScrim'))$('loginScrim').classList.add('show');});
+bind('meLogoutBtn',function(){if($('logoutScrim'))$('logoutScrim').classList.add('show');});
+bind('meChangePassBtn',function(){
+if(!state.user)return;
+window._changePassOk=false;
+if($('changePassOld'))$('changePassOld').value='';
+if($('changePassNew')){$('changePassNew').value='';$('changePassNew').disabled=true;}
+if($('changePassNew2')){$('changePassNew2').value='';$('changePassNew2').disabled=true;}
+if($('changePassHint'))$('changePassHint').textContent='请先输入旧密码并验证';
+if($('changePassScrim'))$('changePassScrim').classList.add('show');
+});
+bind('meSyncBtn',async function(){
+toast('正在同步...');
+try{
+var result=await pullAndMergeSync();
+if(result==='pushed'){toast('同步完成');return;}
+if(result==='pulled'){var ok=await pushSync();toast(ok?'同步完成':'已拉取云端');return;}
+var ok2=await pushSync();
+if(ok2){toast('同步完成');return;}
+await refreshAccountTtl();
+toast('同步完成');
+}catch(e){toast('同步失败');}
+});
+bind('loginGo',function(){if(typeof doLogin==='function')doLogin();});
+bind('loginCancel',function(){if($('loginScrim'))$('loginScrim').classList.remove('show');});
+bind('logoutCancel',function(){if($('logoutScrim'))$('logoutScrim').classList.remove('show');});
+bind('logoutConfirm',function(){
+if($('logoutScrim'))$('logoutScrim').classList.remove('show');
+state.user=null;
+try{localStorage.removeItem(COOKIE_AUTH);}catch(e){}
+try{localStorage.removeItem(COOKIE_PLAYLISTS);}catch(e){}
+try{localStorage.removeItem(COOKIE_LIST_HIST);}catch(e){}
+var keepTheme=state.theme||'green';
+state.playlists=[];state.listHistory=[];
+applyTheme(keepTheme);
+savePlaylistsLocal();
+if(typeof renderMePage==='function')renderMePage();
+if(typeof renderPlaylistsPage==='function')renderPlaylistsPage();
+if(typeof updateFavBtn==='function')updateFavBtn();
+toast('已退出登录');
+});
+// 主题点
+document.querySelectorAll('.theme-dot').forEach(function(dot){
+dot.onclick=function(){
+var t=dot.getAttribute('data-theme');
+if(t){applyTheme(t);if(typeof notifyDataChanged==='function')notifyDataChanged('settings');}
+};
+});
+// 同步选项 checkbox
+if($('syncPlaylists'))$('syncPlaylists').onchange=function(){
+state.syncPlaylists=!!$('syncPlaylists').checked;saveSettingsLocal();
+if(typeof notifyDataChanged==='function')notifyDataChanged('settings');
+};
+if($('syncSettings'))$('syncSettings').onchange=function(){
+state.syncSettings=!!$('syncSettings').checked;saveSettingsLocal();
+if(typeof notifyDataChanged==='function')notifyDataChanged('settings');
+};
+})();
+
 if('serviceWorker' in navigator){
 window.addEventListener('load',function(){
 navigator.serviceWorker.register('/sw.js').catch(function(){});

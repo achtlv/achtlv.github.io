@@ -403,6 +403,8 @@ html[data-theme="red"]{
 .app{padding-bottom:calc(56px + env(safe-area-inset-bottom))}
 .page{display:none;flex-direction:column;flex:1;min-height:0;width:100%}
 .page.page-active{display:flex}
+#pagePlayer.page-active{padding-bottom:4px;min-height:0;overflow:hidden}
+#pagePlaylists.page-active,#pageMe.page-active,#pagePlaylistDetail.page-active{min-height:0;overflow:hidden}
 .page-head{display:flex;align-items:center;gap:8px;padding:12px 4px 8px;flex-shrink:0}
 .page-head h1{font-size:20px;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .page-head-actions{display:flex;gap:2px;flex-shrink:0}

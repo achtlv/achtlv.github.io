@@ -1,1 +1,284 @@
-export const RESOLVE_SCRIPT = "// ==================== 播放链接检测 ====================\nasync function fetchPlayUrlOnce(id){\nfor(var i=0;i<LEVELS.length;i++){\ntry{\nvar r=await post('/api/getSongUrl',{id:id,level:LEVELS[i]});\nvar url=extractUrl(r);\nif(url&&isHttpUrl(url)){return {url:url,level:LEVELS[i],expi:extractExpi(r)};}\n}catch(e){}\n}\nvar officialUrl=await probeOfficialLocal(id);\nif(officialUrl){\nreturn {url:officialUrl,level:'official',expi:0};\n}\nreturn null;\n}\n\n\nasync function fetchPlayUrlFresh(id){\nfor(var i=0;i<LEVELS.length;i++){\ntry{\nvar r=await post('/api/getSongUrl',{id:id,level:LEVELS[i]});\nvar url=extractUrl(r);\nif(url&&isHttpUrl(url)){\nvar expi=extractExpi(r);\nif(LEVELS[i]!=='official'){\ntry{await saveAudioUrlToCache(id,LEVELS[i],url,expi);}catch(e){}\n}\nreturn {url:url,level:LEVELS[i],expi:expi};\n}\n}catch(e){}\n}\nvar officialUrl=await probeOfficialLocal(id);\nif(officialUrl){\nreturn {url:officialUrl,level:'official',expi:0};\n}\nreturn null;\n}\n\nasync function tryGetLevelWithCache(id,level,minRemainSec){\nif(level!=='official'){\nvar cached=await getCachedAudioUrl(id,level,minRemainSec);\nif(cached){\nvar expi=Math.max(1,Math.floor((cached.expireAt-Date.now())/1000));\nreturn {url:cached.url,level:level,expi:expi,fromCache:true};\n}\n}\nfor(var i=0;i<DETECT_TIMES;i++){\ntry{\nvar r=await fetchPlayUrlLevelOnce(id,level);\nif(r&&r.url){\nif(level!=='official'){\nawait saveAudioUrlToCache(id,level,r.url,r.expi);\n}\nreturn {url:r.url,level:level,expi:r.expi};\n}\n}catch(e){}\n}\nreturn null;\n}\n\nasync function fetchPlayUrl(id,durationHint){\nvar durSec=(durationHint&&durationHint>0)?durationHint:360;\nvar needRemain=durSec+URL_SAFETY_BUFFER;\n\nvar r1=await tryGetLevelWithCache(id,'exhigh',needRemain);\nif(r1)return r1;\n\nvar r2=await tryGetLevelWithCache(id,'standard',needRemain);\nif(r2)return r2;\n\nvar officialUrl=await probeOfficialLocal(id);\nif(officialUrl){\nreturn {url:officialUrl,level:'official',expi:0};\n}\n\nthrow new Error('暂无可用音源');\n}\n\nasync function fetchPlayUrlLevelOnce(id,level){\nif(level==='official'){\nvar officialUrl=await probeOfficialLocal(id);\nif(officialUrl){\nreturn {url:officialUrl,expi:0};\n}\nreturn null;\n}\ntry{\nvar r=await post('/api/getSongUrl',{id:id,level:level});\nvar url=extractUrl(r);\nif(url&&isHttpUrl(url)){\nreturn {url:url,expi:extractExpi(r)};\n}\n}catch(e){}\nreturn null;\n}\n\nasync function fetchPlayUrlLevel(id,level,minRemainSec){\nif(level==='official')return '';\nif(typeof minRemainSec!=='number')minRemainSec=300;\n\nvar cached=await getCachedAudioUrl(id,level,minRemainSec);\nif(cached)return cached.url;\n\nfor(var attempt=0;attempt<DETECT_TIMES;attempt++){\nvar r=await fetchPlayUrlLevelOnce(id,level);\nif(r&&r.url){\nawait saveAudioUrlToCache(id,level,r.url,r.expi);\nreturn r.url;\n}\n}\nreturn '';\n}\n\n// ==================== 解析输入 ====================\nasync function fetchMetaById(id){\nvar idStr=String(id);\nvar name='',artist='',pic='',duration=0;\n\nfor(var i=0;i<state.playlist.length;i++){\nvar s=state.playlist[i];\nif(s.id===idStr&&!s.external){\nif(s.name&&s.name!=='未知歌曲')name=s.name;\nif(s.artist&&s.artist!=='未知歌手')artist=s.artist;\nif(s.pic)pic=s.pic;\nif(s.duration&&s.duration>0)duration=s.duration;\nbreak;\n}\n}\n\nif(!pic){\ntry{\nvar cachedPic=await getCachedCover(idStr);\nif(cachedPic)pic=cachedPic;\n}catch(e){}\n}\n\nif(!name||!artist||!pic){\ntry{\nvar info=await post('/api/getSongInfo',{id:idStr});\nvar m=extractInfo(info);\nif(!name&&m.name)name=m.name;\nif(!artist&&m.artist)artist=m.artist;\nif(!pic&&m.pic){\npic=m.pic;\nawait saveCoverToCache(idStr,m.pic);\n}\nif(!duration&&m.duration>0)duration=m.duration;\n}catch(e){}\n}\n\nif((!pic||!name)&&name){\ntry{\nvar r=await post('/api/search',{word:name});\nif(r&&r.id&&r.id===idStr){\nif(!pic&&r.pic){\npic=r.pic;\nawait saveCoverToCache(idStr,r.pic);\n}\nif(!artist&&r.artist)artist=r.artist;\n}\n}catch(e){}\n}\n\nreturn {id:idStr,name:name||'未知歌曲',artist:artist||'未知歌手',pic:pic||'',duration:duration};\n}\n\nasync function detectNeteaseQualityOnce(id,durationHint){\nvar durSec=(durationHint&&durationHint>0)?durationHint:0;\nvar minExpi=durSec>0?(durSec+URL_SAFETY_BUFFER):0;\nfor(var i=0;i<LEVELS.length;i++){\ntry{\nvar r=await post('/api/getSongUrl',{id:id,level:LEVELS[i]});\nvar url=extractUrl(r);\nif(url&&isHttpUrl(url)){\nvar expi=extractExpi(r)||DEFAULT_EXPI;\nif(minExpi>0&&expi<minExpi)continue;\nawait saveAudioUrlToCache(id,LEVELS[i],url,expi);\nreturn LEVELS[i];\n}\n}catch(e){}\n}\nvar officialUrl=await probeOfficialLocal(id);\nif(officialUrl)return 'official';\nreturn '';\n}\n\nasync function detectNeteaseQuality(id,durationHint){\nvar hasDuration=(durationHint&&durationHint>0);\nvar durSec=hasDuration?durationHint:0;\nvar needRemain=hasDuration?(durSec+URL_SAFETY_BUFFER):300;\n\nfor(var i=0;i<LEVELS.length;i++){\nvar lv=LEVELS[i];\nvar cached=await getCachedAudioUrl(id,lv,needRemain);\nif(cached)return lv;\n}\n\nvar best='';\nfor(var attempt=0;attempt<DETECT_TIMES;attempt++){\nvar q=await detectNeteaseQualityOnce(id,durSec);\nif(q&&qualityRank(q)>qualityRank(best))best=q;\nif(best&&qualityRank(best)>=MAX_PLAY_RANK)break;\n}\nreturn best;\n}\n\nasync function tryNeteaseLink(url){\nvar r=await post('/api/resolve',{url:url});\nif(r&&r.id){\nvar m=await fetchMetaById(r.id);\nvar q=await detectNeteaseQuality(r.id,m.duration);\nif(q){\nm.quality=q;\nreturn m;\n}\n}\nreturn null;\n}\n\nasync function tryThirdPartyLink(url){\nvar check=await post('/api/checkAudio',{url:url});\nif(check&&check.ok){\nvar fmt=check.format||getFormatFromUrl(url);\nvar pic='';\ntry{\npic=await extractCoverFromUrl(check.url||url);\n}catch(e){pic='';}\nreturn {\nid:uid(),\nname:check.name||'外部音源',\nartist:isVideoFormat(fmt)?'视频音源':'外部音源',\npic:pic,\nexternal:true,\nurl:check.url||url,\nsrcUrl:url,\nformat:fmt,\nquality:'external'\n};\n}\nreturn null;\n}\n\nasync function resolveInput(text){\ntext=(text||'').trim();\nif(!text)throw new Error('请输入内容');\n\nif(isSongId(text)){\nvar meta=await fetchMetaById(text);\nvar q=await detectNeteaseQuality(text,meta.duration);\nif(!q)throw new Error('该歌曲暂无可用音源');\nmeta.quality=q;\nreturn meta;\n}\n\nvar urls=extractAllUrlsFromText(text);\nif(urls.length>0){\nfor(var i=0;i<urls.length;i++){\nif(!isNeteaseUrl(urls[i]))continue;\ntry{\nvar nm=await tryNeteaseLink(urls[i]);\nif(nm)return nm;\n}catch(e){}\n}\nfor(var j=0;j<urls.length;j++){\nif(isNeteaseUrl(urls[j]))continue;\ntry{\nvar em=await tryThirdPartyLink(urls[j]);\nif(em)return em;\n}catch(e){}\n}\n}\n\nvar rs=await post('/api/search',{word:text});\nif(rs&&rs.id){\nvar meta3={id:String(rs.id),name:rs.name||text,artist:rs.artist||'未知歌手',pic:rs.pic||'',duration:0};\nvar q3=await detectNeteaseQuality(meta3.id,meta3.duration);\nif(!q3)throw new Error('该歌曲暂无可用音源');\nmeta3.quality=q3;\nreturn meta3;\n}\nthrow new Error((rs&&rs.msg)||(urls.length?'所有链接均不可用，且未搜索到歌曲':'未找到歌曲'));\n}\n\n";
+export const RESOLVE_SCRIPT = String.raw`// ==================== 播放链接检测 ====================
+async function fetchPlayUrlOnce(id){
+for(var i=0;i<LEVELS.length;i++){
+try{
+var r=await post('/api/getSongUrl',{id:id,level:LEVELS[i]});
+var url=extractUrl(r);
+if(url&&isHttpUrl(url)){return {url:url,level:LEVELS[i],expi:extractExpi(r)};}
+}catch(e){}
+}
+var officialUrl=await probeOfficialLocal(id);
+if(officialUrl){
+return {url:officialUrl,level:'official',expi:0};
+}
+return null;
+}
+
+
+async function fetchPlayUrlFresh(id){
+for(var i=0;i<LEVELS.length;i++){
+try{
+var r=await post('/api/getSongUrl',{id:id,level:LEVELS[i]});
+var url=extractUrl(r);
+if(url&&isHttpUrl(url)){
+var expi=extractExpi(r);
+if(LEVELS[i]!=='official'){
+try{await saveAudioUrlToCache(id,LEVELS[i],url,expi);}catch(e){}
+}
+return {url:url,level:LEVELS[i],expi:expi};
+}
+}catch(e){}
+}
+var officialUrl=await probeOfficialLocal(id);
+if(officialUrl){
+return {url:officialUrl,level:'official',expi:0};
+}
+return null;
+}
+
+async function tryGetLevelWithCache(id,level,minRemainSec){
+if(level!=='official'){
+var cached=await getCachedAudioUrl(id,level,minRemainSec);
+if(cached){
+var expi=Math.max(1,Math.floor((cached.expireAt-Date.now())/1000));
+return {url:cached.url,level:level,expi:expi,fromCache:true};
+}
+}
+for(var i=0;i<DETECT_TIMES;i++){
+try{
+var r=await fetchPlayUrlLevelOnce(id,level);
+if(r&&r.url){
+if(level!=='official'){
+await saveAudioUrlToCache(id,level,r.url,r.expi);
+}
+return {url:r.url,level:level,expi:r.expi};
+}
+}catch(e){}
+}
+return null;
+}
+
+async function fetchPlayUrl(id,durationHint){
+var durSec=(durationHint&&durationHint>0)?durationHint:360;
+var needRemain=durSec+URL_SAFETY_BUFFER;
+
+var r1=await tryGetLevelWithCache(id,'exhigh',needRemain);
+if(r1)return r1;
+
+var r2=await tryGetLevelWithCache(id,'standard',needRemain);
+if(r2)return r2;
+
+var officialUrl=await probeOfficialLocal(id);
+if(officialUrl){
+return {url:officialUrl,level:'official',expi:0};
+}
+
+throw new Error('暂无可用音源');
+}
+
+async function fetchPlayUrlLevelOnce(id,level){
+if(level==='official'){
+var officialUrl=await probeOfficialLocal(id);
+if(officialUrl){
+return {url:officialUrl,expi:0};
+}
+return null;
+}
+try{
+var r=await post('/api/getSongUrl',{id:id,level:level});
+var url=extractUrl(r);
+if(url&&isHttpUrl(url)){
+return {url:url,expi:extractExpi(r)};
+}
+}catch(e){}
+return null;
+}
+
+async function fetchPlayUrlLevel(id,level,minRemainSec){
+if(level==='official')return '';
+if(typeof minRemainSec!=='number')minRemainSec=300;
+
+var cached=await getCachedAudioUrl(id,level,minRemainSec);
+if(cached)return cached.url;
+
+for(var attempt=0;attempt<DETECT_TIMES;attempt++){
+var r=await fetchPlayUrlLevelOnce(id,level);
+if(r&&r.url){
+await saveAudioUrlToCache(id,level,r.url,r.expi);
+return r.url;
+}
+}
+return '';
+}
+
+// ==================== 解析输入 ====================
+async function fetchMetaById(id){
+var idStr=String(id);
+var name='',artist='',pic='',duration=0;
+
+for(var i=0;i<state.playlist.length;i++){
+var s=state.playlist[i];
+if(s.id===idStr&&!s.external){
+if(s.name&&s.name!=='未知歌曲')name=s.name;
+if(s.artist&&s.artist!=='未知歌手')artist=s.artist;
+if(s.pic)pic=s.pic;
+if(s.duration&&s.duration>0)duration=s.duration;
+break;
+}
+}
+
+if(!pic){
+try{
+var cachedPic=await getCachedCover(idStr);
+if(cachedPic)pic=cachedPic;
+}catch(e){}
+}
+
+if(!name||!artist||!pic){
+try{
+var info=await post('/api/getSongInfo',{id:idStr});
+var m=extractInfo(info);
+if(!name&&m.name)name=m.name;
+if(!artist&&m.artist)artist=m.artist;
+if(!pic&&m.pic){
+pic=m.pic;
+await saveCoverToCache(idStr,m.pic);
+}
+if(!duration&&m.duration>0)duration=m.duration;
+}catch(e){}
+}
+
+if((!pic||!name)&&name){
+try{
+var r=await post('/api/search',{word:name});
+if(r&&r.id&&r.id===idStr){
+if(!pic&&r.pic){
+pic=r.pic;
+await saveCoverToCache(idStr,r.pic);
+}
+if(!artist&&r.artist)artist=r.artist;
+}
+}catch(e){}
+}
+
+return {id:idStr,name:name||'未知歌曲',artist:artist||'未知歌手',pic:pic||'',duration:duration};
+}
+
+async function detectNeteaseQualityOnce(id,durationHint){
+var durSec=(durationHint&&durationHint>0)?durationHint:0;
+var minExpi=durSec>0?(durSec+URL_SAFETY_BUFFER):0;
+for(var i=0;i<LEVELS.length;i++){
+try{
+var r=await post('/api/getSongUrl',{id:id,level:LEVELS[i]});
+var url=extractUrl(r);
+if(url&&isHttpUrl(url)){
+var expi=extractExpi(r)||DEFAULT_EXPI;
+if(minExpi>0&&expi<minExpi)continue;
+await saveAudioUrlToCache(id,LEVELS[i],url,expi);
+return LEVELS[i];
+}
+}catch(e){}
+}
+var officialUrl=await probeOfficialLocal(id);
+if(officialUrl)return 'official';
+return '';
+}
+
+async function detectNeteaseQuality(id,durationHint){
+var hasDuration=(durationHint&&durationHint>0);
+var durSec=hasDuration?durationHint:0;
+var needRemain=hasDuration?(durSec+URL_SAFETY_BUFFER):300;
+
+for(var i=0;i<LEVELS.length;i++){
+var lv=LEVELS[i];
+var cached=await getCachedAudioUrl(id,lv,needRemain);
+if(cached)return lv;
+}
+
+var best='';
+for(var attempt=0;attempt<DETECT_TIMES;attempt++){
+var q=await detectNeteaseQualityOnce(id,durSec);
+if(q&&qualityRank(q)>qualityRank(best))best=q;
+if(best&&qualityRank(best)>=MAX_PLAY_RANK)break;
+}
+return best;
+}
+
+async function tryNeteaseLink(url){
+var r=await post('/api/resolve',{url:url});
+if(r&&r.id){
+var m=await fetchMetaById(r.id);
+var q=await detectNeteaseQuality(r.id,m.duration);
+if(q){
+m.quality=q;
+return m;
+}
+}
+return null;
+}
+
+async function tryThirdPartyLink(url){
+var check=await post('/api/checkAudio',{url:url});
+if(check&&check.ok){
+var fmt=check.format||getFormatFromUrl(url);
+var pic='';
+try{
+pic=await extractCoverFromUrl(check.url||url);
+}catch(e){pic='';}
+return {
+id:uid(),
+name:check.name||'外部音源',
+artist:isVideoFormat(fmt)?'视频音源':'外部音源',
+pic:pic,
+external:true,
+url:check.url||url,
+srcUrl:url,
+format:fmt,
+quality:'external'
+};
+}
+return null;
+}
+
+async function resolveInput(text){
+text=(text||'').trim();
+if(!text)throw new Error('请输入内容');
+
+if(isSongId(text)){
+var meta=await fetchMetaById(text);
+var q=await detectNeteaseQuality(text,meta.duration);
+if(!q)throw new Error('该歌曲暂无可用音源');
+meta.quality=q;
+return meta;
+}
+
+var urls=extractAllUrlsFromText(text);
+if(urls.length>0){
+for(var i=0;i<urls.length;i++){
+if(!isNeteaseUrl(urls[i]))continue;
+try{
+var nm=await tryNeteaseLink(urls[i]);
+if(nm)return nm;
+}catch(e){}
+}
+for(var j=0;j<urls.length;j++){
+if(isNeteaseUrl(urls[j]))continue;
+try{
+var em=await tryThirdPartyLink(urls[j]);
+if(em)return em;
+}catch(e){}
+}
+}
+
+var rs=await post('/api/search',{word:text});
+if(rs&&rs.id){
+var meta3={id:String(rs.id),name:rs.name||text,artist:rs.artist||'未知歌手',pic:rs.pic||'',duration:0};
+var q3=await detectNeteaseQuality(meta3.id,meta3.duration);
+if(!q3)throw new Error('该歌曲暂无可用音源');
+meta3.quality=q3;
+return meta3;
+}
+throw new Error((rs&&rs.msg)||(urls.length?'所有链接均不可用，且未搜索到歌曲':'未找到歌曲'));
+}
+
+`;

@@ -1,1 +1,234 @@
-export const PRELOAD_SCRIPT = "// ==================== URL 过期检查 ====================\nfunction shouldRefreshUrl(entry,song){\nif(!entry||!entry.urlExpireAt)return false;\nvar now=Date.now();\nvar durSec=0;\nif(song&&song.duration&&song.duration>0)durSec=song.duration;\nif(durSec>0){\nvar deadline=entry.urlExpireAt-(durSec+URL_SAFETY_BUFFER)*1000;\nreturn now>=deadline;\n}\nreturn now>=entry.urlExpireAt-15*60*1000;\n}\n\nfunction shouldRefreshUrlResume(entry,remainingSec){\nif(!entry||!entry.urlExpireAt)return false;\nif(!remainingSec||remainingSec<=0)return false;\nvar now=Date.now();\nvar deadline=entry.urlExpireAt-(remainingSec+URL_SAFETY_BUFFER)*1000;\nreturn now>=deadline;\n}\n\n// ==================== 预加载系统 ====================\nvar preloadCache={};\nvar preloadTimers={};\n\nfunction getPreloadEntry(id){\nif(!id)return null;\nif(!preloadCache[id]){\npreloadCache[id]={\npic:'',lyric:'',lyricTrans:'',lyricRoma:'',\nurl:'',quality:'',urlExpireAt:0,\npicDone:false,lyricDone:false,urlDone:false\n};\n}\nreturn preloadCache[id];\n}\n\nasync function preloadSongPic(song){\nif(!song||!song.id)return;\nvar entry=getPreloadEntry(song.id);\nif(!entry||entry.picDone)return;\n\nif(song.pic){\nentry.pic=song.pic;\nentry.picDone=true;\npreloadCover(song.pic);\nreturn;\n}\n\ntry{\nvar cachedPic=await getCachedCover(song.id);\nif(cachedPic){\nentry.pic=cachedPic;\nentry.picDone=true;\nsong.pic=cachedPic;\npreloadCover(cachedPic);\nvar cur0=state.playlist[state.current];\nif(cur0===song)render();\nreturn;\n}\n}catch(e){}\n\ntry{\nvar info=await post('/api/getSongInfo',{id:song.id});\nvar m=extractInfo(info);\nif(m.pic){\nentry.pic=m.pic;\nentry.picDone=true;\nsong.pic=m.pic;\nif(!song.duration&&m.duration>0)song.duration=m.duration;\npreloadCover(m.pic);\nawait saveCoverToCache(song.id,m.pic);\nvar cur=state.playlist[state.current];\nif(cur===song)render();\nreturn;\n}\n}catch(e){}\n\n// 仅用 ID 取封面（getSongInfo），禁止按歌名搜索以免封面错乱\nschedulePreloadRetry(song,'pic');\n}\n\nasync function preloadSongLyric(song){\nif(!song||!song.id)return;\nvar entry=getPreloadEntry(song.id);\nif(!entry||entry.lyricDone)return;\n\nif(song.external){\nentry.lyricDone=true;\nreturn;\n}\n\ntry{\nvar cached=await getCachedLyric(song.id);\nif(cached){\nentry.lyric=cached.main;\nentry.lyricTrans=cached.trans;\nentry.lyricRoma=cached.roma;\nentry.lyricDone=true;\nvar cur0=state.playlist[state.current];\nif(cur0===song){\nstate.lyric=cached.main||'暂无歌词';\nstate.lyricTrans=cached.trans;\nstate.lyricRoma=cached.roma;\nstate.lyricLoading=false;\nstate._lastLyricKey=null;\nrender();\n}\nreturn;\n}\n}catch(e){}\n\ntry{\nvar lr=await post('/api/getSongLyric',{id:song.id});\nvar m=extractLyricMulti(lr);\nentry.lyric=m.main||'';\nentry.lyricTrans=m.trans||'';\nentry.lyricRoma=m.roma||'';\nentry.lyricDone=true;\n\nawait saveLyricToCache(song.id,entry.lyric,entry.lyricTrans,entry.lyricRoma);\n\nvar cur=state.playlist[state.current];\nif(cur===song){\nstate.lyric=entry.lyric||'暂无歌词';\nstate.lyricTrans=entry.lyricTrans;\nstate.lyricRoma=entry.lyricRoma;\nstate.lyricLoading=false;\nstate._lastLyricKey=null;\nrender();\n}\nreturn;\n}catch(e){}\n\nschedulePreloadRetry(song,'lyric');\n}\n\nasync function preloadSongUrl(song){\nif(!song||!song.id)return;\nvar entry=getPreloadEntry(song.id);\nif(!entry)return;\n\nif(song.external){\nentry.url=song.url;\nentry.quality='external';\nentry.urlExpireAt=0;\nentry.urlDone=true;\nreturn;\n}\n\nif(entry.urlDone)return;\nif(entry.quality==='exhigh'){\nentry.urlDone=true;\nreturn;\n}\n\nvar dur=song.duration&&song.duration>0?song.duration:360;\nvar needRemain=dur+URL_SAFETY_BUFFER;\n\nfor(var k=0;k<LEVELS.length;k++){\nvar lv=LEVELS[k];\nvar cached=await getCachedAudioUrl(song.id,lv,needRemain);\nif(cached){\nentry.url=cached.url;\nentry.quality=lv;\nentry.urlExpireAt=cached.expireAt;\nif(lv==='exhigh'){\nentry.urlDone=true;\nreturn;\n}\nbreak;\n}\n}\n\nfor(var i=0;i<3;i++){\ntry{\nvar r=await fetchPlayUrlOnce(song.id);\nif(r&&r.url&&isHttpUrl(r.url)){\nif(!entry.quality||qualityRank(r.level)>=qualityRank(entry.quality)){\nentry.url=r.url;\nentry.quality=r.level;\nentry.urlExpireAt=Date.now()+(r.expi||DEFAULT_EXPI)*1000;\nawait saveAudioUrlToCache(song.id,r.level,r.url,r.expi);\n}\nif(entry.quality==='exhigh'){\nentry.urlDone=true;\nreturn;\n}\n}\n}catch(e){}\n}\n\nschedulePreloadRetry(song,'url');\n}\n\nfunction schedulePreloadRetry(song,type){\nif(!song||!song.id)return;\nif(!preloadTimers[song.id])preloadTimers[song.id]={pic:null,lyric:null,url:null};\nvar t=preloadTimers[song.id];\nif(t[type])return;\nt[type]=setTimeout(function(){\nt[type]=null;\nif(state.playlist.indexOf(song)===-1)return;\nif(type==='pic')preloadSongPic(song);\nelse if(type==='lyric')preloadSongLyric(song);\nelse preloadSongUrl(song);\n},PRELOAD_RETRY);\n}\n\nfunction triggerPreloadNeighbors(){\nvar len=state.playlist.length;\nvar curIdx=state.current;\nif(curIdx<0||len<1)return;\nvar scheduledIdx=curIdx;\nsetTimeout(function(){\nif(state.current!==scheduledIdx)return;\nvar curSong=state.playlist[curIdx];\nif(!curSong)return;\nvar prevIdx=(curIdx-1+len)%len;\nvar nextIdx=(curIdx+1)%len;\nvar targets=[];\nvar prevSong=state.playlist[prevIdx];\nvar nextSong=state.playlist[nextIdx];\nif(prevSong&&prevSong!==curSong)targets.push(prevSong);\nif(nextSong&&nextSong!==curSong&&nextSong!==prevSong)targets.push(nextSong);\nfor(var i=0;i<targets.length;i++){\npreloadSongPic(targets[i]);\npreloadSongLyric(targets[i]);\npreloadSongUrl(targets[i]);\n}\n},PRELOAD_DELAY);\n}\n\n";
+export const PRELOAD_SCRIPT = String.raw`// ==================== URL 过期检查 ====================
+function shouldRefreshUrl(entry,song){
+if(!entry||!entry.urlExpireAt)return false;
+var now=Date.now();
+var durSec=0;
+if(song&&song.duration&&song.duration>0)durSec=song.duration;
+if(durSec>0){
+var deadline=entry.urlExpireAt-(durSec+URL_SAFETY_BUFFER)*1000;
+return now>=deadline;
+}
+return now>=entry.urlExpireAt-15*60*1000;
+}
+
+function shouldRefreshUrlResume(entry,remainingSec){
+if(!entry||!entry.urlExpireAt)return false;
+if(!remainingSec||remainingSec<=0)return false;
+var now=Date.now();
+var deadline=entry.urlExpireAt-(remainingSec+URL_SAFETY_BUFFER)*1000;
+return now>=deadline;
+}
+
+// ==================== 预加载系统 ====================
+var preloadCache={};
+var preloadTimers={};
+
+function getPreloadEntry(id){
+if(!id)return null;
+if(!preloadCache[id]){
+preloadCache[id]={
+pic:'',lyric:'',lyricTrans:'',lyricRoma:'',
+url:'',quality:'',urlExpireAt:0,
+picDone:false,lyricDone:false,urlDone:false
+};
+}
+return preloadCache[id];
+}
+
+async function preloadSongPic(song){
+if(!song||!song.id)return;
+var entry=getPreloadEntry(song.id);
+if(!entry||entry.picDone)return;
+
+if(song.pic){
+entry.pic=song.pic;
+entry.picDone=true;
+preloadCover(song.pic);
+return;
+}
+
+try{
+var cachedPic=await getCachedCover(song.id);
+if(cachedPic){
+entry.pic=cachedPic;
+entry.picDone=true;
+song.pic=cachedPic;
+preloadCover(cachedPic);
+var cur0=state.playlist[state.current];
+if(cur0===song)render();
+return;
+}
+}catch(e){}
+
+try{
+var info=await post('/api/getSongInfo',{id:song.id});
+var m=extractInfo(info);
+if(m.pic){
+entry.pic=m.pic;
+entry.picDone=true;
+song.pic=m.pic;
+if(!song.duration&&m.duration>0)song.duration=m.duration;
+preloadCover(m.pic);
+await saveCoverToCache(song.id,m.pic);
+var cur=state.playlist[state.current];
+if(cur===song)render();
+return;
+}
+}catch(e){}
+
+// 仅用 ID 取封面（getSongInfo），禁止按歌名搜索以免封面错乱
+schedulePreloadRetry(song,'pic');
+}
+
+async function preloadSongLyric(song){
+if(!song||!song.id)return;
+var entry=getPreloadEntry(song.id);
+if(!entry||entry.lyricDone)return;
+
+if(song.external){
+entry.lyricDone=true;
+return;
+}
+
+try{
+var cached=await getCachedLyric(song.id);
+if(cached){
+entry.lyric=cached.main;
+entry.lyricTrans=cached.trans;
+entry.lyricRoma=cached.roma;
+entry.lyricDone=true;
+var cur0=state.playlist[state.current];
+if(cur0===song){
+state.lyric=cached.main||'暂无歌词';
+state.lyricTrans=cached.trans;
+state.lyricRoma=cached.roma;
+state.lyricLoading=false;
+state._lastLyricKey=null;
+render();
+}
+return;
+}
+}catch(e){}
+
+try{
+var lr=await post('/api/getSongLyric',{id:song.id});
+var m=extractLyricMulti(lr);
+entry.lyric=m.main||'';
+entry.lyricTrans=m.trans||'';
+entry.lyricRoma=m.roma||'';
+entry.lyricDone=true;
+
+await saveLyricToCache(song.id,entry.lyric,entry.lyricTrans,entry.lyricRoma);
+
+var cur=state.playlist[state.current];
+if(cur===song){
+state.lyric=entry.lyric||'暂无歌词';
+state.lyricTrans=entry.lyricTrans;
+state.lyricRoma=entry.lyricRoma;
+state.lyricLoading=false;
+state._lastLyricKey=null;
+render();
+}
+return;
+}catch(e){}
+
+schedulePreloadRetry(song,'lyric');
+}
+
+async function preloadSongUrl(song){
+if(!song||!song.id)return;
+var entry=getPreloadEntry(song.id);
+if(!entry)return;
+
+if(song.external){
+entry.url=song.url;
+entry.quality='external';
+entry.urlExpireAt=0;
+entry.urlDone=true;
+return;
+}
+
+if(entry.urlDone)return;
+if(entry.quality==='exhigh'){
+entry.urlDone=true;
+return;
+}
+
+var dur=song.duration&&song.duration>0?song.duration:360;
+var needRemain=dur+URL_SAFETY_BUFFER;
+
+for(var k=0;k<LEVELS.length;k++){
+var lv=LEVELS[k];
+var cached=await getCachedAudioUrl(song.id,lv,needRemain);
+if(cached){
+entry.url=cached.url;
+entry.quality=lv;
+entry.urlExpireAt=cached.expireAt;
+if(lv==='exhigh'){
+entry.urlDone=true;
+return;
+}
+break;
+}
+}
+
+for(var i=0;i<3;i++){
+try{
+var r=await fetchPlayUrlOnce(song.id);
+if(r&&r.url&&isHttpUrl(r.url)){
+if(!entry.quality||qualityRank(r.level)>=qualityRank(entry.quality)){
+entry.url=r.url;
+entry.quality=r.level;
+entry.urlExpireAt=Date.now()+(r.expi||DEFAULT_EXPI)*1000;
+await saveAudioUrlToCache(song.id,r.level,r.url,r.expi);
+}
+if(entry.quality==='exhigh'){
+entry.urlDone=true;
+return;
+}
+}
+}catch(e){}
+}
+
+schedulePreloadRetry(song,'url');
+}
+
+function schedulePreloadRetry(song,type){
+if(!song||!song.id)return;
+if(!preloadTimers[song.id])preloadTimers[song.id]={pic:null,lyric:null,url:null};
+var t=preloadTimers[song.id];
+if(t[type])return;
+t[type]=setTimeout(function(){
+t[type]=null;
+if(state.playlist.indexOf(song)===-1)return;
+if(type==='pic')preloadSongPic(song);
+else if(type==='lyric')preloadSongLyric(song);
+else preloadSongUrl(song);
+},PRELOAD_RETRY);
+}
+
+function triggerPreloadNeighbors(){
+var len=state.playlist.length;
+var curIdx=state.current;
+if(curIdx<0||len<1)return;
+var scheduledIdx=curIdx;
+setTimeout(function(){
+if(state.current!==scheduledIdx)return;
+var curSong=state.playlist[curIdx];
+if(!curSong)return;
+var prevIdx=(curIdx-1+len)%len;
+var nextIdx=(curIdx+1)%len;
+var targets=[];
+var prevSong=state.playlist[prevIdx];
+var nextSong=state.playlist[nextIdx];
+if(prevSong&&prevSong!==curSong)targets.push(prevSong);
+if(nextSong&&nextSong!==curSong&&nextSong!==prevSong)targets.push(nextSong);
+for(var i=0;i<targets.length;i++){
+preloadSongPic(targets[i]);
+preloadSongLyric(targets[i]);
+preloadSongUrl(targets[i]);
+}
+},PRELOAD_DELAY);
+}
+
+`;

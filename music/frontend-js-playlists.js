@@ -1,1 +1,443 @@
-export const PLAYLISTS_SCRIPT = "\n// ==================== 歌单 / 历史列表 / 收藏 ====================\nfunction songKey(s){\nif(!s)return '';\nif(s.external)return 'ext:'+String(s.url||'').trim();\nreturn 'id:'+String(s.id||'').trim();\n}\n\nfunction playlistFingerprint(pl){\nif(!pl||!pl.songs)return '';\nvar keys=pl.songs.map(songKey).filter(Boolean).slice().sort();\nreturn keys.join('|');\n}\n\nfunction genPlId(){\nreturn 'pl_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);\n}\n\nfunction defaultPlaylistName(){\nvar base='新建歌单';\nvar names={};\n(state.playlists||[]).forEach(function(p){names[p.name]=1;});\nif(!names[base])return base;\nfor(var i=1;i<1000;i++){\nvar n=base+'（'+i+'）';\nif(!names[n])return n;\n}\nreturn base+'（'+Date.now()+'）';\n}\n\nfunction createPlaylist(name,songs){\nvar pl={\nid:genPlId(),\nname:name||defaultPlaylistName(),\nsongs:songs?songs.slice():[],\nupdatedAt:Date.now(),\ncreatedAt:Date.now()\n};\nstate.playlists.unshift(pl);\nmarkLocalChange();\nsavePlaylistsLocal();\nreturn pl;\n}\n\nfunction getPlaylist(id){\nfor(var i=0;i<(state.playlists||[]).length;i++){\nif(state.playlists[i].id===id)return state.playlists[i];\n}\nreturn null;\n}\n\nfunction markLocalChange(){\nstate.lastLocalChangeAt=Date.now();\nif(typeof notifyDataChanged==='function')notifyDataChanged('playlists');\n}\n\nfunction savePlaylistsLocal(){\ntry{localStorage.setItem(COOKIE_PLAYLISTS,JSON.stringify(state.playlists||[]));}catch(e){}\n}\nfunction restorePlaylistsLocal(){\ntry{\nvar s=localStorage.getItem(COOKIE_PLAYLISTS);\nif(s)state.playlists=JSON.parse(s)||[];\n}catch(e){state.playlists=[];}\n}\n\nfunction saveSettingsLocal(){\ntry{\nlocalStorage.setItem(COOKIE_SETTINGS,JSON.stringify({\ntheme:state.theme,\nmode:state.mode,\nsyncPlaylists:state.syncPlaylists,\nsyncSettings:state.syncSettings\n}));\n}catch(e){}\n}\nfunction restoreSettingsLocal(){\ntry{\nvar s=localStorage.getItem(COOKIE_SETTINGS);\nif(!s)return;\nvar o=JSON.parse(s);\nif(o.theme)state.theme=o.theme;\nif(o.mode)state.mode=o.mode;\nif(typeof o.syncPlaylists==='boolean')state.syncPlaylists=o.syncPlaylists;\nif(typeof o.syncSettings==='boolean')state.syncSettings=o.syncSettings;\n}catch(e){}\n}\n\nfunction applyTheme(theme){\nstate.theme=theme||'green';\nif(theme&&theme!=='green')document.documentElement.setAttribute('data-theme',theme);\nelse document.documentElement.removeAttribute('data-theme');\nsaveSettingsLocal();\nif(typeof notifyDataChanged==='function')notifyDataChanged('settings');\n}\n\nfunction isSongFavorited(song){\nif(!song)return false;\nvar k=songKey(song);\nfor(var i=0;i<(state.playlists||[]).length;i++){\nvar songs=state.playlists[i].songs||[];\nfor(var j=0;j<songs.length;j++){\nif(songKey(songs[j])===k)return true;\n}\n}\nreturn false;\n}\n\nfunction addSongToPlaylist(plId,song,toTop){\nvar pl=getPlaylist(plId);\nif(!pl||!song)return;\nvar k=songKey(song);\npl.songs=pl.songs.filter(function(s){return songKey(s)!==k;});\nvar copy={\nid:song.id,name:song.name,artist:song.artist,pic:song.pic||'',\nduration:song.duration||0,external:!!song.external,url:song.url||'',format:song.format||''\n};\nif(toTop!==false)pl.songs.unshift(copy);\nelse pl.songs.push(copy);\npl.updatedAt=Date.now();\nmarkLocalChange();\nsavePlaylistsLocal();\nupdateFavBtn();\n}\n\nfunction removeSongFromPlaylist(plId,song){\nvar pl=getPlaylist(plId);\nif(!pl||!song)return;\nvar k=songKey(song);\npl.songs=(pl.songs||[]).filter(function(s){return songKey(s)!==k;});\npl.updatedAt=Date.now();\nmarkLocalChange();\nsavePlaylistsLocal();\nupdateFavBtn();\n}\n\nfunction updateFavBtn(){\nvar btn=$('favBtn');\nif(!btn)return;\nvar song=state.playlist[state.current];\nvar on=isSongFavorited(song);\nbtn.innerHTML=on?ICON.starFilled:ICON.star;\nbtn.classList.toggle('fav-on',on);\n}\n\nfunction pushListHistory(){\n// 保存当前列表到历史，最多保留 2 个历史 + 当前 = 3\nvar snap={\nplaylist:state.playlist.map(function(s){\nreturn {id:s.id,name:s.name,artist:s.artist,pic:s.pic||'',duration:s.duration||0,external:!!s.external,url:s.url||'',format:s.format||''};\n}),\ncurrent:state.current,\nat:Date.now()\n};\nstate.listHistory=state.listHistory||[];\nstate.listHistory.unshift(snap);\nif(state.listHistory.length>2)state.listHistory=state.listHistory.slice(0,2);\ntry{localStorage.setItem(COOKIE_LIST_HIST,JSON.stringify(state.listHistory));}catch(e){}\n}\n\nfunction restoreListHistory(){\ntry{\nvar s=localStorage.getItem(COOKIE_LIST_HIST);\nif(s)state.listHistory=JSON.parse(s)||[];\n}catch(e){state.listHistory=[];}\n}\n\nfunction replacePlaylistFromSongs(songs,startIndex){\npushListHistory();\nstate.playlist=songs.map(function(s){\nreturn {id:s.id,name:s.name,artist:s.artist,pic:s.pic||'',duration:s.duration||0,external:!!s.external,url:s.url||'',format:s.format||''};\n});\nstate.current=-1;\nsavePlaylist();\nrender();\nif(typeof startIndex==='number'&&startIndex>=0&&startIndex<state.playlist.length){\nplayIndex(startIndex);\n}\n}\n\nfunction sortPlaylists(mode){\n// mode: 'alpha' | 'time'\nif(mode==='alpha'){\nstate.playlists.sort(function(a,b){return String(a.name||'').localeCompare(String(b.name||''),'zh');});\n}else{\nstate.playlists.sort(function(a,b){return (b.updatedAt||0)-(a.updatedAt||0);});\n}\nsavePlaylistsLocal();\n}\n\nvar plSortMode='time';\nvar viewingPlId=null;\n\nfunction renderPlaylistsPage(){\nvar box=$('plList');\nif(!box)return;\nbox.innerHTML='';\nvar list=(state.playlists||[]).slice();\nif(!list.length){\nbox.innerHTML='<div class=\"sheet-empty\">暂无歌单，点击右上角新建</div>';\nreturn;\n}\nsetTimeout(function(){if(typeof ensurePlaylistCovers==='function')ensurePlaylistCovers();},50);\n\nlist.forEach(function(pl){\nvar row=document.createElement('div');\nrow.className='pl-item';\nvar coverUrl=(pl.songs&&pl.songs[0]&&pl.songs[0].pic)||'';\nif(coverUrl){\nvar img=document.createElement('img');\nimg.className='pl-cover';\nimg.src=coverUrl;\nimg.alt='';\nrow.appendChild(img);\n}else{\nvar ph=document.createElement('div');\nph.className='pl-cover-ph';\nph.innerHTML='<svg viewBox=\"0 0 24 24\"><path d=\"M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z\"/></svg>';\nrow.appendChild(ph);\n}\nvar info=document.createElement('div');\ninfo.className='pl-info';\ninfo.innerHTML='<div class=\"pl-name\"></div><div class=\"pl-meta\"></div>';\ninfo.querySelector('.pl-name').textContent=pl.name||'未命名';\ninfo.querySelector('.pl-meta').textContent=(pl.songs?pl.songs.length:0)+' 首';\nrow.appendChild(info);\nrow.addEventListener('click',function(){openPlaylistDetail(pl.id);});\nbox.appendChild(row);\n});\n}\n\nfunction openPlaylistDetail(id){\nviewingPlId=id;\nvar pl=getPlaylist(id);\nif(!pl)return;\n$('pagePlaylists').style.display='none';\n$('pagePlaylists').classList.remove('page-active');\nvar det=$('pagePlaylistDetail');\ndet.style.display='flex';\ndet.classList.add('page-active');\n$('plDetailTitle').textContent=pl.name||'歌单';\nvar box=$('plDetailList');\nbox.innerHTML='';\n(pl.songs||[]).forEach(function(song,idx){\nvar row=document.createElement('div');\nrow.className='pl-song-row';\nvar info=document.createElement('div');\ninfo.className='pl-song-info';\ninfo.innerHTML='<div class=\"pl-song-name\"></div><div class=\"pl-song-artist\"></div>';\ninfo.querySelector('.pl-song-name').textContent=song.name||'未知';\ninfo.querySelector('.pl-song-artist').textContent=song.artist||'';\nrow.appendChild(info);\nvar acts=document.createElement('div');\nacts.className='pl-song-actions';\nvar playB=document.createElement('button');\nplayB.className='icon-btn';\nplayB.innerHTML=ICON.play;\nplayB.title='播放';\nplayB.addEventListener('click',function(e){\ne.stopPropagation();\nplaySongFromPlaylist(song);\n});\nvar addB=document.createElement('button');\naddB.className='icon-btn';\naddB.innerHTML=ICON.add;\naddB.title='下一首播放';\naddB.addEventListener('click',function(e){\ne.stopPropagation();\ninsertSongNext(song);\ntoast('已加入下一首');\n});\nvar delB=document.createElement('button');\ndelB.className='icon-btn';\ndelB.innerHTML=ICON.del;\ndelB.title='从歌单删除';\ndelB.addEventListener('click',function(e){\ne.stopPropagation();\nremoveSongFromPlaylist(id,song);\nopenPlaylistDetail(id);\n});\nacts.appendChild(playB);acts.appendChild(addB);acts.appendChild(delB);\nrow.appendChild(acts);\nbox.appendChild(row);\n});\n}\n\nfunction closePlaylistDetail(){\nviewingPlId=null;\n$('pagePlaylistDetail').style.display='none';\n$('pagePlaylistDetail').classList.remove('page-active');\n$('pagePlaylists').style.display='';\n$('pagePlaylists').classList.add('page-active');\nrenderPlaylistsPage();\n}\n\nfunction insertSongNext(song){\nif(!song)return;\nvar copy={\nid:song.id,name:song.name,artist:song.artist,pic:song.pic||'',\nduration:song.duration||0,external:!!song.external,url:song.url||'',format:song.format||''\n};\nvar k=songKey(copy);\n// 若已在列表中，先移除再插入\nstate.playlist=state.playlist.filter(function(s){return songKey(s)!==k;});\nif(state.current<0||!state.playlist.length){\nstate.playlist.unshift(copy);\nstate.current=0;\n}else{\nstate.playlist.splice(state.current+1,0,copy);\n}\nsavePlaylist();\nrender();\n}\n\nfunction playSongFromPlaylist(song){\nif(!song)return;\nvar copy={\nid:song.id,name:song.name,artist:song.artist,pic:song.pic||'',\nduration:song.duration||0,external:!!song.external,url:song.url||'',format:song.format||''\n};\nvar k=songKey(copy);\nif(state.current>=0&&state.playlist.length){\n// 插入到下一首并播放\nstate.playlist=state.playlist.filter(function(s){return songKey(s)!==k;});\nstate.playlist.splice(state.current+1,0,copy);\nsavePlaylist();\nplayIndex(state.current+1);\n}else{\nstate.playlist=state.playlist.filter(function(s){return songKey(s)!==k;});\nstate.playlist.unshift(copy);\nsavePlaylist();\nplayIndex(0);\n}\n}\n\nfunction playEntirePlaylist(plId){\nvar pl=getPlaylist(plId);\nif(!pl||!pl.songs||!pl.songs.length){toast('歌单为空');return;}\nreplacePlaylistFromSongs(pl.songs,0);\ntoast('已开始播放「'+(pl.name||'歌单')+'」');\n}\n\nfunction renderMePage(){\nvar label=$('meUserLabel');\nvar loginBtn=$('meLoginBtn');\nvar logoutBtn=$('meLogoutBtn');\nvar syncBtn=$('meSyncBtn');\nvar changeBtn=$('meChangePassBtn');\nvar syncOpts=$('meSyncOpts');\nif(state.user){\nlabel.textContent='已登录：'+state.user.username;\nloginBtn.style.display='none';\nif(logoutBtn)logoutBtn.style.display='';\nif(syncBtn)syncBtn.style.display='';\nif(changeBtn)changeBtn.style.display='';\nif(syncOpts)syncOpts.style.display='';\nif($('syncPlaylists'))$('syncPlaylists').checked=!!state.syncPlaylists;\nif($('syncSettings'))$('syncSettings').checked=!!state.syncSettings;\n}else{\nlabel.textContent='未登录';\nloginBtn.style.display='';\nif(logoutBtn)logoutBtn.style.display='none';\nif(syncBtn)syncBtn.style.display='none';\nif(changeBtn)changeBtn.style.display='none';\nif(syncOpts)syncOpts.style.display='none';\n}\ndocument.querySelectorAll('.theme-dot').forEach(function(dot){\ndot.classList.toggle('active',dot.getAttribute('data-theme')===(state.theme||'green'));\n});\n}\n\nfunction switchTab(tab){\nif(!tab)return;\nstate.tab=tab;\nvar map={player:'pagePlayer',playlists:'pagePlaylists',me:'pageMe'};\nObject.keys(map).forEach(function(t){\nvar el=$(map[t]);\nif(!el)return;\nvar on=(t===tab);\nel.classList.toggle('page-active',on);\nel.style.display=on?'flex':'none';\n});\nvar det=$('pagePlaylistDetail');\nif(det){\nif(tab!=='playlists'){det.style.display='none';det.classList.remove('page-active');}\n}\ndocument.querySelectorAll('.tab-item').forEach(function(btn){\nbtn.classList.toggle('active',btn.getAttribute('data-tab')===tab);\n});\nif(tab==='playlists'&&typeof renderPlaylistsPage==='function')renderPlaylistsPage();\nif(tab==='me'&&typeof renderMePage==='function')renderMePage();\nif(tab==='player'&&typeof render==='function'){\ntry{render();}catch(e){}\n}\n}\n\n\nvar plCoverTimer=null;\nfunction ensurePlaylistCovers(){\nvar list=state.playlists||[];\nvar need=[];\nlist.forEach(function(pl){\nif(!pl||!pl.songs||!pl.songs.length)return;\nvar top=pl.songs[0];\nif(top.pic)return;\nneed.push(pl);\n});\nif(!need.length){\nif(plCoverTimer){clearInterval(plCoverTimer);plCoverTimer=null;}\nreturn;\n}\nif(!plCoverTimer){\nplCoverTimer=setInterval(function(){ensurePlaylistCovers();},5000);\n}\nneed.forEach(function(pl){\nvar song=pl.songs[0];\nif(!song||song.external||!song.id)return;\n(async function(){\ntry{\nvar cached='';\nif(typeof getCachedCover==='function'){\ntry{cached=await getCachedCover(song.id);}catch(e){}\n}\nif(cached){\nsong.pic=cached;\nsavePlaylistsLocal();\nif(typeof renderPlaylistsPage==='function')renderPlaylistsPage();\nreturn;\n}\nvar info=await post('/api/getSongInfo',{id:song.id});\nvar m=typeof extractInfo==='function'?extractInfo(info):null;\nif(m&&m.pic){\nsong.pic=m.pic;\nif(typeof saveCoverToCache==='function')await saveCoverToCache(song.id,m.pic);\nsavePlaylistsLocal();\nif(typeof notifyDataChanged==='function')notifyDataChanged('playlists');\nif(typeof renderPlaylistsPage==='function')renderPlaylistsPage();\n}\n}catch(e){}\n})();\n});\n}\n";
+export const PLAYLISTS_SCRIPT = String.raw`
+// ==================== 歌单 / 历史列表 / 收藏 ====================
+function songKey(s){
+if(!s)return '';
+if(s.external)return 'ext:'+String(s.url||'').trim();
+return 'id:'+String(s.id||'').trim();
+}
+
+function playlistFingerprint(pl){
+if(!pl||!pl.songs)return '';
+var keys=pl.songs.map(songKey).filter(Boolean).slice().sort();
+return keys.join('|');
+}
+
+function genPlId(){
+return 'pl_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);
+}
+
+function defaultPlaylistName(){
+var base='新建歌单';
+var names={};
+(state.playlists||[]).forEach(function(p){names[p.name]=1;});
+if(!names[base])return base;
+for(var i=1;i<1000;i++){
+var n=base+'（'+i+'）';
+if(!names[n])return n;
+}
+return base+'（'+Date.now()+'）';
+}
+
+function createPlaylist(name,songs){
+var pl={
+id:genPlId(),
+name:name||defaultPlaylistName(),
+songs:songs?songs.slice():[],
+updatedAt:Date.now(),
+createdAt:Date.now()
+};
+state.playlists.unshift(pl);
+markLocalChange();
+savePlaylistsLocal();
+return pl;
+}
+
+function getPlaylist(id){
+for(var i=0;i<(state.playlists||[]).length;i++){
+if(state.playlists[i].id===id)return state.playlists[i];
+}
+return null;
+}
+
+function markLocalChange(){
+state.lastLocalChangeAt=Date.now();
+if(typeof notifyDataChanged==='function')notifyDataChanged('playlists');
+}
+
+function savePlaylistsLocal(){
+try{localStorage.setItem(COOKIE_PLAYLISTS,JSON.stringify(state.playlists||[]));}catch(e){}
+}
+function restorePlaylistsLocal(){
+try{
+var s=localStorage.getItem(COOKIE_PLAYLISTS);
+if(s)state.playlists=JSON.parse(s)||[];
+}catch(e){state.playlists=[];}
+}
+
+function saveSettingsLocal(){
+try{
+localStorage.setItem(COOKIE_SETTINGS,JSON.stringify({
+theme:state.theme,
+mode:state.mode,
+syncPlaylists:state.syncPlaylists,
+syncSettings:state.syncSettings
+}));
+}catch(e){}
+}
+function restoreSettingsLocal(){
+try{
+var s=localStorage.getItem(COOKIE_SETTINGS);
+if(!s)return;
+var o=JSON.parse(s);
+if(o.theme)state.theme=o.theme;
+if(o.mode)state.mode=o.mode;
+if(typeof o.syncPlaylists==='boolean')state.syncPlaylists=o.syncPlaylists;
+if(typeof o.syncSettings==='boolean')state.syncSettings=o.syncSettings;
+}catch(e){}
+}
+
+function applyTheme(theme){
+state.theme=theme||'green';
+if(theme&&theme!=='green')document.documentElement.setAttribute('data-theme',theme);
+else document.documentElement.removeAttribute('data-theme');
+saveSettingsLocal();
+if(typeof notifyDataChanged==='function')notifyDataChanged('settings');
+}
+
+function isSongFavorited(song){
+if(!song)return false;
+var k=songKey(song);
+for(var i=0;i<(state.playlists||[]).length;i++){
+var songs=state.playlists[i].songs||[];
+for(var j=0;j<songs.length;j++){
+if(songKey(songs[j])===k)return true;
+}
+}
+return false;
+}
+
+function addSongToPlaylist(plId,song,toTop){
+var pl=getPlaylist(plId);
+if(!pl||!song)return;
+var k=songKey(song);
+pl.songs=pl.songs.filter(function(s){return songKey(s)!==k;});
+var copy={
+id:song.id,name:song.name,artist:song.artist,pic:song.pic||'',
+duration:song.duration||0,external:!!song.external,url:song.url||'',format:song.format||''
+};
+if(toTop!==false)pl.songs.unshift(copy);
+else pl.songs.push(copy);
+pl.updatedAt=Date.now();
+markLocalChange();
+savePlaylistsLocal();
+updateFavBtn();
+}
+
+function removeSongFromPlaylist(plId,song){
+var pl=getPlaylist(plId);
+if(!pl||!song)return;
+var k=songKey(song);
+pl.songs=(pl.songs||[]).filter(function(s){return songKey(s)!==k;});
+pl.updatedAt=Date.now();
+markLocalChange();
+savePlaylistsLocal();
+updateFavBtn();
+}
+
+function updateFavBtn(){
+var btn=$('favBtn');
+if(!btn)return;
+var song=state.playlist[state.current];
+var on=isSongFavorited(song);
+btn.innerHTML=on?ICON.starFilled:ICON.star;
+btn.classList.toggle('fav-on',on);
+}
+
+function pushListHistory(){
+// 保存当前列表到历史，最多保留 2 个历史 + 当前 = 3
+var snap={
+playlist:state.playlist.map(function(s){
+return {id:s.id,name:s.name,artist:s.artist,pic:s.pic||'',duration:s.duration||0,external:!!s.external,url:s.url||'',format:s.format||''};
+}),
+current:state.current,
+at:Date.now()
+};
+state.listHistory=state.listHistory||[];
+state.listHistory.unshift(snap);
+if(state.listHistory.length>2)state.listHistory=state.listHistory.slice(0,2);
+try{localStorage.setItem(COOKIE_LIST_HIST,JSON.stringify(state.listHistory));}catch(e){}
+}
+
+function restoreListHistory(){
+try{
+var s=localStorage.getItem(COOKIE_LIST_HIST);
+if(s)state.listHistory=JSON.parse(s)||[];
+}catch(e){state.listHistory=[];}
+}
+
+function replacePlaylistFromSongs(songs,startIndex){
+pushListHistory();
+state.playlist=songs.map(function(s){
+return {id:s.id,name:s.name,artist:s.artist,pic:s.pic||'',duration:s.duration||0,external:!!s.external,url:s.url||'',format:s.format||''};
+});
+state.current=-1;
+savePlaylist();
+render();
+if(typeof startIndex==='number'&&startIndex>=0&&startIndex<state.playlist.length){
+playIndex(startIndex);
+}
+}
+
+function sortPlaylists(mode){
+// mode: 'alpha' | 'time'
+if(mode==='alpha'){
+state.playlists.sort(function(a,b){return String(a.name||'').localeCompare(String(b.name||''),'zh');});
+}else{
+state.playlists.sort(function(a,b){return (b.updatedAt||0)-(a.updatedAt||0);});
+}
+savePlaylistsLocal();
+}
+
+var plSortMode='time';
+var viewingPlId=null;
+
+function renderPlaylistsPage(){
+var box=$('plList');
+if(!box)return;
+box.innerHTML='';
+var list=(state.playlists||[]).slice();
+if(!list.length){
+box.innerHTML='<div class="sheet-empty">暂无歌单，点击右上角新建</div>';
+return;
+}
+setTimeout(function(){if(typeof ensurePlaylistCovers==='function')ensurePlaylistCovers();},50);
+
+list.forEach(function(pl){
+var row=document.createElement('div');
+row.className='pl-item';
+var coverUrl=(pl.songs&&pl.songs[0]&&pl.songs[0].pic)||'';
+if(coverUrl){
+var img=document.createElement('img');
+img.className='pl-cover';
+img.src=coverUrl;
+img.alt='';
+row.appendChild(img);
+}else{
+var ph=document.createElement('div');
+ph.className='pl-cover-ph';
+ph.innerHTML='<svg viewBox="0 0 24 24"><path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/></svg>';
+row.appendChild(ph);
+}
+var info=document.createElement('div');
+info.className='pl-info';
+info.innerHTML='<div class="pl-name"></div><div class="pl-meta"></div>';
+info.querySelector('.pl-name').textContent=pl.name||'未命名';
+info.querySelector('.pl-meta').textContent=(pl.songs?pl.songs.length:0)+' 首';
+row.appendChild(info);
+row.addEventListener('click',function(){openPlaylistDetail(pl.id);});
+box.appendChild(row);
+});
+}
+
+function openPlaylistDetail(id){
+viewingPlId=id;
+var pl=getPlaylist(id);
+if(!pl)return;
+$('pagePlaylists').style.display='none';
+$('pagePlaylists').classList.remove('page-active');
+var det=$('pagePlaylistDetail');
+det.style.display='flex';
+det.classList.add('page-active');
+$('plDetailTitle').textContent=pl.name||'歌单';
+var box=$('plDetailList');
+box.innerHTML='';
+(pl.songs||[]).forEach(function(song,idx){
+var row=document.createElement('div');
+row.className='pl-song-row';
+var info=document.createElement('div');
+info.className='pl-song-info';
+info.innerHTML='<div class="pl-song-name"></div><div class="pl-song-artist"></div>';
+info.querySelector('.pl-song-name').textContent=song.name||'未知';
+info.querySelector('.pl-song-artist').textContent=song.artist||'';
+row.appendChild(info);
+var acts=document.createElement('div');
+acts.className='pl-song-actions';
+var playB=document.createElement('button');
+playB.className='icon-btn';
+playB.innerHTML=ICON.play;
+playB.title='播放';
+playB.addEventListener('click',function(e){
+e.stopPropagation();
+playSongFromPlaylist(song);
+});
+var addB=document.createElement('button');
+addB.className='icon-btn';
+addB.innerHTML=ICON.add;
+addB.title='下一首播放';
+addB.addEventListener('click',function(e){
+e.stopPropagation();
+insertSongNext(song);
+toast('已加入下一首');
+});
+var delB=document.createElement('button');
+delB.className='icon-btn';
+delB.innerHTML=ICON.del;
+delB.title='从歌单删除';
+delB.addEventListener('click',function(e){
+e.stopPropagation();
+removeSongFromPlaylist(id,song);
+openPlaylistDetail(id);
+});
+acts.appendChild(playB);acts.appendChild(addB);acts.appendChild(delB);
+row.appendChild(acts);
+box.appendChild(row);
+});
+}
+
+function closePlaylistDetail(){
+viewingPlId=null;
+$('pagePlaylistDetail').style.display='none';
+$('pagePlaylistDetail').classList.remove('page-active');
+$('pagePlaylists').style.display='';
+$('pagePlaylists').classList.add('page-active');
+renderPlaylistsPage();
+}
+
+function insertSongNext(song){
+if(!song)return;
+var copy={
+id:song.id,name:song.name,artist:song.artist,pic:song.pic||'',
+duration:song.duration||0,external:!!song.external,url:song.url||'',format:song.format||''
+};
+var k=songKey(copy);
+// 若已在列表中，先移除再插入
+state.playlist=state.playlist.filter(function(s){return songKey(s)!==k;});
+if(state.current<0||!state.playlist.length){
+state.playlist.unshift(copy);
+state.current=0;
+}else{
+state.playlist.splice(state.current+1,0,copy);
+}
+savePlaylist();
+render();
+}
+
+function playSongFromPlaylist(song){
+if(!song)return;
+var copy={
+id:song.id,name:song.name,artist:song.artist,pic:song.pic||'',
+duration:song.duration||0,external:!!song.external,url:song.url||'',format:song.format||''
+};
+var k=songKey(copy);
+if(state.current>=0&&state.playlist.length){
+// 插入到下一首并播放
+state.playlist=state.playlist.filter(function(s){return songKey(s)!==k;});
+state.playlist.splice(state.current+1,0,copy);
+savePlaylist();
+playIndex(state.current+1);
+}else{
+state.playlist=state.playlist.filter(function(s){return songKey(s)!==k;});
+state.playlist.unshift(copy);
+savePlaylist();
+playIndex(0);
+}
+}
+
+function playEntirePlaylist(plId){
+var pl=getPlaylist(plId);
+if(!pl||!pl.songs||!pl.songs.length){toast('歌单为空');return;}
+replacePlaylistFromSongs(pl.songs,0);
+toast('已开始播放「'+(pl.name||'歌单')+'」');
+}
+
+function renderMePage(){
+var label=$('meUserLabel');
+var loginBtn=$('meLoginBtn');
+var logoutBtn=$('meLogoutBtn');
+var syncBtn=$('meSyncBtn');
+var changeBtn=$('meChangePassBtn');
+var syncOpts=$('meSyncOpts');
+if(state.user){
+label.textContent='已登录：'+state.user.username;
+loginBtn.style.display='none';
+if(logoutBtn)logoutBtn.style.display='';
+if(syncBtn)syncBtn.style.display='';
+if(changeBtn)changeBtn.style.display='';
+if(syncOpts)syncOpts.style.display='';
+if($('syncPlaylists'))$('syncPlaylists').checked=!!state.syncPlaylists;
+if($('syncSettings'))$('syncSettings').checked=!!state.syncSettings;
+}else{
+label.textContent='未登录';
+loginBtn.style.display='';
+if(logoutBtn)logoutBtn.style.display='none';
+if(syncBtn)syncBtn.style.display='none';
+if(changeBtn)changeBtn.style.display='none';
+if(syncOpts)syncOpts.style.display='none';
+}
+document.querySelectorAll('.theme-dot').forEach(function(dot){
+dot.classList.toggle('active',dot.getAttribute('data-theme')===(state.theme||'green'));
+});
+}
+
+function switchTab(tab){
+if(!tab)return;
+state.tab=tab;
+var map={player:'pagePlayer',playlists:'pagePlaylists',me:'pageMe'};
+Object.keys(map).forEach(function(t){
+var el=$(map[t]);
+if(!el)return;
+var on=(t===tab);
+el.classList.toggle('page-active',on);
+el.style.display=on?'flex':'none';
+});
+var det=$('pagePlaylistDetail');
+if(det){
+if(tab!=='playlists'){det.style.display='none';det.classList.remove('page-active');}
+}
+document.querySelectorAll('.tab-item').forEach(function(btn){
+btn.classList.toggle('active',btn.getAttribute('data-tab')===tab);
+});
+if(tab==='playlists'&&typeof renderPlaylistsPage==='function')renderPlaylistsPage();
+if(tab==='me'&&typeof renderMePage==='function')renderMePage();
+if(tab==='player'&&typeof render==='function'){
+try{render();}catch(e){}
+}
+}
+
+
+var plCoverTimer=null;
+function ensurePlaylistCovers(){
+var list=state.playlists||[];
+var need=[];
+list.forEach(function(pl){
+if(!pl||!pl.songs||!pl.songs.length)return;
+var top=pl.songs[0];
+if(top.pic)return;
+need.push(pl);
+});
+if(!need.length){
+if(plCoverTimer){clearInterval(plCoverTimer);plCoverTimer=null;}
+return;
+}
+if(!plCoverTimer){
+plCoverTimer=setInterval(function(){ensurePlaylistCovers();},5000);
+}
+need.forEach(function(pl){
+var song=pl.songs[0];
+if(!song||song.external||!song.id)return;
+(async function(){
+try{
+var cached='';
+if(typeof getCachedCover==='function'){
+try{cached=await getCachedCover(song.id);}catch(e){}
+}
+if(cached){
+song.pic=cached;
+savePlaylistsLocal();
+if(typeof renderPlaylistsPage==='function')renderPlaylistsPage();
+return;
+}
+var info=await post('/api/getSongInfo',{id:song.id});
+var m=typeof extractInfo==='function'?extractInfo(info):null;
+if(m&&m.pic){
+song.pic=m.pic;
+if(typeof saveCoverToCache==='function')await saveCoverToCache(song.id,m.pic);
+savePlaylistsLocal();
+if(typeof notifyDataChanged==='function')notifyDataChanged('playlists');
+if(typeof renderPlaylistsPage==='function')renderPlaylistsPage();
+}
+}catch(e){}
+})();
+});
+}
+`;

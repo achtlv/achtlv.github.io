@@ -479,8 +479,12 @@ var o={id:String(s.id||''),name:s.name||'未知歌曲',artist:s.artist||'未知�
 if(s.ext){o.external=true;o.url=String(s.url||'');o.srcUrl=String(s.srcUrl||'');o.format=String(s.format||'');}
 return o;
 }).filter(function(s){return !!s.id&&(!s.external||!!s.url);});
-// 打开网站时不恢复上次播放位置，保持未播放状态；点播放从第 1 首开始
-state.current=-1;
+// 恢复上次歌曲索引，但不自动播放、进度清零
+if(obj&&typeof obj.current==='number'&&obj.current>=0&&obj.current<state.playlist.length){
+state.current=obj.current;
+}else{
+state.current=state.playlist.length?0:-1;
+}
 state.playing=false;
 state.audioUrl='';
 state.quality='';

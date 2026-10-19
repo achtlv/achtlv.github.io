@@ -484,4 +484,25 @@ outline:none;background:transparent;box-shadow:none;
 .pl-song-row.is-touch-suppress,.pl-song-row.is-touch-suppress *{
 pointer-events:none !important;
 }
+
+.song-row-del,.song-row-rename,.song-row-move,.pl-song-actions .icon-btn,.pl-song-actions span{
+-moz-user-focus:ignore;
+outline:none !important;
+}
+.song-row-del:focus,.song-row-del:focus-visible,
+.song-row-rename:focus,.song-row-move:focus,
+.pl-song-actions .icon-btn:focus,.pl-song-actions span:focus{
+outline:none !important;
+background:transparent !important;
+color:inherit !important;
+box-shadow:none !important;
+}
+.song-row-del,.song-row-rename,.song-row-move{
+display:inline-flex;align-items:center;justify-content:center;
+width:36px;height:36px;border-radius:50%;cursor:pointer;
+color:var(--on-surface-variant);flex-shrink:0;
+}
+.song-row-del svg,.song-row-rename svg,.song-row-move svg{width:20px;height:20px;fill:currentColor;pointer-events:none}
+.song-row-del:active,.song-row-rename:active,.song-row-move:active{background:transparent}
+
 </style>`;

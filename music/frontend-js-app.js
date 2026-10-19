@@ -1,25 +1,34 @@
 export const APP_SCRIPT = String.raw`function blurControl(el){
-try{
-if(el&&el.blur)el.blur();
-if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();
-}catch(e){}
-// Gecko 嵌入内核有时会保留 :hover/:focus 高亮，强制清一次
+try{if(el&&el.blur)el.blur();}catch(e){}
+killStickyFocus();
+}
+function killStickyFocus(){
 try{
 var ae=document.activeElement;
 if(ae&&ae!==document.body&&ae.blur)ae.blur();
-if(document.body)document.body.focus();
+}catch(e){}
+// 把焦点移到不可见锚点，避免 Gecko 把 :focus 留在按钮上
+try{
+var sink=$('focusSink');
+if(!sink){
+sink=document.createElement('button');
+sink.id='focusSink';
+sink.type='button';
+sink.setAttribute('aria-hidden','true');
+sink.tabIndex=-1;
+sink.style.cssText='position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0;margin:0;';
+document.body.appendChild(sink);
+}
+sink.focus({preventScroll:true});
+setTimeout(function(){try{sink.blur();}catch(e){}},0);
 }catch(e){}
 setTimeout(function(){
 try{
-if(el&&el.blur)el.blur();
-if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();
+if(document.activeElement&&document.activeElement.id!=='focusSink'&&document.activeElement!==document.body){
+document.activeElement.blur();
+}
 }catch(e){}
-},0);
-setTimeout(function(){
-try{
-if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();
-}catch(e){}
-},50);
+},30);
 }
 function showScrim(id){
 var el=typeof id==='string'?$(id):id;
@@ -223,7 +232,7 @@ $('listBtn').setAttribute('aria-label',$('listBtn').title);
 $('sheetClear').disabled=!hasSongs;
 $('sheetExport').disabled=!hasSongs;
 $('sheetEdit').disabled=!hasSongs;
-$('sheetTitle').textContent='播放列表'+(hasSongs?' ('+state.playlist.length+')':'');
+$('sheetTitle').textContent='当前'+(hasSongs?' ('+state.playlist.length+')':'');
 
 renderList();
 }
@@ -231,7 +240,7 @@ renderList();
 function renderList(){
 var box=$('sheetList');
 if(!state.playlist.length){
-box.innerHTML='<div class="sheet-empty">播放列表为空</div>';
+box.innerHTML='<div class="sheet-empty">当前列表为空</div>';
 return;
 }
 var html='';
@@ -250,17 +259,18 @@ html+='<div class="song-row'+playing+'" data-i="'+i+'">'+
 '</div>';
 if(state.editingOrder){
 html+='<div class="song-row-actions">'+
-'<button class="song-row-move" data-up="'+i+'" '+(i===0?'disabled':'')+' aria-label="上移">'+ICON.arrowUp+'</button>'+
-'<button class="song-row-move" data-down="'+i+'" '+(i===state.playlist.length-1?'disabled':'')+' aria-label="下移">'+ICON.arrowDown+'</button>'+
+'<span class="song-row-move" role="button" tabindex="-1" data-up="'+i+'" '+(i===0?'aria-disabled="true"':'')+' aria-label="上移">'+ICON.arrowUp+'</span>'+
+'<span class="song-row-move" role="button" tabindex="-1" data-down="'+i+'" '+(i===state.playlist.length-1?'aria-disabled="true"':'')+' aria-label="下移">'+ICON.arrowDown+'</span>'+
 '</div>';
 }
 if(s.external){
-html+='<button class="song-row-rename" data-rename="'+i+'" aria-label="重命名">'+ICON.edit+'</button>';
+html+='<span class="song-row-rename" role="button" tabindex="-1" data-rename="'+i+'" aria-label="重命名">'+ICON.edit+'</span>';
 }
-html+='<button class="song-row-del" data-del="'+i+'" aria-label="删除">'+ICON.del+'</button>'+
+html+='<span class="song-row-del" role="button" tabindex="-1" data-del="'+i+'" aria-label="删除">'+ICON.del+'</span>'+
 '</div>';
 });
 box.innerHTML=html;
+try{killStickyFocus();}catch(e){}
 }
 
 // ==================== 改名 ====================
@@ -1091,7 +1101,7 @@ try{var b=ev.currentTarget||this;b.blur();if(document.activeElement)document.act
 closeOtherScrims('listScrim');
 listHistIndex=-1;
 if(typeof refreshHistButtons==='function')refreshHistButtons();
-if($('sheetTitle'))$('sheetTitle').textContent='播放列表';
+if($('sheetTitle'))$('sheetTitle').textContent='当前';
 showScrim('listScrim');
 // 避免焦点落到弹层里与列表按钮重合的控件上
 setTimeout(function(){
@@ -1184,9 +1194,19 @@ toast('歌曲已在列表中，已切换播放');
 return;
 }
 
-state.playlist.unshift(toAdd);
-var wasEmpty=state.playlist.length===1;
-if(state.current>=0)state.current++;
+var insertAt=0;
+if(state.playlist.length===0){
+insertAt=0;
+state.playlist.push(toAdd);
+state.current=0;
+}else if(state.current<0){
+// 有列表但未选中：插到末尾
+state.playlist.push(toAdd);
+insertAt=state.playlist.length-1;
+}else{
+insertAt=state.current+1;
+state.playlist.splice(insertAt,0,toAdd);
+}
 savePlaylist();
 toast('已加入播放列表');
 pendingSong=null;
@@ -1492,6 +1512,9 @@ clearPlaylistCookie();
 state._lastMediaKey=null;
 updateMediaSessionMetadata();
 updateMediaSessionPlaybackState();
+render();
+try{killStickyFocus();}catch(e){}
+return;
 }else if(idx===state.current){
 if(idx>=state.playlist.length)state.current=state.playlist.length-1;
 savePlaylist();
@@ -1501,6 +1524,7 @@ if(idx<state.current)state.current--;
 savePlaylist();
 }
 render();
+try{killStickyFocus();}catch(e){}
 return;
 }
 
@@ -1696,24 +1720,44 @@ function isStandaloneApp(){
 (function setupBackHandler(){
   guardHistory();
   window.addEventListener('popstate',function(){
+    // 优先级：弹窗 > 二级页面 > 退出网站
     if(anyScrimOpen()){
       closeAllScrimsUI();
       lastExitTapAt=0;
       guardHistory();
       return;
     }
+    // 歌单详情等二级页
+    try{
+      if(typeof viewingPlId!=='undefined'&&viewingPlId){
+        if(typeof closePlaylistDetail==='function')closePlaylistDetail();
+        lastExitTapAt=0;
+        guardHistory();
+        return;
+      }
+    }catch(e){}
+    try{
+      var det=$('pagePlaylistDetail');
+      if(det&&det.classList.contains('page-active')){
+        if(typeof closePlaylistDetail==='function')closePlaylistDetail();
+        lastExitTapAt=0;
+        guardHistory();
+        return;
+      }
+    }catch(e){}
+    // 非播放页：先回播放页
+    try{
+      if(state.activeTab&&state.activeTab!=='player'){
+        if(typeof switchTab==='function')switchTab('player');
+        lastExitTapAt=0;
+        guardHistory();
+        return;
+      }
+    }catch(e){}
     var now=Date.now();
     if(lastExitTapAt&&(now-lastExitTapAt)<EXIT_TAP_MS){
       lastExitTapAt=0;
-      // 第二次返回：允许离开页面 / 关闭网页应用
-      try{
-        if(isStandaloneApp()){
-          // 部分环境再退一次才能出栈；无法 window.close 时只能尽量 back
-          history.back();
-        }else{
-          history.back();
-        }
-      }catch(e){}
+      try{history.back();}catch(e){}
       return;
     }
     lastExitTapAt=now;
@@ -2128,7 +2172,7 @@ function showHistoryList(idx){
 if(idx<0){
 listHistIndex=-1;
 render(); // uses state.playlist
-$('sheetTitle').textContent='播放列表';
+$('sheetTitle').textContent='当前';
 return;
 }
 var snap=(state.listHistory||[])[idx];
@@ -2138,7 +2182,7 @@ listHistIndex=idx;
 var box=$('sheetList');
 if(!box)return;
 box.innerHTML='';
-$('sheetTitle').textContent='历史列表 '+(idx+1);
+$('sheetTitle').textContent='历史 '+(idx+1);
 (snap.playlist||[]).forEach(function(song,i){
 var row=document.createElement('div');
 row.className='song-row';
@@ -2166,7 +2210,7 @@ if(listHistIndex<0)showHistoryList(0);
 else if(listHistIndex<n-1)showHistoryList(listHistIndex+1);
 });
 if($('sheetHistNext'))$('sheetHistNext').addEventListener('click',function(){
-if(listHistIndex<=0){showHistoryList(-1);render();$('sheetTitle').textContent='播放列表';}
+if(listHistIndex<=0){showHistoryList(-1);render();$('sheetTitle').textContent='当前';}
 else showHistoryList(listHistIndex-1);
 });
 
@@ -2303,7 +2347,7 @@ try{restoreListHistory();}catch(e){}
 try{restoreAuthLocal();}catch(e){}
 try{if(typeof restoreSyncMetaLocal==='function')restoreSyncMetaLocal();}catch(e){}
 try{restorePlaylist();}catch(e){}
-try{state.current=-1;state.playing=false;state.audioUrl='';state.quality='';}catch(e){}
+try{state.playing=false;state.audioUrl='';state.quality='';state.showLyric=false;}catch(e){}
 try{render();}catch(e){console.error('render',e);}
 try{if(typeof updateFavBtn==='function')updateFavBtn();}catch(e){}
 try{

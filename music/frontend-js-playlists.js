@@ -244,8 +244,8 @@ info.querySelector('.pl-meta').textContent=(pl.songs?pl.songs.length:0)+' 首';
 row.appendChild(info);
 row.addEventListener('click',function(ev){
 try{if(ev.cancelable)ev.preventDefault();ev.stopPropagation();}catch(e){}
-if(typeof blurControl==='function')blurControl(ev.currentTarget||this);
-else try{(ev.currentTarget||this).blur();}catch(e){}
+if(typeof killStickyFocus==='function')killStickyFocus();
+else if(typeof blurControl==='function')blurControl(ev.currentTarget||this);
 openPlaylistDetail(pl.id);
 });
 box.appendChild(row);
@@ -322,7 +322,8 @@ row.appendChild(acts);
 box.appendChild(row);
 });
 try{
-if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();
+if(typeof killStickyFocus==='function')killStickyFocus();
+else if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();
 }catch(e){}
 },280);
 }

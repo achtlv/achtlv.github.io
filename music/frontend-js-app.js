@@ -2319,7 +2319,7 @@ if(typeof notifyDataChanged==='function')notifyDataChanged('settings');
 state._booted=true;
 if('serviceWorker' in navigator){
 window.addEventListener('load',function(){
-navigator.serviceWorker.register('/sw.js').catch(function(){});
+navigator.serviceWorker.register(toAbsoluteApiUrl('/sw.js')).catch(function(){});
 });
 }
 })();

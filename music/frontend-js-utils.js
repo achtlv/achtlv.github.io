@@ -158,8 +158,31 @@ if(!prevWasDash){out+=' ';prevWasDash=true}
 }
 return out.trim();
 }
+function getApiOrigin(){
+try{
+var p=location.protocol||'';
+if(p==='http:'||p==='https:'){
+return location.origin;
+}
+}catch(e){}
+return 'https://music.achtlv.kdns.fr';
+}
+function toAbsoluteApiUrl(path){
+if(!path)return getApiOrigin();
+var s=String(path);
+if(/^https?:\/\//i.test(s))return s;
+if(s.charAt(0)!=='/')s='/'+s;
+return getApiOrigin()+s;
+}
 function post(path,body){
-return fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json()});
+var url=toAbsoluteApiUrl(path);
+return fetch(url,{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify(body||{})
+}).then(function(r){
+return r.json();
+});
 }
 function fmt(s){
 s=Math.floor(s||0);if(!isFinite(s)||s<0)s=0;

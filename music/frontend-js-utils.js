@@ -159,12 +159,7 @@ if(!prevWasDash){out+=' ';prevWasDash=true}
 return out.trim();
 }
 function getApiOrigin(){
-try{
-var p=location.protocol||'';
-if(p==='http:'||p==='https:'){
-return location.origin;
-}
-}catch(e){}
+// Web-to-App / Gecko 等环境 location 可能不是 https，统一走线上域名
 return 'https://music.achtlv.kdns.fr';
 }
 function toAbsoluteApiUrl(path){
@@ -181,7 +176,18 @@ method:'POST',
 headers:{'Content-Type':'application/json'},
 body:JSON.stringify(body||{})
 }).then(function(r){
+if(!r.ok){
+return r.text().then(function(t){
+try{return JSON.parse(t);}catch(e){return {ok:false,msg:'HTTP '+r.status};}
+});
+}
 return r.json();
+}).catch(function(err){
+var msg=(err&&err.message)?String(err.message):'网络错误';
+if(/Only HTTP/i.test(msg)||/Failed to fetch/i.test(msg)||/NetworkError/i.test(msg)){
+msg='网络请求失败，请检查应用是否允许访问 https://music.achtlv.kdns.fr';
+}
+return Promise.reject(new Error(msg));
 });
 }
 function fmt(s){

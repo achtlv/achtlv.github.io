@@ -175,7 +175,7 @@ return LEVELS[i];
 }
 }catch(e){}
 }
-var off=await probeOfficialLocal(id, needRemain||60);
+var off=await probeOfficialLocal(id, (minExpi||URL_SAFETY_BUFFER||60));
 if(off&&off.url){
 try{await saveAudioUrlToCache(id,'official',off.url,off.expi||DEFAULT_EXPI);}catch(e){}
 return 'official';

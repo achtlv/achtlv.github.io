@@ -1057,9 +1057,21 @@ setTimeout(function(){$('importKey').focus()},120);
 }
 if($('emptyAdd'))$('emptyAdd').addEventListener('click',openAdd);
 if($('emptyImport'))$('emptyImport').addEventListener('click',openImportDialog);
-if($('listBtn'))$('listBtn').addEventListener('click',function(){
+if($('listBtn'))$('listBtn').addEventListener('click',function(ev){
+try{var b=ev.currentTarget||this;b.blur();if(document.activeElement)document.activeElement.blur();}catch(e){}
 closeOtherScrims('listScrim');
-listHistIndex=-1;refreshHistButtons();$('sheetTitle').textContent='播放列表';showScrim('listScrim');
+listHistIndex=-1;
+if(typeof refreshHistButtons==='function')refreshHistButtons();
+if($('sheetTitle'))$('sheetTitle').textContent='播放列表';
+showScrim('listScrim');
+// 避免焦点落到弹层里与列表按钮重合的控件上
+setTimeout(function(){
+try{if($('listBtn'))$('listBtn').blur();}catch(e){}
+try{
+var focusEl=$('sheetList')||$('sheetTitle');
+if(focusEl){focusEl.setAttribute('tabindex','-1');focusEl.focus({preventScroll:true});}
+}catch(e){}
+},0);
 });
 if($('sheetAdd'))$('sheetAdd').addEventListener('click',function(){
 hideScrim('listScrim');

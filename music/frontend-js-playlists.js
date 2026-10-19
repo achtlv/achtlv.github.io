@@ -242,7 +242,11 @@ info.innerHTML='<div class="pl-name"></div><div class="pl-meta"></div>';
 info.querySelector('.pl-name').textContent=pl.name||'未命名';
 info.querySelector('.pl-meta').textContent=(pl.songs?pl.songs.length:0)+' 首';
 row.appendChild(info);
-row.addEventListener('click',function(){openPlaylistDetail(pl.id);});
+row.addEventListener('click',function(ev){
+if(typeof blurControl==='function')blurControl(ev.currentTarget||this);
+else try{(ev.currentTarget||this).blur();}catch(e){}
+openPlaylistDetail(pl.id);
+});
 box.appendChild(row);
 });
 }
@@ -251,6 +255,10 @@ function openPlaylistDetail(id){
 viewingPlId=id;
 var pl=getPlaylist(id);
 if(!pl)return;
+try{
+if(typeof blurControl==='function')blurControl(document.activeElement);
+else if(document.activeElement)document.activeElement.blur();
+}catch(e){}
 $('pagePlaylists').style.display='none';
 $('pagePlaylists').classList.remove('page-active');
 var det=$('pagePlaylistDetail');
@@ -259,6 +267,12 @@ det.classList.add('page-active');
 $('plDetailTitle').textContent=pl.name||'歌单';
 var box=$('plDetailList');
 box.innerHTML='';
+setTimeout(function(){
+try{
+if(document.activeElement)document.activeElement.blur();
+if(box){box.setAttribute('tabindex','-1');box.focus({preventScroll:true});}
+}catch(e){}
+},0);
 (pl.songs||[]).forEach(function(song,idx){
 var row=document.createElement('div');
 row.className='pl-song-row';
@@ -303,6 +317,8 @@ box.appendChild(row);
 }
 
 function closePlaylistDetail(){
+try{if(typeof blurControl==='function')blurControl(document.activeElement);else if(document.activeElement)document.activeElement.blur();}catch(e){}
+
 viewingPlId=null;
 $('pagePlaylistDetail').style.display='none';
 $('pagePlaylistDetail').classList.remove('page-active');

@@ -243,6 +243,7 @@ info.querySelector('.pl-name').textContent=pl.name||'未命名';
 info.querySelector('.pl-meta').textContent=(pl.songs?pl.songs.length:0)+' 首';
 row.appendChild(info);
 row.addEventListener('click',function(ev){
+try{if(ev.cancelable)ev.preventDefault();ev.stopPropagation();}catch(e){}
 if(typeof blurControl==='function')blurControl(ev.currentTarget||this);
 else try{(ev.currentTarget||this).blur();}catch(e){}
 openPlaylistDetail(pl.id);
@@ -264,9 +265,18 @@ $('pagePlaylists').classList.remove('page-active');
 var det=$('pagePlaylistDetail');
 det.style.display='flex';
 det.classList.add('page-active');
+// Gecko/WebView：短暂禁止详情页接收指针，避免同一触摸落到下方歌曲行
+try{
+det.style.pointerEvents='none';
+if(window._plDetailUnlockTimer)clearTimeout(window._plDetailUnlockTimer);
+window._plDetailUnlockTimer=setTimeout(function(){
+try{det.style.pointerEvents='';}catch(e){}
+},380);
+}catch(e){}
 $('plDetailTitle').textContent=pl.name||'歌单';
 var box=$('plDetailList');
 box.innerHTML='';
+window._plDetailIgnoreTapUntil=Date.now()+400;
 setTimeout(function(){
 try{
 if(document.activeElement)document.activeElement.blur();
@@ -314,6 +324,16 @@ acts.appendChild(playB);acts.appendChild(addB);acts.appendChild(delB);
 row.appendChild(acts);
 box.appendChild(row);
 });
+}
+
+
+if(box&&!box._tapGuard){
+box._tapGuard=true;
+box.addEventListener('click',function(ev){
+if(window._plDetailIgnoreTapUntil&&Date.now()<window._plDetailIgnoreTapUntil){
+try{ev.preventDefault();ev.stopPropagation();}catch(e){}
+}
+},true);
 }
 
 function closePlaylistDetail(){

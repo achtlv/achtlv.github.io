@@ -1925,33 +1925,76 @@ if($('meLoginBtn'))$('meLoginBtn').addEventListener('click',function(ev){blurCon
 if($('loginCancel'))$('loginCancel').addEventListener('click',function(){hideScrim('loginScrim');});
 if($('loginGo'))$('loginGo').addEventListener('click',doLogin);
 if($('loginPass'))$('loginPass').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
+var loginInFlight=false;
 async function doLogin(){
-var u=$('loginUser').value;
-var p=$('loginPass').value;
+if(loginInFlight)return;
+var u=($('loginUser')&&$('loginUser').value)||'';
+var p=($('loginPass')&&$('loginPass').value)||'';
+if(!String(u).trim()||!String(p)){
+toast('请输入用户名和密码');
+return;
+}
+loginInFlight=true;
+var go=$('loginGo'), userEl=$('loginUser'), passEl=$('loginPass');
+var oldLabel='确认';
+try{
+if(go){
+oldLabel=go.textContent||'确认';
+go.disabled=true;
+go.textContent='登录中...';
+go.setAttribute('aria-busy','true');
+}
+if(userEl)userEl.disabled=true;
+if(passEl)passEl.disabled=true;
 var r=await loginOrRegister(u,p);
-if(!r)return;
+if(!r){
+toast('登录失败');
+return;
+}
 hideScrim('loginScrim');
 renderMePage();
-startSyncLoop();
+if(typeof startSyncLoop==='function')startSyncLoop();
 if(r.isNew){
 await pushSync();
+toast('注册并登录成功');
 }else{
-showScrim('syncChoiceScrim');
 window._pendingCloud=r.cloud;
+// 只弹一次同步选项
+if(!window._syncChoiceOpen){
+window._syncChoiceOpen=true;
+showScrim('syncChoiceScrim');
+}
+}
+}catch(e){
+toast((e&&e.message)||'登录失败');
+}finally{
+loginInFlight=false;
+try{
+if(go){go.disabled=false;go.textContent=oldLabel||'确认';go.removeAttribute('aria-busy');}
+if(userEl)userEl.disabled=false;
+if(passEl)passEl.disabled=false;
+}catch(e){}
 }
 }
 if($('syncChoiceOk'))$('syncChoiceOk').addEventListener('click',async function(){
+if(window._syncChoiceBusy)return;
+window._syncChoiceBusy=true;
+try{
 var plMode=(document.querySelector('input[name="syncPlMode"]:checked')||{}).value||'merge';
 var setMode=(document.querySelector('input[name="syncSetMode"]:checked')||{}).value||'merge';
 if(window._pendingCloud){
 applyCloudData(window._pendingCloud,{plMode:plMode,setMode:setMode,keepLocalSettings:setMode==='merge'});
 window._pendingCloud=null;
 }
+window._syncChoiceOpen=false;
 hideScrim('syncChoiceScrim');
 await pushSync();
 renderPlaylistsPage();
 renderMePage();
 toast('同步完成');
+}finally{
+window._syncChoiceBusy=false;
+}
 });
 if($('meLogoutBtn'))$('meLogoutBtn').addEventListener('click',function(ev){
 blurControl(ev.currentTarget||this);

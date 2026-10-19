@@ -67,6 +67,9 @@ cursor:pointer;transition:background .18s,color .18s;flex-shrink:0}
 .icon-btn:active{background:var(--active)}
 .icon-btn:focus,.side-btn:focus,.play-btn:focus{outline:none}
 .icon-btn:focus:not(:focus-visible),.side-btn:focus:not(:focus-visible){background:transparent}
+.side-btn:active,.icon-btn:active{background:transparent !important}
+.side-btn:focus,.side-btn:focus-visible{background:transparent;outline:none}
+@media (hover:hover) and (pointer:fine){.side-btn:hover{background:var(--hover)}}
 .side-btn.fav-on:focus:not(:focus-visible){color:var(--primary)}
 .icon-btn:focus,.side-btn:focus,.play-btn:focus{outline:none}
 .icon-btn:focus-visible,.side-btn:focus-visible{background:var(--hover)}
@@ -431,7 +434,9 @@ font-size:11px;font-family:inherit;padding:6px 0;transition:color .18s}
 /* 歌单页 */
 .pl-list,.pl-detail-list{flex:1;overflow-y:auto;padding:0 4px 16px;min-height:0}
 .pl-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:16px;cursor:pointer;transition:background .15s}
-.pl-item:hover{background:var(--hover)}
+.pl-item:active{background:transparent}
+.pl-item:focus{outline:none;background:transparent}
+@media (hover:hover) and (pointer:fine){.pl-item:hover{background:var(--hover)}}
 .pl-cover{width:52px;height:52px;border-radius:12px;object-fit:cover;background:var(--surface-container-high);flex-shrink:0}
 .pl-cover-ph{width:52px;height:52px;border-radius:12px;background:var(--surface-container-high);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--on-surface-variant)}
 .pl-cover-ph svg{width:28px;height:28px;fill:currentColor;opacity:.5}
@@ -439,7 +444,9 @@ font-size:11px;font-family:inherit;padding:6px 0;transition:color .18s}
 .pl-name{font-size:15px;color:var(--on-surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pl-meta{font-size:12px;color:var(--on-surface-variant);margin-top:2px}
 .pl-song-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:14px}
-.pl-song-row:hover{background:var(--hover)}
+.pl-song-row:active{background:transparent}
+.pl-song-row:focus,.pl-song-row:focus-within{outline:none;background:transparent}
+@media (hover:hover) and (pointer:fine){.pl-song-row:hover{background:var(--hover)}}
 .pl-song-info{flex:1;min-width:0}
 .pl-song-name{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pl-song-artist{font-size:12px;color:var(--on-surface-variant);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -469,4 +476,12 @@ font-size:11px;font-family:inherit;padding:6px 0;transition:color .18s}
 .app{padding-bottom:56px}
 }
 
+
+/* touch-focus-guard */
+.pl-song-row button:focus,.pl-song-actions button:focus,.pl-item:focus{
+outline:none;background:transparent;box-shadow:none;
+}
+.pl-song-row.is-touch-suppress,.pl-song-row.is-touch-suppress *{
+pointer-events:none !important;
+}
 </style>`;

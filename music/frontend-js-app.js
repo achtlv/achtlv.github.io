@@ -3,12 +3,23 @@ try{
 if(el&&el.blur)el.blur();
 if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();
 }catch(e){}
+// Gecko 嵌入内核有时会保留 :hover/:focus 高亮，强制清一次
+try{
+var ae=document.activeElement;
+if(ae&&ae!==document.body&&ae.blur)ae.blur();
+if(document.body)document.body.focus();
+}catch(e){}
 setTimeout(function(){
 try{
 if(el&&el.blur)el.blur();
 if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();
 }catch(e){}
 },0);
+setTimeout(function(){
+try{
+if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();
+}catch(e){}
+},50);
 }
 function showScrim(id){
 var el=typeof id==='string'?$(id):id;

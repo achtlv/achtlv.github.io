@@ -42,10 +42,24 @@ return out;
 
 function parseTimeTagContent(content){
 if(!content)return null;
-var colon=content.indexOf(':');
-if(colon===-1)return null;
-var minStr=content.substring(0,colon);
-var rest=content.substring(colon+1);
+content=String(content).trim();
+// 支持 [mm:ss] [mm:ss.xx] [mm:ss.xxx] [mm:ss:xx]（冒号分秒）[h:mm:ss] [h:mm:ss.xx]
+var parts=content.split(':');
+if(parts.length<2||parts.length>3)return null;
+
+function toMs(fracStr){
+if(!fracStr)return 0;
+if(!isAllDigits(fracStr))return -1;
+// 1位→*100ms, 2位→*10ms, 3位→ms
+if(fracStr.length===1)return parseInt(fracStr,10)*100;
+if(fracStr.length===2)return parseInt(fracStr,10)*10;
+return parseInt(fracStr.substring(0,3),10);
+}
+
+if(parts.length===2){
+// mm:ss 或 mm:ss.xx
+var minStr=parts[0];
+var rest=parts[1];
 if(!isAllDigits(minStr))return null;
 var dot=rest.indexOf('.');
 var secStr=dot===-1?rest:rest.substring(0,dot);
@@ -54,14 +68,36 @@ if(!isAllDigits(secStr))return null;
 if(msStr&&!isAllDigits(msStr))return null;
 var min=parseInt(minStr,10);
 var sec=parseInt(secStr,10);
-var ms=0;
-if(msStr){
-var m3=msStr;
-while(m3.length<3)m3+='0';
-m3=m3.substring(0,3);
-ms=parseInt(m3,10);
-}
+if(!isFinite(min)||!isFinite(sec)||sec>=60)return null;
+var ms=toMs(msStr);
+if(ms<0)return null;
 return min*60+sec+ms/1000;
+}
+
+// parts.length===3 → mm:ss:cs 或 h:mm:ss(.xx)
+var a=parts[0], b=parts[1], c=parts[2];
+if(!isAllDigits(a)||!isAllDigits(b))return null;
+var cDot=c.indexOf('.');
+var cMain=cDot===-1?c:c.substring(0,cDot);
+var cFrac=cDot===-1?'':c.substring(cDot+1);
+if(!isAllDigits(cMain))return null;
+if(cFrac&&!isAllDigits(cFrac))return null;
+
+var n0=parseInt(a,10), n1=parseInt(b,10), n2=parseInt(cMain,10);
+if(!isFinite(n0)||!isFinite(n1)||!isFinite(n2))return null;
+
+// 若第三段只有 1～3 位且前两段像 mm:ss（n0 较小、n1<60），按 mm:ss:cs 解析
+if(cDot===-1&&cMain.length<=3&&n1<60&&n0<180){
+var fracMs=toMs(cMain);
+if(fracMs<0)return null;
+return n0*60+n1+fracMs/1000;
+}
+
+// 否则按 h:mm:ss 或 h:mm:ss.xx
+if(n1>=60||n2>=60)return null;
+var ms2=toMs(cFrac);
+if(ms2<0)return null;
+return n0*3600+n1*60+n2+ms2/1000;
 }
 
 function stripTimeTags(line){

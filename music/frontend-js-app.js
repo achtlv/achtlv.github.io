@@ -1,4 +1,16 @@
-export const APP_SCRIPT = String.raw`function showScrim(id){
+export const APP_SCRIPT = String.raw`function blurControl(el){
+try{
+if(el&&el.blur)el.blur();
+if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();
+}catch(e){}
+setTimeout(function(){
+try{
+if(el&&el.blur)el.blur();
+if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();
+}catch(e){}
+},0);
+}
+function showScrim(id){
 var el=typeof id==='string'?$(id):id;
 if(!el)return;
 requestAnimationFrame(function(){el.classList.add('show');});
@@ -761,7 +773,7 @@ if(e.key==='Enter'){e.preventDefault();confirmRename()}
 
 // ==================== 分享菜单 ====================
 if($('shareBtn'))$('shareBtn').addEventListener('click',function(ev){
-try{var b=ev.currentTarget||this;b.blur();if(document.activeElement)document.activeElement.blur();}catch(e){}
+blurControl(ev.currentTarget||this);
 var song=state.playlist[state.current];
 if(!song){toast('没有可分享的歌曲');return}
 $('shareSongName').textContent=(song.name||'未知歌曲')+' - '+(song.artist||'');
@@ -1000,7 +1012,7 @@ runQualityDetection(pendingDownloadSong);
 });
 
 if($('downloadBtn'))if($('downloadBtn'))$('downloadBtn').addEventListener('click',async function(ev){
-try{var b=ev.currentTarget||this;b.blur();if(document.activeElement)document.activeElement.blur();}catch(e){}
+blurControl(ev.currentTarget||this);
 var song=state.playlist[state.current];
 if(!song){toast('没有可下载的歌曲');return}
 if(song.external){

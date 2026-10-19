@@ -66,6 +66,9 @@ cursor:pointer;transition:background .18s,color .18s;flex-shrink:0}
 .icon-btn:hover{background:var(--hover);color:var(--on-surface)}
 .icon-btn:active{background:var(--active)}
 .icon-btn:focus,.side-btn:focus,.play-btn:focus{outline:none}
+.icon-btn:focus:not(:focus-visible),.side-btn:focus:not(:focus-visible){background:transparent}
+.side-btn.fav-on:focus:not(:focus-visible){color:var(--primary)}
+.icon-btn:focus,.side-btn:focus,.play-btn:focus{outline:none}
 .icon-btn:focus-visible,.side-btn:focus-visible{background:var(--hover)}
 .icon-btn svg{width:22px;height:22px;fill:currentColor;pointer-events:none}
 .icon-btn:disabled{opacity:.4;cursor:default;pointer-events:none}

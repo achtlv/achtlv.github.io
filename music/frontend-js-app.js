@@ -7,29 +7,30 @@ try{
 var ae=document.activeElement;
 if(ae&&ae!==document.body&&ae.blur)ae.blur();
 }catch(e){}
-// 把焦点移到不可见锚点，避免 Gecko 把 :focus 留在按钮上
+try{
+document.querySelectorAll('.pl-act:focus,.song-row-del:focus,.icon-btn:focus').forEach(function(el){
+try{el.blur();}catch(e){}
+});
+}catch(e){}
 try{
 var sink=$('focusSink');
 if(!sink){
-sink=document.createElement('button');
+sink=document.createElement('span');
 sink.id='focusSink';
-sink.type='button';
 sink.setAttribute('aria-hidden','true');
 sink.tabIndex=-1;
-sink.style.cssText='position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0;margin:0;';
+sink.style.cssText='position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;outline:none;';
 document.body.appendChild(sink);
 }
 sink.focus({preventScroll:true});
-setTimeout(function(){try{sink.blur();}catch(e){}},0);
 }catch(e){}
 setTimeout(function(){
 try{
-if(document.activeElement&&document.activeElement.id!=='focusSink'&&document.activeElement!==document.body){
-document.activeElement.blur();
-}
+if(document.activeElement&&document.activeElement.id==='focusSink')document.activeElement.blur();
 }catch(e){}
-},30);
+},0);
 }
+
 function showScrim(id){
 var el=typeof id==='string'?$(id):id;
 if(!el)return;
@@ -2182,7 +2183,7 @@ listHistIndex=idx;
 var box=$('sheetList');
 if(!box)return;
 box.innerHTML='';
-$('sheetTitle').textContent='历史 '+(idx+1);
+$('sheetTitle').textContent='历史';
 (snap.playlist||[]).forEach(function(song,i){
 var row=document.createElement('div');
 row.className='song-row';

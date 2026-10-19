@@ -257,8 +257,8 @@ viewingPlId=id;
 var pl=getPlaylist(id);
 if(!pl)return;
 try{
-if(typeof blurControl==='function')blurControl(document.activeElement);
-else if(document.activeElement)document.activeElement.blur();
+if(typeof killStickyFocus==='function')killStickyFocus();
+else if(typeof blurControl==='function')blurControl(document.activeElement);
 }catch(e){}
 
 $('pagePlaylists').style.display='none';
@@ -266,28 +266,12 @@ $('pagePlaylists').classList.remove('page-active');
 var det=$('pagePlaylistDetail');
 det.style.display='flex';
 det.classList.add('page-active');
+try{det.style.pointerEvents='';}catch(e){}
 $('plDetailTitle').textContent=pl.name||'歌单';
 
 var box=$('plDetailList');
-// 先清空：Gecko 触摸结束前详情里没有任何可点的歌曲行
 box.innerHTML='';
-window._plDetailIgnoreTapUntil=Date.now()+600;
-
-// 整页暂时不接收指针，避免同一次触摸落到详情
-try{
-det.style.pointerEvents='none';
-if(window._plDetailUnlockTimer)clearTimeout(window._plDetailUnlockTimer);
-window._plDetailUnlockTimer=setTimeout(function(){
-try{det.style.pointerEvents='';}catch(e){}
-},520);
-}catch(e){}
-
 var songs=(pl.songs||[]).slice();
-// 延迟再渲染列表，等触摸序列彻底结束
-if(window._plDetailRenderTimer)clearTimeout(window._plDetailRenderTimer);
-window._plDetailRenderTimer=setTimeout(function(){
-if(viewingPlId!==id)return;
-box.innerHTML='';
 songs.forEach(function(song,idx){
 var row=document.createElement('div');
 row.className='pl-song-row';
@@ -300,32 +284,35 @@ info.querySelector('.pl-song-artist').textContent=song.artist||'';
 row.appendChild(info);
 var acts=document.createElement('div');
 acts.className='pl-song-actions';
-function mkBtn(html,title,fn){
-var b=document.createElement('button');
-b.className='icon-btn';
-b.type='button';
+function mkAct(html,title,fn){
+// 用 span，避免 Gecko 把焦点锁在 button 上
+var b=document.createElement('span');
+b.className='pl-act';
+b.setAttribute('role','button');
 b.tabIndex=-1;
 b.innerHTML=html;
 b.title=title;
+b.setAttribute('aria-label',title);
 b.addEventListener('click',function(e){
 e.preventDefault();
 e.stopPropagation();
-if(window._plDetailIgnoreTapUntil&&Date.now()<window._plDetailIgnoreTapUntil)return;
+try{if(typeof killStickyFocus==='function')killStickyFocus();}catch(err){}
 fn();
+try{if(typeof killStickyFocus==='function')killStickyFocus();}catch(err){}
 });
 return b;
 }
-acts.appendChild(mkBtn(ICON.play,'播放',function(){playSongFromPlaylist(song);}));
-acts.appendChild(mkBtn(ICON.add,'下一首播放',function(){insertSongNext(song);toast('已加入下一首');}));
-acts.appendChild(mkBtn(ICON.del,'从歌单删除',function(){removeSongFromPlaylist(id,song);openPlaylistDetail(id);}));
+acts.appendChild(mkAct(ICON.play,'播放',function(){playSongFromPlaylist(song);}));
+acts.appendChild(mkAct(ICON.add,'下一首播放',function(){insertSongNext(song);toast('已加入下一首');}));
+acts.appendChild(mkAct(ICON.del,'从歌单删除',function(){
+removeSongFromPlaylist(id,song);
+openPlaylistDetail(id);
+try{if(typeof killStickyFocus==='function')killStickyFocus();}catch(err){}
+}));
 row.appendChild(acts);
 box.appendChild(row);
 });
-try{
-if(typeof killStickyFocus==='function')killStickyFocus();
-else if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();
-}catch(e){}
-},280);
+try{if(typeof killStickyFocus==='function')killStickyFocus();}catch(e){}
 }
 
 function closePlaylistDetail(){

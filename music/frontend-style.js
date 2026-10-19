@@ -505,4 +505,18 @@ color:var(--on-surface-variant);flex-shrink:0;
 .song-row-del svg,.song-row-rename svg,.song-row-move svg{width:20px;height:20px;fill:currentColor;pointer-events:none}
 .song-row-del:active,.song-row-rename:active,.song-row-move:active{background:transparent}
 
+
+.pl-act{
+display:inline-flex;align-items:center;justify-content:center;
+width:36px;height:36px;border-radius:50%;cursor:pointer;
+color:var(--on-surface-variant);flex-shrink:0;
+-moz-user-focus:ignore;outline:none !important;
+background:transparent !important;
+}
+.pl-act svg{width:20px;height:20px;fill:currentColor;pointer-events:none}
+.pl-act:focus,.pl-act:focus-visible,.pl-act:active{
+outline:none !important;background:transparent !important;color:var(--on-surface-variant) !important;
+box-shadow:none !important;
+}
+.pl-song-actions button{display:none}
 </style>`;

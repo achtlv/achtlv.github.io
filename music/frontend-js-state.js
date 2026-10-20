@@ -129,7 +129,10 @@ setIcon('plSortBtn','<svg viewBox="0 0 24 24"><path d="M3 18h6v-2H3v2zM3 6v2h18V
 setIcon('plImportBtn','<svg viewBox="0 0 24 24"><path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/></svg>');
 setIcon('plAddBtn','<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"/></svg>');
 setIcon('plDetailExport','<svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>');
+setIcon('plDetailSort','<svg viewBox="0 0 24 24"><path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/></svg>');
+setIcon('plDetailExport','<svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>');
 setIcon('plDetailPlay',ICON.play);
+setIcon('plDetailRename',ICON.edit);
 setIcon('plDetailDelete',ICON.del);
 
 setIcon('renameGo',ICON.check);
@@ -137,7 +140,10 @@ setIcon('plSortBtn','<svg viewBox="0 0 24 24"><path d="M3 18h6v-2H3v2zM3 6v2h18V
 setIcon('plImportBtn','<svg viewBox="0 0 24 24"><path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/></svg>');
 setIcon('plAddBtn','<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"/></svg>');
 setIcon('plDetailExport','<svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>');
+setIcon('plDetailSort','<svg viewBox="0 0 24 24"><path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/></svg>');
+setIcon('plDetailExport','<svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>');
 setIcon('plDetailPlay',ICON.play);
+setIcon('plDetailRename',ICON.edit);
 setIcon('plDetailDelete',ICON.del);
 
 

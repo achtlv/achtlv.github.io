@@ -417,7 +417,9 @@ html[data-theme="red"]{
 #pagePlaylists.page-active,#pageMe.page-active,#pagePlaylistDetail.page-active{min-height:0;overflow:hidden}
 .page-head{display:flex;align-items:center;gap:8px;padding:12px 4px 8px;flex-shrink:0}
 .page-head h1{font-size:20px;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.page-head-actions{display:flex;gap:2px;flex-shrink:0}
+.page-head-actions{display:flex;gap:0;flex-shrink:0;flex-wrap:nowrap}
+.page-head-actions .icon-btn{width:36px;height:36px;flex-shrink:0}
+.page-head-actions .icon-btn svg{width:20px;height:20px;fill:currentColor}
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:50;
 display:flex;align-items:stretch;justify-content:space-around;
 height:calc(56px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);

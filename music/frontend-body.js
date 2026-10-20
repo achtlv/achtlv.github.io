@@ -63,9 +63,9 @@ export const BODY_INNER = `<div class="app">
 <div class="page-head">
 <h1>歌单</h1>
 <div class="page-head-actions">
-<button class="icon-btn" id="plSortBtn" title="排序" aria-label="排序"></button>
-<button class="icon-btn" id="plImportBtn" title="导入" aria-label="导入"></button>
-<button class="icon-btn" id="plAddBtn" title="新建歌单" aria-label="新建歌单"></button>
+<button class="icon-btn" id="plSortBtn" title="排序" aria-label="排序"><svg viewBox="0 0 24 24"><path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/></svg></button>
+<button class="icon-btn" id="plImportBtn" title="导入" aria-label="导入"><svg viewBox="0 0 24 24"><path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/></svg></button>
+<button class="icon-btn" id="plAddBtn" title="新建歌单" aria-label="新建歌单"><svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"/></svg></button>
 </div>
 </div>
 <div class="pl-list" id="plList"></div>
@@ -73,13 +73,14 @@ export const BODY_INNER = `<div class="app">
 
 <div class="page" id="pagePlaylistDetail" style="display:none">
 <div class="page-head">
-<button class="icon-btn" id="plDetailBack" aria-label="返回"></button>
+<button class="icon-btn" id="plDetailBack" aria-label="返回"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
 <h1 id="plDetailTitle">歌单</h1>
 <div class="page-head-actions">
-<button class="icon-btn" id="plDetailExport" title="导出歌单" aria-label="导出歌单"></button>
-<button class="icon-btn" id="plDetailPlay" title="播放歌单" aria-label="播放歌单"></button>
-<button class="icon-btn" id="plDetailRename" title="重命名" aria-label="重命名"></button>
-<button class="icon-btn" id="plDetailDelete" title="删除歌单" aria-label="删除歌单"></button>
+<button class="icon-btn" id="plDetailSort" title="排序歌曲" aria-label="排序歌曲"><svg viewBox="0 0 24 24"><path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/></svg></button>
+<button class="icon-btn" id="plDetailExport" title="导出歌单" aria-label="导出歌单"><svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg></button>
+<button class="icon-btn" id="plDetailPlay" title="播放歌单" aria-label="播放歌单"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+<button class="icon-btn" id="plDetailRename" title="重命名" aria-label="重命名"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
+<button class="icon-btn" id="plDetailDelete" title="删除歌单" aria-label="删除歌单"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
 </div>
 </div>
 <div class="pl-detail-list" id="plDetailList"></div>

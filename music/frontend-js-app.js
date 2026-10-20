@@ -1199,8 +1199,10 @@ state.lyricLoading=false;
 state.audioUrl='';state.quality='';
 state.retrying=false;
 state.editingOrder=false;
-$('sheetEdit').innerHTML=ICON.edit;
+if($('sheetEdit')){
+$('sheetEdit').innerHTML='<svg viewBox="0 0 24 24"><path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/></svg>';
 $('sheetEdit').classList.remove('active');
+}
 stopAudio();
 resetProgressUI();
 clearPlaylistCookie();
@@ -1208,6 +1210,7 @@ preloadCache={};
 preloadTimers={};
 state._lastMediaKey=null;
 render();
+if(typeof updateFavBtn==='function')updateFavBtn();
 updateMediaSessionMetadata();
 updateMediaSessionPlaybackState();
 hideScrim('clearScrim');
@@ -1218,7 +1221,7 @@ toast('播放列表已清空');
 // ==================== 编辑顺序 ====================
 if($('sheetEdit'))$('sheetEdit').addEventListener('click',function(){
 state.editingOrder=!state.editingOrder;
-$('sheetEdit').innerHTML=state.editingOrder?ICON.check:ICON.edit;
+$('sheetEdit').innerHTML=state.editingOrder?ICON.check:'<svg viewBox="0 0 24 24"><path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/></svg>';
 if(state.editingOrder)$('sheetEdit').classList.add('active');
 else $('sheetEdit').classList.remove('active');
 render();
@@ -1412,7 +1415,7 @@ state.lyric='';state.lyricTrans='';state.lyricRoma='';
 state.lyricLoading=false;
 state.retrying=false;
 state.editingOrder=false;
-$('sheetEdit').innerHTML=ICON.edit;
+$('sheetEdit').innerHTML='<svg viewBox="0 0 24 24"><path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/></svg>';
 $('sheetEdit').classList.remove('active');
 stopAudio();
 resetProgressUI();
@@ -1466,7 +1469,7 @@ state.lyricLoading=false;
 state.audioUrl='';state.quality='';
 state.retrying=false;
 state.editingOrder=false;
-$('sheetEdit').innerHTML=ICON.edit;
+$('sheetEdit').innerHTML='<svg viewBox="0 0 24 24"><path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/></svg>';
 $('sheetEdit').classList.remove('active');
 stopAudio();
 resetProgressUI();

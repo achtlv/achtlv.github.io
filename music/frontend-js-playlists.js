@@ -131,10 +131,10 @@ updateFavBtn();
 function updateFavBtn(){
 var btn=$('favBtn');
 if(!btn)return;
-var song=state.playlist[state.current];
-var on=isSongFavorited(song);
+var song=(state.playlist&&state.current>=0)?state.playlist[state.current]:null;
+var on=!!song&&isSongFavorited(song);
 btn.innerHTML=on?ICON.starFilled:ICON.star;
-btn.classList.toggle('fav-on',on);
+btn.classList.toggle('fav-on',!!on);
 }
 
 function pushListHistory(){
@@ -316,6 +316,7 @@ openPlaylistDetail(id);
 acts.appendChild(mkBtn(ICON.play,'播放',function(){playSongFromPlaylist(song);}));
 acts.appendChild(mkBtn(ICON.add,'下一首播放',function(){insertSongNext(song);toast('已加入下一首');}));
 acts.appendChild(mkBtn(ICON.del,'从歌单删除',function(){
+if(!confirm('确定从歌单中删除「'+(song.name||'该歌曲')+'」？'))return;
 removeSongFromPlaylist(id,song);
 openPlaylistDetail(id);
 }));

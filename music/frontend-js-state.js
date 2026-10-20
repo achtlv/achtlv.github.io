@@ -119,7 +119,7 @@ setIcon('sheetAdd',ICON.add);
 setIcon('sheetClear',ICON.clearAll);
 setIcon('sheetExport',ICON.exportIco);
 setIcon('sheetImport',ICON.importIco);
-setIcon('sheetEdit',ICON.edit);
+setIcon('sheetEdit','<svg viewBox="0 0 24 24"><path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/></svg>');
 setIcon('retryBtn',ICON.refresh);
 setIcon('downloadRetryBtn',ICON.refresh);
 setIcon('exportCopy',ICON.copy);

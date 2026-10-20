@@ -285,11 +285,13 @@ cursor:pointer;transition:all .18s;flex-shrink:0}
 color:var(--on-surface-variant);display:flex;align-items:center;justify-content:center;
 cursor:pointer;flex-shrink:0;transition:all .18s}
 .song-row-del:hover{background:color-mix(in srgb,var(--primary) 18%,transparent);color:var(--primary)}
+.song-row-del:active{background:color-mix(in srgb,var(--primary) 22%,transparent);color:var(--primary)}
 .song-row-del svg{width:18px;height:18px;fill:currentColor;pointer-events:none}
 .song-row-rename{width:36px;height:36px;border-radius:50%;border:none;background:transparent;
 color:var(--on-surface-variant);display:flex;align-items:center;justify-content:center;
 cursor:pointer;flex-shrink:0;transition:all .18s}
 .song-row-rename:hover{background:color-mix(in srgb,var(--primary) 18%,transparent);color:var(--primary)}
+.song-row-rename:active{background:color-mix(in srgb,var(--primary) 22%,transparent);color:var(--primary)}
 .song-row-rename svg{width:18px;height:18px;fill:currentColor;pointer-events:none}
 .toast{position:fixed;bottom:110px;left:50%;transform:translateX(-50%) translateY(20px);
 background:var(--surface-container-highest);color:var(--on-surface);padding:12px 20px;
@@ -434,9 +436,8 @@ font-size:11px;font-family:inherit;padding:6px 0;transition:color .18s}
 /* 歌单页 */
 .pl-list,.pl-detail-list{flex:1;overflow-y:auto;padding:0 4px 16px;min-height:0}
 .pl-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:16px;cursor:pointer;transition:background .15s}
-.pl-item:active{background:transparent}
-.pl-item:focus{outline:none;background:transparent}
-@media (hover:hover) and (pointer:fine){.pl-item:hover{background:var(--hover)}}
+.pl-item:hover{background:var(--hover)}
+.pl-item:active{background:var(--active)}
 .pl-cover{width:52px;height:52px;border-radius:12px;object-fit:cover;background:var(--surface-container-high);flex-shrink:0}
 .pl-cover-ph{width:52px;height:52px;border-radius:12px;background:var(--surface-container-high);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--on-surface-variant)}
 .pl-cover-ph svg{width:28px;height:28px;fill:currentColor;opacity:.5}
@@ -444,9 +445,8 @@ font-size:11px;font-family:inherit;padding:6px 0;transition:color .18s}
 .pl-name{font-size:15px;color:var(--on-surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pl-meta{font-size:12px;color:var(--on-surface-variant);margin-top:2px}
 .pl-song-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:14px}
-.pl-song-row:active{background:transparent}
-.pl-song-row:focus,.pl-song-row:focus-within{outline:none;background:transparent}
-@media (hover:hover) and (pointer:fine){.pl-song-row:hover{background:var(--hover)}}
+.pl-song-row:hover{background:var(--hover)}
+.pl-song-row:active{background:var(--active)}
 .pl-song-info{flex:1;min-width:0}
 .pl-song-name{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pl-song-artist{font-size:12px;color:var(--on-surface-variant);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -477,46 +477,6 @@ font-size:11px;font-family:inherit;padding:6px 0;transition:color .18s}
 }
 
 
-/* touch-focus-guard */
-.pl-song-row button:focus,.pl-song-actions button:focus,.pl-item:focus{
-outline:none;background:transparent;box-shadow:none;
-}
-.pl-song-row.is-touch-suppress,.pl-song-row.is-touch-suppress *{
-pointer-events:none !important;
-}
-
-.song-row-del,.song-row-rename,.song-row-move,.pl-song-actions .icon-btn,.pl-song-actions span{
--moz-user-focus:ignore;
-outline:none !important;
-}
-.song-row-del:focus,.song-row-del:focus-visible,
-.song-row-rename:focus,.song-row-move:focus,
-.pl-song-actions .icon-btn:focus,.pl-song-actions span:focus{
-outline:none !important;
-background:transparent !important;
-color:inherit !important;
-box-shadow:none !important;
-}
-.song-row-del,.song-row-rename,.song-row-move{
-display:inline-flex;align-items:center;justify-content:center;
-width:36px;height:36px;border-radius:50%;cursor:pointer;
-color:var(--on-surface-variant);flex-shrink:0;
-}
-.song-row-del svg,.song-row-rename svg,.song-row-move svg{width:20px;height:20px;fill:currentColor;pointer-events:none}
-.song-row-del:active,.song-row-rename:active,.song-row-move:active{background:transparent}
 
 
-.pl-act{
-display:inline-flex;align-items:center;justify-content:center;
-width:36px;height:36px;border-radius:50%;cursor:pointer;
-color:var(--on-surface-variant);flex-shrink:0;
--moz-user-focus:ignore;outline:none !important;
-background:transparent !important;
-}
-.pl-act svg{width:20px;height:20px;fill:currentColor;pointer-events:none}
-.pl-act:focus,.pl-act:focus-visible,.pl-act:active{
-outline:none !important;background:transparent !important;color:var(--on-surface-variant) !important;
-box-shadow:none !important;
-}
-.pl-song-actions button{display:none}
 </style>`;

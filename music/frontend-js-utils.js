@@ -140,24 +140,7 @@ else out+=c;
 }
 return out;
 }
-function stripExtension(s){
-if(!s)return '';
-var idx=s.lastIndexOf('.');
-if(idx>0)return s.substring(0,idx);
-return s;
-}
-function replaceDashes(s){
-if(!s)return '';
-var out='';
-var prevWasDash=false;
-for(var i=0;i<s.length;i++){
-var c=s.charAt(i);
-if(c==='-'||c==='_'){
-if(!prevWasDash){out+=' ';prevWasDash=true}
-}else{out+=c;prevWasDash=false;}
-}
-return out.trim();
-}
+
 function getApiOrigin(){
 // Web-to-App / Gecko 等环境 location 可能不是 https，统一走线上域名
 return 'https://music.achtlv.kdns.fr';
@@ -241,7 +224,6 @@ return false;
 }
 }
 
-
 // ==================== gzip ====================
 function bytesToBase64(bytes){
 var bin='';
@@ -313,7 +295,6 @@ return decoded;
 }
 return text;
 }
-
 
 // ==================== 其他解析工具 ====================
 function extractInfo(data){
@@ -396,20 +377,6 @@ if(song.id)keys.push('id:'+String(song.id));
 return keys;
 }
 
-function isDuplicateSong(song,list){
-var k=getSongDedupKeys(song);
-if(!k.length)return false;
-var seen={};
-for(var i=0;i<list.length;i++){
-var lk=getSongDedupKeys(list[i]);
-for(var j=0;j<lk.length;j++)seen[lk[j]]=true;
-}
-for(var i=0;i<k.length;i++){
-if(seen[k[i]])return true;
-}
-return false;
-}
-
 function findDuplicateIndex(song,list){
 var toKeys=getSongDedupKeys(song);
 if(!toKeys.length)return -1;
@@ -436,7 +403,6 @@ if(seen[keys[i]])return true;
 }
 return false;
 }
-
 
 // ==================== Cookie ====================
 function setCookieRaw(name,value){

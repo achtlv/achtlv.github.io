@@ -194,7 +194,11 @@ if(typeof v==='string'&&v.trim()){main=v;break;}
 if(typeof v==='object'&&typeof v.lyric==='string'&&v.lyric.trim()){main=v.lyric;break;}
 }
 }
-return {main:parseRichLyric(main),trans:parseRichLyric(trans),roma:parseRichLyric(roma)};
+var mainP=parseRichLyric(main),transP=parseRichLyric(trans),romaP=parseRichLyric(roma);
+// 仅时间轴、无有效正文的翻译/音译视为空
+if(transP&&!hasMeaningfulLyricText(transP))transP='';
+if(romaP&&!hasMeaningfulLyricText(romaP))romaP='';
+return {main:mainP,trans:transP,roma:romaP};
 }
 
 function attachText(mainLines,otherLines,key){
@@ -325,15 +329,33 @@ box.appendChild(el);
 updateLyricToolbar();
 }
 
+function hasMeaningfulLyricText(text){
+if(!text||!String(text).trim())return false;
+var parsed=parseLyricLines(String(text));
+var lines=parsed&&parsed.lines?parsed.lines:[];
+for(var i=0;i<lines.length;i++){
+var t=(lines[i].text||'').trim();
+if(t&&t!=='暂无歌词')return true;
+}
+// 无时间轴纯文本
+var pure=String(text).replace(/\[[^\]]*\]/g,' ').replace(/\s+/g,' ').trim();
+return pure.length>0&&pure!=='暂无歌词';
+}
 function updateLyricToolbar(){
-var hasTrans=!!(state.lyricTrans&&state.lyricTrans.trim());
-var hasRoma=!!(state.lyricRoma&&state.lyricRoma.trim());
+var hasTrans=hasMeaningfulLyricText(state.lyricTrans);
+var hasRoma=hasMeaningfulLyricText(state.lyricRoma);
 var tb=$('transBtn');
 var rb=$('romaBtn');
+if(tb){
 if(hasTrans)tb.classList.remove('hidden');else tb.classList.add('hidden');
-if(hasRoma)rb.classList.remove('hidden');else rb.classList.add('hidden');
 if(hasTrans&&state.transEnabled)tb.classList.add('on');else tb.classList.remove('on');
+}
+if(rb){
+if(hasRoma)rb.classList.remove('hidden');else rb.classList.add('hidden');
 if(hasRoma&&state.romaEnabled)rb.classList.add('on');else rb.classList.remove('on');
+}
+if(!hasTrans)state.transEnabled=false;
+if(!hasRoma)state.romaEnabled=false;
 }
 
 function updateLyricScroll(force){

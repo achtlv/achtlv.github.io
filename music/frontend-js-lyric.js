@@ -245,7 +245,7 @@ box.innerHTML='';
 function isPlaceholderText(t){
 if(!t)return true;
 var s=String(t).trim();
-return s===''||s==='暂无歌词'||s==='正在加载歌词...'||s==='外部音源，暂无歌词'||s==='视频音源，暂无歌词';
+return s===''||s==='暂无歌词'||s==='播放以获取歌词'||s==='正在加载歌词...'||s==='外部音源，暂无歌词'||s==='视频音源，暂无歌词';
 }
 
 var showEmpty=!mainLines.length||state.lyricLoading||(!parsed.hasTime&&mainLines.length===1&&isPlaceholderText(mainLines[0].text));
@@ -259,10 +259,20 @@ var dm=document.createElement('div');
 dm.className='line-main';
 if(state.lyricLoading){
 dm.textContent='正在加载歌词...';
-}else if(!mainLines.length){
-dm.textContent=state.lyric||'暂无歌词';
 }else{
-dm.textContent=mainLines[0].text||'暂无歌词';
+var msg='';
+if(mainLines.length)msg=mainLines[0].text||'';
+else msg=state.lyric||'';
+if(isPlaceholderText(msg)){
+// 列表里有歌但还没真正播放取词
+if(state.playlist&&state.playlist.length&&!state.audioUrl){
+msg='播放以获取歌词';
+}else{
+msg=msg||'暂无歌词';
+if(msg==='暂无歌词'||!msg)msg='暂无歌词';
+}
+}
+dm.textContent=msg;
 }
 bodyEl.appendChild(dm);
 d.appendChild(bodyEl);

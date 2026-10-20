@@ -23,8 +23,8 @@ export const HTML = `<!DOCTYPE html>
 <meta name="theme-color" content="#11140F" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="音乐播放器">
-<title>音乐播放器</title>
+<meta name="apple-mobile-web-app-title" content="Playlet">
+<title>Playlet</title>
 <link rel="manifest" href="/manifest.json?v=5">
 <link rel="icon" type="image/png" href="/icon.png">
 <link rel="apple-touch-icon" href="/icon.png">

@@ -5,7 +5,7 @@ var CR=String.fromCharCode(13);
 var BS=String.fromCharCode(92);
 
 var DEFAULT_ICON='/icon.png';
-var SITE_TITLE='音乐播放器';
+var SITE_TITLE='Playlet';
 var LYRIC_RESUME_DELAY=5000;
 
 var ICON={

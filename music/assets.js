@@ -1,8 +1,8 @@
 const FALLBACK_ICON_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
 export const MANIFEST_JSON = {
-  name: "音乐播放器",
-  short_name: "播放器",
+  name: "Playlet",
+  short_name: "Playlet",
   start_url: "/",
   scope: "/",
   display: "standalone",

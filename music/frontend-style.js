@@ -479,4 +479,54 @@ font-size:11px;font-family:inherit;padding:6px 0;transition:color .18s}
 
 
 
+
+
+/* watch-compact：约 550×550 方屏（按高度压缩，保证控制条完整） */
+@media (max-height:620px) and (max-width:620px){
+.app{
+padding:4px 10px;
+padding-bottom:calc(48px + env(safe-area-inset-bottom));
+}
+header{padding:2px 36px 4px 0}
+.meta h1{font-size:14px;line-height:1.25}
+.meta p{font-size:11px}
+#shareBtn{width:32px;height:32px}
+#shareBtn svg{width:18px;height:18px}
+#stage{min-height:0;flex:1 1 auto}
+.cover-box{
+max-height:min(42vh,200px);
+border-radius:16px;
+}
+.lyric-box{font-size:12px}
+.side-row{padding:0}
+.side-btn{width:34px;height:34px}
+.progress-row{padding:2px 0;gap:6px;font-size:11px}
+.controls{
+gap:8px;padding:4px 0 2px;
+flex-wrap:nowrap;
+justify-content:space-between;
+width:100%;
+}
+.controls .icon-btn{width:40px;height:40px;flex-shrink:0}
+.controls .icon-btn svg{width:22px;height:22px}
+.play-btn{width:52px;height:52px;flex-shrink:0}
+.play-btn svg{width:26px;height:26px}
+.tabbar{
+height:calc(48px + env(safe-area-inset-bottom));
+max-width:100%;
+}
+.tab-item span{font-size:10px}
+.tab-item svg{width:22px;height:22px}
+.empty-add{padding:10px 12px;font-size:12px}
+.page-head h1{font-size:16px}
+.pl-cover,.pl-cover-ph{width:44px;height:44px}
+.toast{bottom:56px;font-size:12px}
+}
+/* 再矮一点时继续压封面 */
+@media (max-height:560px) and (max-width:620px){
+.cover-box{max-height:min(36vh,160px)}
+.meta h1{font-size:13px}
+.controls .icon-btn{width:36px;height:36px}
+.play-btn{width:48px;height:48px}
+}
 </style>`;

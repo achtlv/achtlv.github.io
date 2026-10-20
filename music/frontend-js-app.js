@@ -2,17 +2,6 @@ export const APP_SCRIPT = String.raw`function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
 }
-// 点击后若 0.5s 内没有再次操作该按钮，清掉浏览器自带的焦点高亮
-(function(){
-document.addEventListener('click',function(e){
-var el=e.target.closest&&e.target.closest('button,.icon-btn,.side-btn,.play-btn,.song-row-del,.song-row-rename,.song-row-move,.tab-item,.chip,.empty-add,.filled-btn,.text-btn,.filled-icon');
-if(!el)return;
-if(el._focusClearTimer)clearTimeout(el._focusClearTimer);
-el._focusClearTimer=setTimeout(function(){
-try{if(el.blur)el.blur();}catch(err){}
-},500);
-},true);
-})();
 function showScrim(id){
 var el=typeof id==='string'?$(id):id;
 if(!el)return;

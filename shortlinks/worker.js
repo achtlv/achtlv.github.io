@@ -129,7 +129,6 @@ function normalizeKey(key) {
   if (typeof key !== "string") return null;
   var s = key.replace(/^\s+|\s+$/g, "");
   if (!s) return null;
-  if (s === "/") return "/";
   var stripped = s.replace(/^\/+/, "");
   if (!stripped) return "/";
   return "/" + stripped;
@@ -307,8 +306,6 @@ function baseCSS() {
       opacity: 0.65;
     }
 
-    #f-remark { min-height: 48px; padding-top: 0.9rem; padding-bottom: 0.9rem; }
-
     button, .btn {
       display: inline-flex;
       align-items: center;
@@ -396,7 +393,6 @@ function baseCSS() {
     .msg:empty { min-height: 0; margin-top: 0; }
     .msg.err { color: var(--md-sys-color-error); }
     .msg.ok { color: #2E7D32; }
-    .msg.warn { color: #B26A00; }
 
     .hint { font-size: 0.82rem; color: var(--md-sys-color-on-surface-variant); margin: 0.2rem 0 0.8rem; }
 
@@ -524,12 +520,12 @@ function baseCSS() {
       min-height: 42px;
     }
 
-    /* ===== 列表页 card 自适应高度 + 内部滚动 ===== */
+    /* ===== 列表页 card：明确 height，flex 才能撑满 ===== */
     #panel-list .card {
       display: flex;
       flex-direction: column;
-      max-height: calc(100vh - 150px);
-      max-height: calc(100dvh - 150px);
+      height: calc(100dvh - 150px);
+      overflow: hidden;
     }
     #panel-list .row1,
     #panel-list .row2,
@@ -537,17 +533,15 @@ function baseCSS() {
       flex-shrink: 0;
     }
 
-    /* 自绘滚动条的外层容器 */
     #panel-list .scroll-wrap {
-      flex: 1 1 0;
-      min-height: 100px;
+      flex: 1 1 auto;
+      min-height: 80px;
       position: relative;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
     }
 
-    /* 滚动内容：隐藏原生滚动条，右侧预留 10px 给自绘滚动条 */
     #panel-list .list-scroll {
       flex: 1 1 auto;
       overflow-y: auto;
@@ -563,7 +557,6 @@ function baseCSS() {
       height: 0;
     }
 
-    /* 自绘滚动条 */
     #panel-list .custom-scrollbar {
       position: absolute;
       top: 0;
@@ -661,8 +654,7 @@ function baseCSS() {
       .field { font-size: 0.9rem; }
       a.logout { padding: 0.65rem 1.1rem; font-size: 0.88rem; }
       #panel-list .card {
-        max-height: calc(100vh - 140px);
-        max-height: calc(100dvh - 140px);
+        height: calc(100dvh - 130px);
       }
     }
 
@@ -704,8 +696,7 @@ function baseCSS() {
       .item { padding: 0.6rem 0; }
       a.logout { padding: 0.5rem 0.85rem; font-size: 0.8rem; min-height: 34px; }
       #panel-list .card {
-        max-height: calc(100vh - 120px);
-        max-height: calc(100dvh - 120px);
+        height: calc(100dvh - 100px);
       }
       .row1, .row2, .row3 { gap: 0.3rem; }
       .row1 { margin-bottom: 0.45rem; }
@@ -717,7 +708,7 @@ function baseCSS() {
       }
       .row3 .btn.icon { min-width: 34px; padding: 0.4rem; min-height: 36px; }
       .row3 input[type="text"], .page-size-group input[type="text"] { width: 2.8rem; padding: 0.4rem; }
-      #panel-list .scroll-wrap { min-height: 80px; }
+      #panel-list .scroll-wrap { min-height: 60px; }
       .bottom-nav { gap: 12px; bottom: calc(14px + env(safe-area-inset-bottom)); }
       .bottom-nav a { width: 48px; height: 48px; }
       .bottom-nav a svg { width: 20px; height: 20px; }
@@ -753,10 +744,9 @@ function pageHTML(title, body, maxWidth, bodyClass) {
 </html>`;
 }
 
-// ===== 图标：MD3 圆润 stroke 风格 =====
+// ===== 图标 =====
 function icon(name) {
   const paths = {
-    add: '<path d="M12 5v14M5 12h14"/>',
     list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
     logout: '<path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
     save: '<path d="M20 6L9 17l-5-5"/>',
@@ -794,10 +784,29 @@ function renderLogin(errMsg) {
       <div class="card">
         <h1>短链接管理登录</h1>
         <form method="POST" action="/l/login">
+          <label>访问密码</label>
           <input type="password" name="pwd" placeholder="回车键确认" autocomplete="current-password" autofocus>
           <button type="submit" style="width:100%">登录</button>
         </form>
         <div class="msg err">${errMsg ? esc(errMsg) : ""}</div>
+      </div>
+    </div>
+  `);
+}
+
+// ===== 访问密码页（与登录页同风格） =====
+function passwordPage(hasError, path) {
+  const errMsg = hasError ? "密码错误，请重试" : "";
+  return pageHTML("需要访问密码", `
+    <div style="max-width:360px;margin:48px auto 0">
+      <div class="card">
+        <h1>需要访问密码</h1>
+        <form method="GET" action="${esc(path)}">
+          <label>访问密码</label>
+          <input type="password" name="__slpwd" placeholder="回车键确认" autocomplete="current-password" autofocus>
+          <button type="submit" style="width:100%">确认密码</button>
+        </form>
+        <div class="msg err">${errMsg}</div>
       </div>
     </div>
   `);
@@ -1047,11 +1056,11 @@ async function loadAndFilterItems(env, params) {
   const startIdx = (currentPage - 1) * pageSize;
   const pageItems = items.slice(startIdx, startIdx + pageSize);
 
-  return { items, pageItems, total, totalPages, currentPage, pageSize, search, sortMode };
+  return { pageItems, total, totalPages, currentPage, pageSize, search, sortMode };
 }
 
-// ===== 列表项 HTML =====
-function renderListItemHTML(it, host, currentPage, pageSize, search, sortMode) {
+// ===== 列表项 HTML（仅 it + host 有效） =====
+function renderListItemHTML(it, host) {
   const keyText = it.key === "/" ? "/ （根路径）" : it.key;
   const copyPath = "https://" + host + (it.key === "/" ? "/" : it.key);
   const keyClickable = '<span class="fv key copyable" data-copy="' + esc(copyPath) + '" title="点击复制完整短链接">' + esc(keyText) + '</span>';
@@ -1098,11 +1107,11 @@ function bottomNavHTML() {
   </nav>`;
 }
 
-// ===== 管理员 SPA 脚本 =====
-function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
+// ===== 管理员 SPA 脚本（host 参数已移除） =====
+function adminSPAScript(currentPage, pageSize, search, sortMode) {
   return `<script>
 (function(){
-  var state = { page: 1, size: 20, search: "", sort: "edited", host: ${JSON.stringify(host)} };
+  var state = { page: 1, size: 20, search: "", sort: "edited" };
   var formPanel = document.getElementById("panel-form");
   var listPanel = document.getElementById("panel-list");
   var formMsg = document.getElementById("form-msg");
@@ -1170,8 +1179,6 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
     document.getElementById("f-expiresAt").value = "";
     document.getElementById("f-expireAction").value = "pause";
     document.getElementById("f-statusCode").value = "302";
-    var ft = document.getElementById("form-title");
-    if (ft) ft.textContent = "";
     document.getElementById("form-hint").style.display = "none";
     document.getElementById("btn-reset").style.display = "none";
     showMsg(formMsg, "", true);
@@ -1187,8 +1194,6 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
     document.getElementById("f-expiresAt").value = item.expiresAtFmt || "";
     document.getElementById("f-expireAction").value = item.expireAction || "pause";
     document.getElementById("f-statusCode").value = String(item.statusCode || 302);
-    var ft = document.getElementById("form-title");
-    if (ft) ft.textContent = "";
     document.getElementById("form-hint").style.display = "";
     document.getElementById("form-hint").textContent = "正在编辑：" + (item.key || "/");
     document.getElementById("btn-reset").style.display = "";
@@ -1332,7 +1337,7 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
     }
   });
 
-  // ===== 自绘可拖动滚动条（触屏 + 鼠标通用） =====
+  // ===== 自绘可拖动滚动条 =====
   (function initCustomScrollbar() {
     var list = document.getElementById("list-body");
     var bar = document.getElementById("custom-scrollbar");
@@ -1343,13 +1348,9 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
     var dragStartY = 0;
     var dragStartTop = 0;
     var hideTimer = null;
-    var userInteracting = false;
 
     function updateThumb() {
-      if (list.clientHeight === 0) {
-        // 面板隐藏中，暂不处理
-        return;
-      }
+      if (list.clientHeight === 0) return;
       var sh = list.scrollHeight;
       var ch = list.clientHeight;
       if (sh <= ch + 1) {
@@ -1372,7 +1373,7 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
       bar.classList.add("visible");
       clearTimeout(hideTimer);
       hideTimer = setTimeout(function() {
-        if (!isDragging && !userInteracting) bar.classList.remove("visible");
+        if (!isDragging) bar.classList.remove("visible");
       }, 1400);
     }
 
@@ -1401,7 +1402,6 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
     function endDrag(e) {
       if (!isDragging) return;
       isDragging = false;
-      userInteracting = false;
       thumb.classList.remove("dragging");
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", endDrag);
@@ -1417,7 +1417,6 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
       if (e.button !== undefined && e.button !== 0 && e.pointerType === "mouse") return;
       e.preventDefault();
       isDragging = true;
-      userInteracting = true;
       dragStartY = e.clientY;
       dragStartTop = list.scrollTop;
       thumb.classList.add("dragging");
@@ -1430,7 +1429,6 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
 
     thumb.addEventListener("pointerdown", startDrag);
 
-    // 点击轨道跳转
     bar.addEventListener("pointerdown", function(e) {
       if (e.target === thumb) return;
       if (bar.style.display === "none") return;
@@ -1449,7 +1447,6 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
       showBar();
     });
 
-    // 内容或尺寸变化时重算
     var debounce = null;
     function scheduleUpdate() {
       if (debounce) clearTimeout(debounce);
@@ -1466,12 +1463,9 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
       }
     } catch (e) {}
 
-    // 暴露给 loadList/switchTab 触发
     window.__sbUpdate = scheduleUpdate;
 
-    // 首次
     scheduleUpdate();
-    // 稍微延迟再刷一次，避开字体/布局抖动
     setTimeout(scheduleUpdate, 200);
   })();
 
@@ -1485,15 +1479,15 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
 
 // ===== 管理员 SPA 页面 =====
 async function renderAdmin(env, params, host) {
-  const data = await loadAndFilterItems(env, params);
-  const { pageItems, total, totalPages, currentPage, pageSize, search, sortMode } = data;
+  const { pageItems, total, totalPages, currentPage, pageSize, search, sortMode } =
+    await loadAndFilterItems(env, params);
 
   let listHTML = "";
   if (!pageItems.length) {
     listHTML = '<div class="msg">' + (total === 0 ? "暂无短链接" : "无匹配结果") + '</div>';
   } else {
     for (let i = 0; i < pageItems.length; i++) {
-      listHTML += renderListItemHTML(pageItems[i], host, currentPage, pageSize, search, sortMode);
+      listHTML += renderListItemHTML(pageItems[i], host);
     }
   }
 
@@ -1584,161 +1578,20 @@ async function renderAdmin(env, params, host) {
 
     ${bottomNavHTML()}
     ${copyFeatureHTML()}
-    ${adminSPAScript(host, currentPage, pageSize, search, sortMode)}
+    ${adminSPAScript(currentPage, pageSize, search, sortMode)}
   `, null, "has-bottom-nav");
-}
-
-// ===== 访问密码页 =====
-function passwordPage(hasError, path) {
-  const errMsg = hasError ? "密码错误，请重试" : "";
-  return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="color-scheme" content="light dark">
-<title>需要访问密码</title>
-<style>
-  :root {
-    color-scheme: light dark;
-    --md-sys-color-primary: #1B5E20;
-    --md-sys-color-on-primary: #FFFFFF;
-    --md-sys-color-surface: #F7FBF1;
-    --md-sys-color-on-surface: #1A1C18;
-    --md-sys-color-surface-container-low: #F1F6ED;
-    --md-sys-color-outline: #74796D;
-    --md-sys-color-outline-variant: #C3C8BB;
-    --md-sys-color-error: #B3261E;
-    --md-sys-shape-corner-large: 16px;
-    --md-sys-shape-corner-extra-large: 28px;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --md-sys-color-primary: #81C784;
-      --md-sys-color-on-primary: #143800;
-      --md-sys-color-surface: #111411;
-      --md-sys-color-on-surface: #E2E3DC;
-      --md-sys-color-surface-container-low: #161A16;
-      --md-sys-color-outline: #8D9286;
-      --md-sys-color-outline-variant: #43483E;
-      --md-sys-color-error: #F2B8B5;
-    }
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    margin: 0; padding: 20px 16px;
-    font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-    font-size: 16px; line-height: 1.5;
-    background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface);
-  }
-  .wrap { max-width: 360px; margin: 48px auto 0; }
-  .card {
-    background: var(--md-sys-color-surface-container-low);
-    border-radius: var(--md-shape-corner-large);
-    padding: 1.5rem;
-  }
-  h1 { font-size: 1.25rem; margin: 0 0 1rem; font-weight: 500; }
-  input[type="password"] {
-    display: block; width: 100%; padding: 0.75rem 1rem; margin: 0 0 1rem;
-    font-size: 1rem; font-family: inherit;
-    border: 1px solid var(--md-sys-color-outline);
-    border-radius: 8px;
-    background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface);
-    -webkit-appearance: none; appearance: none;
-  }
-  input:focus { outline: none; border-color: var(--md-sys-color-primary); box-shadow: 0 0 0 1px var(--md-sys-color-primary); }
-  button {
-    display: block; width: 100%; padding: 0.9rem;
-    font-size: 1rem; font-family: inherit; font-weight: 600;
-    border: 0; border-radius: var(--md-shape-corner-extra-large);
-    background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
-    cursor: pointer; -webkit-appearance: none; appearance: none;
-    min-height: 48px;
-  }
-  button:active { opacity: 0.85; }
-  .msg { font-size: 0.8125rem; margin-top: 0.75rem; min-height: 1.25rem; color: var(--md-sys-color-error); }
-  @media (max-width: 360px) {
-    body { padding: 10px; font-size: 14px; }
-    .wrap { margin-top: 20px; }
-    .card { padding: 1rem; }
-    h1 { font-size: 1.1rem; }
-  }
-</style>
-</head>
-<body>
-<div class="wrap">
-  <div class="card">
-    <h1>请输入访问密码</h1>
-    <form method="GET" action="${esc(path)}">
-      <input type="password" name="__slpwd" placeholder="回车键确认" autocomplete="current-password" autofocus>
-      <button type="submit">确认密码</button>
-    </form>
-    <div class="msg">${errMsg}</div>
-  </div>
-</div>
-</body>
-</html>`;
 }
 
 // ===== 暂停或过期页 =====
 function unavailablePage() {
-  return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="color-scheme" content="light dark">
-<title>链接已暂停或过期</title>
-<style>
-  :root {
-    color-scheme: light dark;
-    --md-sys-color-surface: #F7FBF1;
-    --md-sys-color-on-surface: #1A1C18;
-    --md-sys-color-surface-container-low: #F1F6ED;
-    --md-sys-color-outline-variant: #C3C8BB;
-    --md-sys-color-on-surface-variant: #43483E;
-    --md-sys-shape-corner-large: 16px;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --md-sys-color-surface: #111411;
-      --md-sys-color-on-surface: #E2E3DC;
-      --md-sys-color-surface-container-low: #161A16;
-      --md-sys-color-outline-variant: #43483E;
-      --md-sys-color-on-surface-variant: #C3C8BB;
-    }
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    margin: 0; padding: 20px 16px;
-    font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-    font-size: 16px; line-height: 1.5;
-    background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface);
-  }
-  .wrap { max-width: 360px; margin: 48px auto 0; }
-  .card {
-    background: var(--md-sys-color-surface-container-low);
-    border-radius: var(--md-sys-shape-corner-large);
-    padding: 1.5rem; text-align: center;
-  }
-  h1 { font-size: 1.25rem; margin: 0 0 0.5rem; font-weight: 500; }
-  p { font-size: 0.875rem; color: var(--md-sys-color-on-surface-variant); margin: 0; }
-  @media (max-width: 360px) {
-    body { padding: 10px; }
-    .wrap { margin-top: 20px; }
-    .card { padding: 1rem; }
-  }
-</style>
-</head>
-<body>
-<div class="wrap">
-  <div class="card">
-    <h1>链接已暂停或过期</h1>
-    <p>该短链接当前不可访问。</p>
-  </div>
-</div>
-</body>
-</html>`;
+  return pageHTML("链接已暂停或过期", `
+    <div style="max-width:360px;margin:48px auto 0">
+      <div class="card" style="text-align:center">
+        <h1 style="font-size:1.25rem;margin-bottom:0.5rem">链接已暂停或过期</h1>
+        <p style="font-size:0.9rem;color:var(--md-sys-color-on-surface-variant);margin:0">该短链接当前不可访问。</p>
+      </div>
+    </div>
+  `);
 }
 
 // ===== 保存逻辑 =====
@@ -1848,7 +1701,7 @@ async function handleAdminAPI(request, env, path, params, host) {
       html = '<div class="msg">' + (data.total === 0 ? "暂无短链接" : "无匹配结果") + '</div>';
     } else {
       for (let i = 0; i < data.pageItems.length; i++) {
-        html += renderListItemHTML(data.pageItems[i], host, data.currentPage, data.pageSize, data.search, data.sortMode);
+        html += renderListItemHTML(data.pageItems[i], host);
       }
     }
     return jsonResponse({

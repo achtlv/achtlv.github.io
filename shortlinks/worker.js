@@ -255,7 +255,10 @@ function baseCSS() {
       box-sizing: border-box;
       min-height: 100%;
       min-height: 100dvh;
-      padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) calc(80px + env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+      padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+    }
+    body.has-bottom-nav {
+      padding-bottom: calc(80px + env(safe-area-inset-bottom));
     }
 
     .wrap { max-width: 800px; margin: 0 auto; width: 100%; }
@@ -385,10 +388,7 @@ function baseCSS() {
     .status-on { color: #2E7D32; font-weight: 700; }
     .status-off { color: var(--md-sys-color-error); font-weight: 700; }
     .empty { color: var(--md-sys-color-outline); }
-    .meta-sep {
-      color: var(--md-sys-color-outline-variant);
-      user-select: none;
-    }
+    .meta-sep { color: var(--md-sys-color-outline-variant); user-select: none; }
 
     .actions { margin-top: 0.85rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }
     .actions form { display: inline; margin: 0; }
@@ -463,12 +463,7 @@ function baseCSS() {
       z-index: 9999;
     }
 
-    /* ===== 列表页 3 行布局 ===== */
-    .row1, .row2, .row3 {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-    }
+    .row1, .row2, .row3 { display: flex; align-items: center; gap: 0.4rem; }
     .row1 { margin-bottom: 0.65rem; }
     .row2 { margin-bottom: 0.65rem; }
     .row3 {
@@ -489,11 +484,7 @@ function baseCSS() {
       gap: 0.35rem;
       flex-shrink: 0;
     }
-    .page-size-group label {
-      margin: 0;
-      font-size: 0.82rem;
-      white-space: nowrap;
-    }
+    .page-size-group label { margin: 0; font-size: 0.82rem; white-space: nowrap; }
     .page-size-group input[type="text"] {
       width: 3.2rem;
       margin: 0;
@@ -519,13 +510,8 @@ function baseCSS() {
       font-size: 0.9rem;
       min-width: 0;
     }
-    .row3 .btn.icon {
-      min-width: 40px;
-      padding: 0.5rem;
-      min-height: 42px;
-    }
+    .row3 .btn.icon { min-width: 40px; padding: 0.5rem; min-height: 42px; }
 
-    /* ===== 无边框浮动圆形底栏 ===== */
     .bottom-nav {
       position: fixed;
       bottom: calc(20px + env(safe-area-inset-bottom));
@@ -562,7 +548,6 @@ function baseCSS() {
     }
     .bottom-nav a svg { width: 24px; height: 24px; }
 
-    /* ===== 回到顶部按钮（绝对定位在 list 按钮右侧） ===== */
     .back-to-top-btn {
       position: fixed;
       bottom: calc(20px + env(safe-area-inset-bottom));
@@ -585,19 +570,17 @@ function baseCSS() {
       transition: opacity 0.2s, background 0.2s, transform 0.15s;
       -webkit-tap-highlight-color: transparent;
     }
-    .back-to-top-btn.visible {
-      opacity: 1;
-      pointer-events: auto;
-    }
-    .back-to-top-btn:active {
-      transform: translateX(-50%) scale(0.9);
-    }
+    .back-to-top-btn.visible { opacity: 1; pointer-events: auto; }
+    .back-to-top-btn:active { transform: translateX(-50%) scale(0.9); }
     .back-to-top-btn svg { width: 24px; height: 24px; }
 
     @media (max-width: 600px) {
       body {
-        padding: 12px 12px calc(80px + env(safe-area-inset-bottom)) 12px;
+        padding: 12px 12px 12px 12px;
         font-size: 15.5px;
+      }
+      body.has-bottom-nav {
+        padding-bottom: calc(80px + env(safe-area-inset-bottom));
       }
       .wrap { max-width: 100%; }
       h1 { font-size: 1.35rem; }
@@ -622,9 +605,12 @@ function baseCSS() {
 
     @media (max-width: 520px) and (max-height: 520px), (max-width: 360px) {
       body {
-        padding: 8px 8px calc(70px + env(safe-area-inset-bottom)) 8px;
+        padding: 8px 8px 8px 8px;
         font-size: 14px;
         line-height: 1.4;
+      }
+      body.has-bottom-nav {
+        padding-bottom: calc(70px + env(safe-area-inset-bottom));
       }
       h1 { font-size: 1.1rem; margin-bottom: 0.6rem; }
       h2 { font-size: 0.98rem; }
@@ -770,7 +756,7 @@ function passwordPage(hasError, path) {
   `);
 }
 
-// ===== 游客页 =====
+// ===== 游客页（精简文案版） =====
 async function renderGuest(env, params) {
   const raw = await env.SHORTLINKS_KV.get("/");
   const e = parseEntry(raw) || {
@@ -782,14 +768,15 @@ async function renderGuest(env, params) {
   const err = params.get("err") || "";
 
   const nextPaused = e.paused ? "false" : "true";
-  const toggleText = e.paused ? "启用访问" : "暂停访问";
+  const toggleText = e.paused ? "启用" : "暂停";
   const toggleClass = e.paused ? "toggle on" : "toggle";
+  const pwdPlaceholder = exists && e.password ? "留空保持原密码" : "必填";
 
   const deleteBtn = exists ? `
     <form class="inline" method="POST" action="/l/delete" onsubmit="return confirm('确定要删除根路径短链接吗？\\n删除后无法恢复。');">
       <input type="hidden" name="key" value="/">
       <input type="hidden" name="back" value="/l">
-      <button type="submit" class="del">删除根路径</button>
+      <button type="submit" class="del">删除</button>
     </form>
   ` : "";
 
@@ -801,20 +788,18 @@ async function renderGuest(env, params) {
     </form>
   ` : "";
 
-  return pageHTML("短链接管理", `
+  return pageHTML("根路径设置", `
     <div class="clearfix">
-      <h1 style="display:inline-block;margin:0 0 16px">根路径设置（游客）</h1>
-      <a class="logout" href="/l/logout">${icon("logout")} 退出登录</a>
+      <h1 style="display:inline-block;margin:0 0 16px">根路径设置</h1>
+      <a class="logout" href="/l/logout">${icon("logout")} 退出</a>
     </div>
 
     <div class="card">
       <div class="infobox">
-        <div class="row"><span class="fl">当前状态：</span>${e.paused ? '<span class="status-off">已暂停</span>' : '<span class="status-on">正常</span>'}</div>
-        <div class="row"><span class="fl">当前过期时间：</span><span class="exp">${e.expiresAt ? esc(fmtDate(e.expiresAt)) : "无"}</span></div>
-        <div class="row"><span class="fl">当前状态码：</span><span class="status-code">${e.statusCode}</span></div>
+        <div class="row"><span class="fl">状态</span>${e.paused ? '<span class="status-off">已暂停</span>' : '<span class="status-on">正常</span>'}</div>
+        <div class="row"><span class="fl">过期</span><span class="exp">${e.expiresAt ? esc(fmtDate(e.expiresAt)) : "无"}</span></div>
+        <div class="row"><span class="fl">状态码</span><span class="status-code">${e.statusCode}</span></div>
       </div>
-
-      <p class="hint">你只能修改或删除根路径（/）的设置，无法查看当前原链接和密码。</p>
 
       <div class="btnrow">
         ${toggleBtn}
@@ -827,22 +812,22 @@ async function renderGuest(env, params) {
         <input type="hidden" name="isEdit" value="1">
         <input type="hidden" name="editKey" value="/">
         <input type="hidden" name="key" value="">
-        <label>新目标链接（留空不修改）</label>
-        <input type="text" name="url" placeholder="https://example.com 或 weixin://" autocomplete="off">
-        <label>新访问密码（留空即为不设置密码）</label>
-        <input type="text" name="password" placeholder="留空则清空密码" autocomplete="off">
-        <label>过期时间（留空即为不设置过期时间）</label>
-        <input type="text" name="expiresAt" placeholder="YYYY-MM-DD HH:MM，留空则不设置" autocomplete="off">
+        <label>目标链接</label>
+        <input type="text" name="url" placeholder="留空不修改" autocomplete="off">
+        <label>访问密码</label>
+        <input type="text" name="password" placeholder="${pwdPlaceholder}" autocomplete="off">
+        <label>过期时间</label>
+        <input type="text" name="expiresAt" placeholder="YYYY-MM-DD HH:MM" autocomplete="off">
         <div class="form-row-2col">
           <div>
             <label>过期操作</label>
             <select name="expireAction">
-              <option value="pause"${e.expireAction === "pause" ? " selected" : ""}>暂停（保留记录）</option>
-              <option value="delete"${e.expireAction === "delete" ? " selected" : ""}>删除（不留记录）</option>
+              <option value="pause"${e.expireAction === "pause" ? " selected" : ""}>暂停</option>
+              <option value="delete"${e.expireAction === "delete" ? " selected" : ""}>删除</option>
             </select>
           </div>
           <div>
-            <label>跳转状态码</label>
+            <label>状态码</label>
             ${statusSelectHTML("statusCode", e.statusCode)}
           </div>
         </div>
@@ -1017,7 +1002,7 @@ async function loadAndFilterItems(env, params) {
   return { pageItems, total, totalPages, currentPage, pageSize, search, sortMode };
 }
 
-// ===== 列表项 HTML（过期操作 / 状态码 / 状态 合并为一行） =====
+// ===== 列表项 HTML =====
 function renderListItemHTML(it, host) {
   const keyText = it.key === "/" ? "/ （根路径）" : it.key;
   const copyPath = "https://" + host + (it.key === "/" ? "/" : it.key);
@@ -1107,7 +1092,6 @@ function adminSPAScript(currentPage, pageSize, search, sortMode) {
     document.querySelectorAll(".bottom-nav a").forEach(function(a){
       a.classList.toggle("active", a.getAttribute("data-tab") === tab);
     });
-    // 切换 tab 时回到顶部，避免上一页滚动位置保留
     window.scrollTo(0, 0);
     updateBackToTop();
   }
@@ -1375,7 +1359,7 @@ async function renderAdmin(env, params, host) {
           <label>备注</label>
           <input type="text" id="f-remark" placeholder="可选，可被搜索" autocomplete="off">
           <label>访问密码</label>
-          <input type="text" id="f-password" placeholder="留空则清空密码" autocomplete="off" title="留空表示不设置或清空密码">
+          <input type="text" id="f-password" placeholder="根路径必须设置密码" autocomplete="off" title="根路径必须设置密码；其他路径留空表示不设置或清空密码">
           <label>过期时间</label>
           <input type="text" id="f-expiresAt" placeholder="YYYY-MM-DD HH:MM" autocomplete="off" title="留空表示不设置过期">
           <div class="form-row-2col">
@@ -1492,10 +1476,22 @@ async function handleSave(form, role, env) {
     newUrl = n;
   }
 
+  // 密码处理：
+  // - 游客编辑根路径且原密码非空、密码框留空 → 保持原密码
+  // - 其他情况按表单处理（空字符串 = 清空）
   let newPwd = base.password;
   const pwdRaw = form.get("password");
   if (pwdRaw !== null && pwdRaw !== undefined) {
-    newPwd = pwdRaw === "-" ? "" : pwdRaw;
+    if (role === "guest" && key === "/" && base.password && pwdRaw === "") {
+      // 保持 base.password 不变
+    } else {
+      newPwd = pwdRaw === "-" ? "" : pwdRaw;
+    }
+  }
+
+  // 根路径必须设置密码
+  if (key === "/" && !newPwd) {
+    return "根路径必须设置访问密码";
   }
 
   let newExp = base.expiresAt;

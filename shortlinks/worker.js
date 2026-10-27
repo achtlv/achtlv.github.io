@@ -1408,6 +1408,197 @@ async function handleSave(form, role, env) {
   return null;
 }
 
+// ===== 补充缺失的渲染函数与工具函数 =====
+
+// 登录页
+function renderLogin(errMsg) {
+  return pageHTML("登录", `
+    <div class="card" style="margin-top:60px;">
+      <h1 style="text-align:center;margin-bottom:1.2rem">短链接管理</h1>
+      <form method="POST" action="/l/login">
+        <label>访问密码</label>
+        <input type="password" name="pwd" placeholder="请输入密码" autocomplete="current-password" autofocus>
+        ${errMsg ? '<div class="msg err">' + esc(errMsg) + '</div>' : ''}
+        <button type="submit" style="width:100%;margin-top:0.5rem">登录</button>
+      </form>
+    </div>
+  `, "420px");
+}
+
+// 访客页面（仅能管理根路径 /，无 API 权限，使用传统 POST 表单）
+async function renderGuest(env, params) {
+  const raw = await env.SHORTLINKS_KV.get("/");
+  const e = parseEntry(raw) || {
+    url: "", password: "", expiresAt: 0, paused: false,
+    expireAction: "pause", statusCode: 302, remark: "", updatedAt: 0
+  };
+  const err = params.get("err");
+  const ok = params.get("ok");
+  const expFmt = e.expiresAt ? fmtDate(e.expiresAt) : "";
+  const msg = err
+    ? '<div class="msg err">' + esc(err) + '</div>'
+    : (ok ? '<div class="msg ok">' + esc(ok) + '</div>' : "");
+
+  return pageHTML("短链接管理（访客）", `
+    <div class="clearfix">
+      <h1 style="display:inline-block;margin:0 0 1rem">短链接管理</h1>
+      <a class="logout" href="/l/logout" title="退出登录">${icon("logout")} 退出</a>
+    </div>
+    <div class="infobox">
+      <div class="row">当前角色：<strong>访客</strong></div>
+      <div class="row">访客仅可管理根路径（/）的短链接</div>
+    </div>
+    <div class="card">
+      <h2>根路径（/）</h2>
+      ${msg}
+      <form method="POST" action="/l/save">
+        <input type="hidden" name="isEdit" value="1">
+        <input type="hidden" name="editKey" value="/">
+        <input type="hidden" name="key" value="">
+        <label>目标链接</label>
+        <input type="text" name="url" value="${esc(e.url)}" placeholder="https://example.com 或 weixin://" autocomplete="off">
+        <label>备注</label>
+        <textarea name="remark" placeholder="可选">${esc(e.remark)}</textarea>
+        <label>访问密码</label>
+        <input type="text" name="password" value="${esc(e.password)}" placeholder="留空则清空密码" autocomplete="off">
+        <label>过期时间</label>
+        <input type="text" name="expiresAt" value="${esc(expFmt)}" placeholder="YYYY-MM-DD HH:MM" autocomplete="off">
+        <label>过期操作</label>
+        <select name="expireAction">
+          <option value="" ${!e.expireAction ? "selected" : ""}>不修改</option>
+          <option value="pause" ${e.expireAction === "pause" ? "selected" : ""}>暂停</option>
+          <option value="delete" ${e.expireAction === "delete" ? "selected" : ""}>删除</option>
+        </select>
+        <label>跳转状态码</label>
+        ${statusSelectHTML("statusCode", e.statusCode)}
+        <div class="btnrow">
+          <button type="submit">${icon("save")} 保存</button>
+        </div>
+      </form>
+      <div class="btnrow">
+        <form method="POST" action="/l/toggle" class="inline">
+          <input type="hidden" name="key" value="/">
+          <input type="hidden" name="paused" value="${e.paused ? "false" : "true"}">
+          <button type="submit" class="${e.paused ? "toggle on" : "toggle"}">
+            ${e.paused ? icon("play") + " 启用" : icon("pause") + " 暂停"}
+          </button>
+        </form>
+      </div>
+    </div>
+    ${copyFeatureHTML()}
+  `);
+}
+
+// 读取 KV 全部条目（带 cursor 分页，过滤保留前缀）
+async function loadAllEntries(env) {
+  const items = [];
+  let cursor = undefined;
+  while (true) {
+    const listResult = await env.SHORTLINKS_KV.list({ cursor, limit: 1000 });
+    for (const k of listResult.keys) {
+      if (isReserved(k.name)) continue;
+      const raw = await env.SHORTLINKS_KV.get(k.name);
+      if (!raw) continue;
+      const e = parseEntry(raw);
+      if (!e || !e.url) continue;
+      items.push({
+        key: k.name,
+        value: e.url,
+        url: e.url,
+        password: e.password,
+        expiresAt: e.expiresAt,
+        paused: e.paused,
+        expireAction: e.expireAction,
+        statusCode: e.statusCode,
+        remark: e.remark,
+        updatedAt: e.updatedAt
+      });
+    }
+    if (listResult.list_complete) break;
+    cursor = listResult.cursor;
+  }
+  return items;
+}
+
+// Material 风格内联 SVG 图标
+function icon(name) {
+  const paths = {
+    add: '<path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>',
+    list: '<path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>',
+    logout: '<path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>',
+    save: '<path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>',
+    refresh: '<path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>',
+    search: '<path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>',
+    time: '<path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>',
+    sort: '<path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/>',
+    prev: '<path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>',
+    next: '<path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>',
+    edit: '<path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>',
+    play: '<path d="M8 5v14l11-7z"/>',
+    pause: '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>',
+    delete: '<path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>'
+  };
+  const p = paths[name] || '';
+  return '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true" style="vertical-align:middle;flex-shrink:0">' + p + '</svg>';
+}
+
+// 状态码选择框
+function statusSelectHTML(name, selected) {
+  const vals = [302, 303, 307];
+  let html = '<select name="' + esc(name) + '" title="跳转状态码">';
+  for (let i = 0; i < vals.length; i++) {
+    const v = vals[i];
+    const sel = String(selected) === String(v) ? " selected" : "";
+    html += '<option value="' + v + '"' + sel + '>' + v + '</option>';
+  }
+  html += '</select>';
+  return html;
+}
+
+// 点击复制功能 + 提示气泡
+function copyFeatureHTML() {
+  return `
+    <div id="copyTip"></div>
+    <script>
+    (function(){
+      var tip = document.getElementById("copyTip");
+      if (!tip) return;
+      var timer = null;
+      function showTip(text) {
+        tip.textContent = text;
+        tip.style.opacity = "1";
+        clearTimeout(timer);
+        timer = setTimeout(function(){ tip.style.opacity = "0"; }, 1400);
+      }
+      document.addEventListener("click", function(e){
+        var t = e.target;
+        while (t && t !== document.body) {
+          if (t.classList && t.classList.contains("copyable")) {
+            var text = t.getAttribute("data-copy");
+            if (text) {
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(function(){ showTip("已复制"); }).catch(function(){ showTip("复制失败"); });
+              } else {
+                var ta = document.createElement("textarea");
+                ta.value = text;
+                ta.style.position = "fixed";
+                ta.style.opacity = "0";
+                document.body.appendChild(ta);
+                ta.select();
+                try { document.execCommand("copy"); showTip("已复制"); } catch (err) { showTip("复制失败"); }
+                document.body.removeChild(ta);
+              }
+            }
+            return;
+          }
+          t = t.parentNode;
+        }
+      });
+    })();
+    </script>
+  `;
+}
+
 // ===== Worker 入口 =====
 
 function jsonResponse(obj, status) {

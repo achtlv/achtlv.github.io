@@ -305,6 +305,13 @@ function baseCSS() {
       opacity: 0.65;
     }
 
+    /* 备注改为单行 */
+    #f-remark {
+      min-height: 48px;
+      padding-top: 0.9rem;
+      padding-bottom: 0.9rem;
+    }
+
     button, .btn {
       display: inline-flex;
       align-items: center;
@@ -415,7 +422,7 @@ function baseCSS() {
     }
     .infobox .row { margin: 0.25rem 0; }
 
-    /* 表单两列布局（过期操作 + 跳转状态码） */
+    /* 表单两列布局（过期操作 + 跳转状态码）—— 小屏也保持两列 */
     .form-row-2col {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -521,51 +528,79 @@ function baseCSS() {
       min-height: 42px;
     }
 
-    /* 主内容区为底栏留出空间 */
+    /* 主内容区为浮动的底部圆形按钮留出空间 */
     body.has-bottom-nav {
-      padding-bottom: calc(64px + env(safe-area-inset-bottom));
+      padding-bottom: calc(112px + env(safe-area-inset-bottom));
     }
 
+    /* 可拖动的滚动条（webkit） */
     .list-scroll {
-      max-height: calc(100vh - 420px);
+      max-height: calc(100vh - 380px);
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       margin: 0 -0.25rem;
       padding: 0 0.25rem;
+      scrollbar-width: thin;
+      scrollbar-color: var(--md-sys-color-outline) transparent;
+    }
+    .list-scroll::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    .list-scroll::-webkit-scrollbar-track {
+      background: transparent;
+      border-radius: 5px;
+    }
+    .list-scroll::-webkit-scrollbar-thumb {
+      background: var(--md-sys-color-outline-variant);
+      border-radius: 5px;
+      border: 2px solid transparent;
+      background-clip: padding-box;
+      transition: background 0.2s;
+    }
+    .list-scroll::-webkit-scrollbar-thumb:hover {
+      background: var(--md-sys-color-outline);
+      background-clip: padding-box;
+    }
+    .list-scroll::-webkit-scrollbar-thumb:active {
+      background: var(--md-sys-color-primary);
+      background-clip: padding-box;
     }
 
-    /* 底部固定导航 */
+    /* ===== 无边框浮动圆形底栏 ===== */
     .bottom-nav {
       position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
+      bottom: calc(20px + env(safe-area-inset-bottom));
+      left: 50%;
+      transform: translateX(-50%);
       z-index: 1000;
       display: flex;
-      background: var(--md-sys-color-surface-container);
-      border-top: 1px solid var(--md-sys-color-outline-variant);
-      padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-      min-height: 56px;
+      gap: 16px;
+      background: transparent;
+      border: 0;
+      padding: 0;
+      pointer-events: none;
     }
     .bottom-nav a {
-      flex: 1;
+      pointer-events: auto;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 3px;
-      padding: 8px 4px;
-      text-decoration: none;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--md-sys-color-surface-container);
       color: var(--md-sys-color-on-surface-variant);
-      font-size: 0.72rem;
-      font-weight: 500;
-      min-height: 56px;
-      transition: color 0.15s, background 0.15s;
+      text-decoration: none;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+      transition: background 0.2s, color 0.2s, transform 0.15s, box-shadow 0.2s;
+      -webkit-tap-highlight-color: transparent;
     }
+    .bottom-nav a:active { transform: scale(0.9); }
     .bottom-nav a.active {
-      color: var(--md-sys-color-primary);
-      background: var(--md-sys-color-primary-container);
-      border-radius: 16px 16px 0 0;
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+      box-shadow: 0 4px 14px rgba(27, 94, 32, 0.35);
     }
     .bottom-nav a svg { width: 24px; height: 24px; }
 
@@ -583,7 +618,16 @@ function baseCSS() {
       .btn.icon { min-width: 44px; padding: 0.7rem; }
       .field { font-size: 0.9rem; }
       a.logout { padding: 0.65rem 1.1rem; font-size: 0.88rem; }
-      .list-scroll { max-height: calc(100vh - 400px); }
+      .list-scroll { max-height: calc(100vh - 360px); }
+    }
+
+    /* 极窄屏：两列仍保持，压缩间距与字号，保证文字完整 */
+    @media (max-width: 400px) {
+      .form-row-2col { gap: 0.5rem; }
+      .form-row-2col select {
+        padding: 0.7rem 0.5rem;
+        font-size: 0.82rem;
+      }
     }
 
     /* 手表 / 极小屏 */
@@ -612,18 +656,13 @@ function baseCSS() {
       .infobox { padding: 0.7rem; font-size: 0.85rem; }
       .item { padding: 0.7rem 0; }
       a.logout { padding: 0.5rem 0.85rem; font-size: 0.8rem; min-height: 34px; }
-      .list-scroll { max-height: calc(100vh - 340px); }
+      .list-scroll { max-height: calc(100vh - 300px); }
       .row1, .row2, .row3 { gap: 0.3rem; }
       .row3 .btn.icon { min-width: 34px; padding: 0.4rem; min-height: 36px; }
       .row3 input[type="text"], .page-size-group input[type="text"] { width: 2.8rem; padding: 0.4rem; }
-      .bottom-nav a { font-size: 0.68rem; min-height: 48px; padding: 6px 2px; }
+      .bottom-nav { gap: 12px; bottom: calc(14px + env(safe-area-inset-bottom)); }
+      .bottom-nav a { width: 48px; height: 48px; }
       .bottom-nav a svg { width: 20px; height: 20px; }
-      .form-row-2col select { padding: 0.55rem 0.6rem; font-size: 0.85rem; }
-    }
-
-    @media (max-width: 340px) {
-      .form-row-2col { grid-template-columns: 1fr; gap: 0; }
-      .form-row-2col > div:first-child { margin-bottom: 0.75rem; }
     }
 
     @media (min-width: 900px) {
@@ -678,13 +717,13 @@ function icon(name) {
   return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:middle;flex-shrink:0;display:inline-block">' + p + '</svg>';
 }
 
-// ===== 状态码选择框（简洁文案） =====
+// ===== 状态码选择框（简洁文案，去掉长解释） =====
 function statusSelectHTML(name, current) {
   var c = normalizeStatusCode(current);
   return `<select name="${esc(name)}" title="跳转状态码">
-    <option value="302"${c === 302 ? " selected" : ""}>302（默认）</option>
-    <option value="303"${c === 303 ? " selected" : ""}>303（强制GET）</option>
-    <option value="307"${c === 307 ? " selected" : ""}>307（强制保留）</option>
+    <option value="302"${c === 302 ? " selected" : ""}>302 默认</option>
+    <option value="303"${c === 303 ? " selected" : ""}>303 强制GET</option>
+    <option value="307"${c === 307 ? " selected" : ""}>307 强制保留</option>
   </select>`;
 }
 
@@ -767,14 +806,19 @@ async function renderGuest(env, params) {
         <input type="text" name="password" placeholder="留空则清空密码" autocomplete="off">
         <label>过期时间（留空即为不设置过期时间）</label>
         <input type="text" name="expiresAt" placeholder="YYYY-MM-DD HH:MM，留空则不设置" autocomplete="off">
-        <label>过期操作（留空不修改）</label>
-        <select name="expireAction">
-          <option value="">不修改</option>
-          <option value="pause">暂停（保留记录）</option>
-          <option value="delete">删除（不留记录）</option>
-        </select>
-        <label>跳转状态码</label>
-        ${statusSelectHTML("statusCode", e.statusCode)}
+        <div class="form-row-2col">
+          <div>
+            <label>过期操作</label>
+            <select name="expireAction">
+              <option value="pause"${e.expireAction === "pause" ? " selected" : ""}>暂停（保留记录）</option>
+              <option value="delete"${e.expireAction === "delete" ? " selected" : ""}>删除（不留记录）</option>
+            </select>
+          </div>
+          <div>
+            <label>跳转状态码</label>
+            ${statusSelectHTML("statusCode", e.statusCode)}
+          </div>
+        </div>
         <button type="submit">保存</button>
       </form>
 
@@ -986,11 +1030,11 @@ function renderListItemHTML(it, host, currentPage, pageSize, search, sortMode) {
     '</div></div>';
 }
 
-// ===== 底部导航 =====
+// ===== 底部导航（无边框浮动圆形按钮，仅图标） =====
 function bottomNavHTML() {
   return `<nav class="bottom-nav">
-    <a href="javascript:void(0)" data-tab="form" class="active" title="新增或编辑">${icon("add")}<span>编辑</span></a>
-    <a href="javascript:void(0)" data-tab="list" title="短链接列表">${icon("list")}<span>列表</span></a>
+    <a href="javascript:void(0)" data-tab="form" class="active" title="编辑" aria-label="编辑">${icon("edit")}</a>
+    <a href="javascript:void(0)" data-tab="list" title="列表" aria-label="列表">${icon("list")}</a>
   </nav>`;
 }
 
@@ -1042,7 +1086,6 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
       var d = res.data;
       state.page = d.currentPage;
       state.size = d.pageSize;
-      document.getElementById("list-count").textContent = "共 " + d.total + " 条";
       document.getElementById("page-info").textContent = d.currentPage + " / " + d.totalPages;
       document.getElementById("q-page").value = d.currentPage;
       document.getElementById("q-size").value = d.pageSize;
@@ -1063,7 +1106,7 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
     document.getElementById("f-remark").value = "";
     document.getElementById("f-password").value = "";
     document.getElementById("f-expiresAt").value = "";
-    document.getElementById("f-expireAction").value = "";
+    document.getElementById("f-expireAction").value = "pause";
     document.getElementById("f-statusCode").value = "302";
     var ft = document.getElementById("form-title");
     if (ft) ft.textContent = "";
@@ -1274,7 +1317,7 @@ async function renderAdmin(env, params, host) {
           <label>目标链接</label>
           <input type="text" id="f-url" placeholder="https://example.com 或 weixin://" autocomplete="off" title="新路径必须填写；编辑时留空不修改">
           <label>备注</label>
-          <textarea id="f-remark" placeholder="可选，支持多行，可被搜索" title="列表只显示第一行"></textarea>
+          <input type="text" id="f-remark" placeholder="可选，可被搜索" autocomplete="off">
           <label>访问密码</label>
           <input type="text" id="f-password" placeholder="留空则清空密码" autocomplete="off" title="留空表示不设置或清空密码">
           <label>过期时间</label>
@@ -1283,7 +1326,6 @@ async function renderAdmin(env, params, host) {
             <div>
               <label>过期操作</label>
               <select id="f-expireAction" title="过期后的行为">
-                <option value="">不修改</option>
                 <option value="pause">暂停（保留记录）</option>
                 <option value="delete">删除（不留记录）</option>
               </select>
@@ -1320,8 +1362,6 @@ async function renderAdmin(env, params, host) {
             <button type="button" id="btn-size" class="btn refresh icon" title="应用每页条数" aria-label="应用每页条数">${icon("save")}</button>
           </span>
         </div>
-
-        <div class="hint" id="list-count">共 ${total} 条</div>
 
         <!-- 第 3 行：上一页 / 下一页 / 页码跳转 -->
         <div class="row3">
@@ -1559,9 +1599,11 @@ async function handleSave(form, role, env) {
     }
   }
 
+  // 过期操作：只有 pause / delete 两种有效值，缺失时默认 pause
   let newAction = base.expireAction;
   if (actionVal === "delete") newAction = "delete";
   else if (actionVal === "pause") newAction = "pause";
+  else if (!newAction) newAction = "pause";
 
   let newStatus = base.statusCode;
   const statusRaw = form.get("statusCode");

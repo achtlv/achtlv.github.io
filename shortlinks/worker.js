@@ -279,16 +279,15 @@ function baseCSS() {
     .card {
       background: var(--md-sys-color-surface-container-low);
       border-radius: var(--md-sys-shape-corner-large);
-      padding: 1.25rem;
-      margin-bottom: 1rem;
-      box-shadow: var(--md-sys-elevation-1);
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
       border: 1px solid var(--md-sys-color-outline-variant);
     }
 
     label {
       display: block;
-      margin: 0 0 0.25rem;
-      font-size: 0.8125rem;
+      margin: 0 0 0.35rem;
+      font-size: 0.85rem;
       font-weight: 500;
       color: var(--md-sys-color-on-surface-variant);
     }
@@ -299,8 +298,8 @@ function baseCSS() {
     textarea {
       display: block;
       width: 100%;
-      padding: 0.75rem 1rem;
-      margin: 0 0 0.875rem;
+      padding: 0.85rem 1.1rem;
+      margin: 0 0 1rem;
       font-size: 1rem;
       font-family: inherit;
       border: 1px solid var(--md-sys-color-outline);
@@ -323,11 +322,12 @@ function baseCSS() {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 0.375rem;
-      padding: 0.625rem 1.25rem;
-      font-size: 0.875rem;
-      font-weight: 500;
+      gap: 0.4rem;
+      padding: 0.85rem 1.7rem;
+      font-size: 0.95rem;
+      font-weight: 600;
       font-family: inherit;
+      letter-spacing: 0.01em;
       border: 0;
       border-radius: var(--md-sys-shape-corner-extra-large);
       background: var(--md-sys-color-primary);
@@ -335,15 +335,15 @@ function baseCSS() {
       cursor: pointer;
       -webkit-appearance: none;
       appearance: none;
-      margin: 0 0.5rem 0.5rem 0;
+      margin: 0 0.5rem 0.6rem 0;
       text-decoration: none;
       text-align: center;
-      transition: opacity 0.15s, box-shadow 0.15s, transform 0.1s;
-      box-shadow: var(--md-sys-elevation-1);
-      min-height: 40px;
+      transition: opacity 0.15s, transform 0.1s, background 0.15s;
+      min-height: 48px;
+      line-height: 1.25;
     }
-    button:active, .btn:active { opacity: 0.88; transform: scale(0.98); }
-    button:hover, .btn:hover { box-shadow: var(--md-sys-elevation-2); }
+    button:active, .btn:active { opacity: 0.88; transform: scale(0.97); }
+    button:hover, .btn:hover { opacity: 0.92; }
 
     button.del, .btn.del {
       background: var(--md-sys-color-error);
@@ -354,17 +354,16 @@ function baseCSS() {
       color: var(--md-sys-color-on-secondary-container);
     }
     button.toggle {
-      background: var(--md-sys-color-tertiary);
+      background: #5B6B4A;
       color: #fff;
     }
     button.toggle.on {
-      background: #386A20;
-      color: #fff;
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
     }
     .btn.refresh, .btn.tonal {
       background: var(--md-sys-color-secondary-container);
       color: var(--md-sys-color-on-secondary-container);
-      box-shadow: none;
     }
     .btn.active {
       background: var(--md-sys-color-primary);
@@ -374,12 +373,14 @@ function baseCSS() {
       float: right;
       background: var(--md-sys-color-surface-container-highest);
       color: var(--md-sys-color-on-surface);
-      padding: 0.5rem 1rem;
+      padding: 0.75rem 1.4rem;
       border-radius: var(--md-sys-shape-corner-extra-large);
-      font-size: 0.875rem;
-      font-weight: 500;
+      font-size: 0.9rem;
+      font-weight: 600;
       text-decoration: none;
-      box-shadow: none;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
     }
 
     .item {
@@ -569,65 +570,65 @@ function baseCSS() {
 
     /* ===== 响应式：手机 ===== */
     @media (max-width: 600px) {
-      body { padding: 10px; font-size: 15px; }
+      body { padding: 12px; font-size: 15px; }
       .wrap { max-width: 100%; }
-      h1 { font-size: 1.25rem; }
-      .card { padding: 1rem; border-radius: var(--md-sys-shape-corner-medium); }
+      h1 { font-size: 1.3rem; }
+      .card { padding: 1.1rem; border-radius: var(--md-sys-shape-corner-medium); }
       button, .btn {
-        padding: 0.55rem 1rem;
-        font-size: 0.8125rem;
-        min-height: 36px;
+        padding: 0.75rem 1.35rem;
+        font-size: 0.9rem;
+        min-height: 44px;
       }
-      .field { font-size: 0.8125rem; }
+      .field { font-size: 0.85rem; }
       .fl { min-width: 3.8em; }
-      a.logout { padding: 0.4rem 0.8rem; font-size: 0.8125rem; }
+      a.logout { padding: 0.65rem 1.1rem; font-size: 0.85rem; min-height: 40px; }
     }
 
     /* ===== 响应式：手表 / 极小屏 (≈500×500) ===== */
     @media (max-width: 520px) and (max-height: 520px), (max-width: 360px) {
       body {
-        padding: 6px;
-        font-size: 13px;
-        line-height: 1.35;
+        padding: 8px;
+        font-size: 13.5px;
+        line-height: 1.4;
       }
       .wrap { max-width: 100%; }
-      h1 { font-size: 1rem; margin-bottom: 0.5rem; }
-      h2 { font-size: 0.9rem; margin-bottom: 0.4rem; }
+      h1 { font-size: 1.05rem; margin-bottom: 0.55rem; }
+      h2 { font-size: 0.95rem; margin-bottom: 0.45rem; }
       .card {
-        padding: 0.6rem;
-        margin-bottom: 0.5rem;
-        border-radius: 10px;
+        padding: 0.75rem;
+        margin-bottom: 0.6rem;
+        border-radius: 12px;
       }
-      label { font-size: 0.7rem; margin-bottom: 0.15rem; }
+      label { font-size: 0.72rem; margin-bottom: 0.2rem; }
       input[type="text"],
       input[type="password"],
       select,
       textarea {
-        padding: 0.45rem 0.6rem;
-        margin-bottom: 0.5rem;
-        font-size: 0.85rem;
-        border-radius: 6px;
+        padding: 0.55rem 0.7rem;
+        margin-bottom: 0.55rem;
+        font-size: 0.88rem;
+        border-radius: 8px;
       }
-      textarea { min-height: 48px; }
+      textarea { min-height: 52px; }
       button, .btn {
-        padding: 0.35rem 0.7rem;
-        font-size: 0.75rem;
-        min-height: 30px;
-        margin: 0 0.25rem 0.25rem 0;
+        padding: 0.55rem 1rem;
+        font-size: 0.82rem;
+        min-height: 38px;
+        margin: 0 0.3rem 0.35rem 0;
         border-radius: 999px;
       }
-      .actions { gap: 0.25rem; margin-top: 0.4rem; }
-      .field { font-size: 0.75rem; margin: 0.1rem 0; }
-      .fl { min-width: 3.2em; font-size: 0.7rem; }
-      .hint { font-size: 0.65rem; margin: 0.15rem 0 0.4rem; }
-      .infobox { padding: 0.5rem 0.6rem; font-size: 0.75rem; margin-bottom: 0.5rem; }
-      .item { padding: 0.5rem 0; }
-      .pager { font-size: 0.7rem; gap: 0.25rem; }
-      .pager input[type="text"] { width: 2.5rem; padding: 0.2rem 0.3rem; font-size: 0.7rem; }
-      .pager button { padding: 0.2rem 0.5rem; font-size: 0.7rem; min-height: 26px; }
-      a.logout { padding: 0.3rem 0.6rem; font-size: 0.7rem; }
-      .toolbar { font-size: 0.75rem; gap: 0.3rem; }
-      .search-bar { gap: 0.3rem; }
+      .actions { gap: 0.3rem; margin-top: 0.5rem; }
+      .field { font-size: 0.8rem; margin: 0.15rem 0; }
+      .fl { min-width: 3.3em; font-size: 0.75rem; }
+      .hint { font-size: 0.7rem; margin: 0.2rem 0 0.45rem; }
+      .infobox { padding: 0.55rem 0.7rem; font-size: 0.8rem; margin-bottom: 0.55rem; }
+      .item { padding: 0.6rem 0; }
+      .pager { font-size: 0.75rem; gap: 0.3rem; }
+      .pager input[type="text"] { width: 2.6rem; padding: 0.25rem 0.35rem; font-size: 0.75rem; }
+      .pager button { padding: 0.3rem 0.6rem; font-size: 0.75rem; min-height: 30px; }
+      a.logout { padding: 0.45rem 0.85rem; font-size: 0.78rem; min-height: 34px; }
+      .toolbar { font-size: 0.8rem; gap: 0.35rem; }
+      .search-bar { gap: 0.35rem; }
       #copyTip { bottom: 12px; font-size: 0.75rem; padding: 0.4rem 0.8rem; }
     }
 
@@ -1207,11 +1208,12 @@ function passwordPage(hasError, path) {
   }
   input:focus { outline: none; border-color: var(--md-sys-color-primary); box-shadow: 0 0 0 1px var(--md-sys-color-primary); }
   button {
-    display: block; width: 100%; padding: 0.75rem;
-    font-size: 0.9375rem; font-family: inherit; font-weight: 500;
+    display: block; width: 100%; padding: 0.9rem;
+    font-size: 1rem; font-family: inherit; font-weight: 600;
     border: 0; border-radius: var(--md-sys-shape-corner-extra-large);
     background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
     cursor: pointer; -webkit-appearance: none; appearance: none;
+    min-height: 48px;
   }
   button:active { opacity: 0.85; }
   .msg { font-size: 0.8125rem; margin-top: 0.75rem; min-height: 1.25rem; color: var(--md-sys-color-error); }

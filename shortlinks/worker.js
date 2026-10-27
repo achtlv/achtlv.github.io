@@ -615,6 +615,76 @@ function baseCSS() {
       a.logout { padding: 0.5rem 0.85rem; font-size: 0.8rem; min-height: 36px; }
     }
 
+
+    /* 底部固定导航 */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      display: flex;
+      background: var(--md-sys-color-surface-container);
+      border-top: 1px solid var(--md-sys-color-outline-variant);
+      padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      min-height: 56px;
+    }
+    .bottom-nav a {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      padding: 8px 4px;
+      text-decoration: none;
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 0.75rem;
+      font-weight: 500;
+      min-height: 56px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .bottom-nav a.active {
+      color: var(--md-sys-color-primary);
+      background: var(--md-sys-color-primary-container);
+    }
+    .bottom-nav a svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    /* 主内容为底栏留出空间 */
+    body.has-bottom-nav {
+      padding-bottom: calc(64px + env(safe-area-inset-bottom));
+    }
+
+    /* 列表可滚动区域 */
+    .list-scroll {
+      max-height: calc(100vh - 280px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      margin: 0 -0.25rem;
+      padding: 0 0.25rem;
+    }
+    @media (max-width: 600px) {
+      .list-scroll {
+        max-height: calc(100vh - 260px);
+      }
+    }
+    @media (max-width: 520px) and (max-height: 520px), (max-width: 360px) {
+      .list-scroll {
+        max-height: calc(100vh - 220px);
+      }
+      .bottom-nav a { font-size: 0.7rem; min-height: 48px; padding: 6px 2px; }
+      .bottom-nav a svg { width: 20px; height: 20px; }
+    }
+
+    .pager-top {
+      margin: 0.75rem 0 0.5rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    }
+
     @media (min-width: 900px) {
       .wrap { max-width: 860px; }
       .card { padding: 1.6rem 1.7rem; }
@@ -622,8 +692,9 @@ function baseCSS() {
   `;
 }
 
-function pageHTML(title, body, maxWidth) {
+function pageHTML(title, body, maxWidth, bodyClass) {
   const w = maxWidth ? "max-width:" + maxWidth + ";margin-left:auto;margin-right:auto;" : "";
+  const bc = bodyClass ? " " + bodyClass : "";
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -636,236 +707,20 @@ function pageHTML(title, body, maxWidth) {
 <title>${esc(title)}</title>
 <style>${baseCSS()}</style>
 </head>
-<body>
+<body class="${bc.trim()}">
 <div class="wrap" style="${w}">${body}</div>
 </body>
 </html>`;
 }
 
-function statusSelectHTML(name, current) {
-  var c = normalizeStatusCode(current);
-  return `<select name="${name}">
-    <option value="302"${c === 302 ? " selected" : ""}>302（临时重定向，默认，兼容性最好）</option>
-    <option value="303"${c === 303 ? " selected" : ""}>303（See Other，强制 GET）</option>
-    <option value="307"${c === 307 ? " selected" : ""}>307（保持请求方法，兼容性稍差）</option>
-  </select>`;
+function bottomNavHTML() {
+  return `<nav class="bottom-nav">
+    <a href="javascript:void(0)" data-tab="form" class="active" title="新增或编辑">${icon("add")}<span>编辑</span></a>
+    <a href="javascript:void(0)" data-tab="list" title="短链接列表">${icon("list")}<span>列表</span></a>
+  </nav>`;
 }
 
-// ===== 登录页 =====
-function renderLogin(errMsg) {
-  return pageHTML("登录", `
-    <div style="max-width:360px;margin:48px auto 0">
-      <div class="card">
-        <h1>短链接管理登录</h1>
-        <form method="POST" action="/l/login">
-          <input type="password" name="pwd" placeholder="回车键确认" autocomplete="current-password" autofocus>
-          <button type="submit">登录</button>
-        </form>
-        <div class="msg err">${errMsg ? esc(errMsg) : ""}</div>
-      </div>
-    </div>
-  `);
-}
-
-// ===== 游客页 =====
-async function renderGuest(env, params) {
-  const raw = await env.SHORTLINKS_KV.get("/");
-  const e = parseEntry(raw) || {
-    url: "", password: "", expiresAt: 0, paused: false,
-    expireAction: "pause", statusCode: 302, remark: "", updatedAt: 0
-  };
-  const exists = !!raw;
-  const ok = params.get("ok") || "";
-  const err = params.get("err") || "";
-
-  const nextPaused = e.paused ? "false" : "true";
-  const toggleText = e.paused ? "▶ 启用" : "⏸ 暂停";
-  const toggleClass = e.paused ? "toggle on" : "toggle";
-
-  const deleteBtn = exists ? `
-    <form class="inline" method="POST" action="/l/delete" onsubmit="return confirm('确定删除根路径？');">
-      <input type="hidden" name="key" value="/">
-      <input type="hidden" name="back" value="/l">
-      <button type="submit" class="del">🗑 删除</button>
-    </form>
-  ` : "";
-
-  const toggleBtn = exists ? `
-    <form class="inline" method="POST" action="/l/toggle">
-      <input type="hidden" name="key" value="/">
-      <input type="hidden" name="paused" value="${nextPaused}">
-      <button type="submit" class="${toggleClass}">${toggleText}</button>
-    </form>
-  ` : "";
-
-  const autoRefresh = (ok || err) ? `<script>setTimeout(function(){location.href='/l'}, 2500);</script>` : "";
-
-  return pageHTML("短链接管理", `
-    <div class="clearfix">
-      <h1 style="display:inline-block;margin:0 0 1rem">根路径（游客）</h1>
-      <a class="logout" href="/l/logout">退出</a>
-    </div>
-
-    <div class="card">
-      <div class="infobox">
-        <div class="row">状态：${e.paused ? '<span class="status-off">已暂停</span>' : '<span class="status-on">正常</span>'}</div>
-        <div class="row">过期：${e.expiresAt ? esc(fmtDate(e.expiresAt)) : "无"}</div>
-        <div class="row">状态码：${e.statusCode}</div>
-      </div>
-
-      <div class="btnrow">
-        ${toggleBtn}
-        ${deleteBtn}
-      </div>
-
-      <hr>
-
-      <form method="POST" action="/l/save">
-        <input type="hidden" name="guest" value="1">
-        <label>目标链接</label>
-        <input type="text" name="url" placeholder="https://example.com 或 weixin://" autocomplete="off">
-        <label>访问密码</label>
-        <input type="text" name="password" placeholder="留空则清空" autocomplete="off">
-        <label>过期时间</label>
-        <input type="text" name="expiresAt" placeholder="YYYY-MM-DD HH:MM" autocomplete="off">
-        <label>过期操作</label>
-        <select name="expireAction">
-          <option value="">不修改</option>
-          <option value="pause">暂停</option>
-          <option value="delete">删除</option>
-        </select>
-        <label>跳转状态码</label>
-        ${statusSelectHTML("statusCode", e.statusCode)}
-        <button type="submit">保存</button>
-      </form>
-
-      <div class="msg ${ok ? 'ok' : 'err'}">${ok ? esc(ok) : (err ? esc(err) : "")}</div>
-    </div>
-    ${autoRefresh}
-  `);
-}
-
-// ===== 复制功能 =====
-function copyFeatureHTML() {
-  return `
-    <div id="copyTip">已复制</div>
-    <script>
-    (function () {
-      function showTip(text) {
-        var tip = document.getElementById("copyTip");
-        if (!tip) return;
-        tip.textContent = text;
-        tip.style.opacity = "1";
-        if (tip._t) clearTimeout(tip._t);
-        tip._t = setTimeout(function () { tip.style.opacity = "0"; }, 1200);
-      }
-
-      function fallbackCopy(text) {
-        var ta = document.createElement("textarea");
-        ta.value = text;
-        ta.setAttribute("readonly", "readonly");
-        ta.style.position = "fixed";
-        ta.style.top = "0";
-        ta.style.left = "-9999px";
-        document.body.appendChild(ta);
-        ta.select();
-        ta.setSelectionRange(0, ta.value.length);
-        var ok = false;
-        try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
-        document.body.removeChild(ta);
-        showTip(ok ? "已复制" : "复制失败");
-      }
-
-      function copyText(text) {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(text).then(function () {
-            showTip("已复制");
-          })["catch"](function () {
-            fallbackCopy(text);
-          });
-        } else {
-          fallbackCopy(text);
-        }
-      }
-
-      document.addEventListener("click", function (e) {
-        var el = e.target;
-        while (el && el !== document.body) {
-          if (el.getAttribute && el.getAttribute("data-copy") !== null) {
-            copyText(el.getAttribute("data-copy"));
-            return;
-          }
-          el = el.parentNode;
-        }
-      }, false);
-    })();
-    </script>
-  `;
-}
-
-// ===== 并行加载所有短链接（优化性能） =====
-async function loadAllEntries(env) {
-  const items = [];
-  const now = Date.now();
-  let cursor = undefined;
-  let listComplete = false;
-  const maxRounds = 10; // 最多 10 × 1000 = 10000 条，防止极端情况
-  let rounds = 0;
-
-  while (!listComplete && rounds < maxRounds) {
-    const opts = { limit: 1000 };
-    if (cursor) opts.cursor = cursor;
-    const listResult = await env.SHORTLINKS_KV.list(opts);
-    const keys = listResult.keys || [];
-    listComplete = !!listResult.list_complete;
-    cursor = listResult.cursor;
-    rounds++;
-
-    if (keys.length === 0) continue;
-
-    // 并行获取所有 value
-    const raws = await Promise.all(keys.map(k => env.SHORTLINKS_KV.get(k.name)));
-
-    for (let i = 0; i < keys.length; i++) {
-      const k = keys[i];
-      const raw = raws[i];
-      const e = parseEntry(raw);
-      if (!e || !e.url) continue;
-
-      let paused = e.paused;
-      if (e.expiresAt > 0 && now > e.expiresAt) {
-        if (e.expireAction === "delete") {
-          // 异步删除，不阻塞列表
-          env.SHORTLINKS_KV.delete(k.name).catch(() => {});
-          continue;
-        } else {
-          paused = true;
-          if (!e.paused) {
-            e.paused = true;
-            e.updatedAt = Date.now();
-            env.SHORTLINKS_KV.put(k.name, JSON.stringify(e)).catch(() => {});
-          }
-        }
-      }
-
-      items.push({
-        key: k.name,
-        value: e.url,
-        password: e.password,
-        expiresAt: e.expiresAt,
-        paused: paused,
-        expireAction: e.expireAction,
-        statusCode: e.statusCode,
-        remark: e.remark,
-        updatedAt: e.updatedAt
-      });
-    }
-  }
-  return items;
-}
-
-// ===== 管理员页 =====
-async function renderAdmin(env, params, host) {
+async function loadAndFilterItems(env, params) {
   let page = parseInt(params.get("page"), 10);
   if (isNaN(page) || page < 1) page = 1;
   let pageSize = parseInt(params.get("size"), 10);
@@ -873,17 +728,11 @@ async function renderAdmin(env, params, host) {
   if (pageSize > 1000) pageSize = 1000;
   const search = (params.get("search") || "").replace(/^\s+|\s+$/g, "");
   const searchLower = search.toLowerCase();
-  const editKey = params.get("edit") || "";
-  const ok = params.get("ok") || "";
-  const err = params.get("err") || "";
-
   const sortParam = params.get("sort") || "edited";
   const sortMode = (sortParam === "dict") ? "dict" : "edited";
 
-  // 优化：并行加载所有记录
   let items = await loadAllEntries(env);
 
-  // 搜索过滤
   if (searchLower) {
     items = items.filter(function (it) {
       const kl = it.key.toLowerCase();
@@ -893,7 +742,6 @@ async function renderAdmin(env, params, host) {
     });
   }
 
-  // 排序
   if (sortMode === "dict") {
     items.sort(function (a, b) {
       if (a.key < b.key) return -1;
@@ -912,217 +760,379 @@ async function renderAdmin(env, params, host) {
   const total = items.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const start = (currentPage - 1) * pageSize;
-  const pageItems = items.slice(start, start + pageSize);
+  const startIdx = (currentPage - 1) * pageSize;
+  const pageItems = items.slice(startIdx, startIdx + pageSize);
 
-  let editItem = null;
-  if (editKey) {
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].key === editKey) { editItem = items[i]; break; }
-    }
-  }
+  return { items, pageItems, total, totalPages, currentPage, pageSize, search, sortMode };
+}
 
-  let formKey = "";
-  let formUrl = "";
-  let formPwd = "";
-  let formExp = "";
-  let formAction = "";
-  let formStatus = 302;
-  let formRemark = "";
-  let isEdit = false;
-  if (editItem) {
-    formKey = editItem.key === "/" ? "/" : editItem.key.replace(/^\//, "");
-    formUrl = editItem.value || "";
-    formPwd = editItem.password || "";
-    formExp = editItem.expiresAt ? fmtDate(editItem.expiresAt) : "";
-    formAction = editItem.expireAction || "pause";
-    formStatus = editItem.statusCode || 302;
-    formRemark = editItem.remark || "";
-    isEdit = true;
-  }
+// ===== 管理员单页（表单默认 + 列表，底栏切换，JS 操作） =====
+async function renderAdmin(env, params, host) {
+  const data = await loadAndFilterItems(env, params);
+  const { pageItems, total, totalPages, currentPage, pageSize, search, sortMode } = data;
 
+  // initial list HTML (server-rendered first paint)
   let listHTML = "";
   if (!pageItems.length) {
     listHTML = '<div class="msg">' + (total === 0 ? "暂无短链接" : "无匹配结果") + '</div>';
   } else {
     for (let i = 0; i < pageItems.length; i++) {
-      const it = pageItems[i];
-      const keyText = it.key === "/" ? "/ （根路径）" : it.key;
-      const copyPath = "https://" + host + (it.key === "/" ? "/" : it.key);
-
-      const keyClickable = '<span class="fv key copyable" data-copy="' + esc(copyPath) + '" title="点击复制">' + esc(keyText) + '</span>';
-      const urlClickable = it.value
-        ? '<span class="fv url copyable" data-copy="' + esc(it.value) + '" title="点击复制">' + esc(it.value) + '</span>'
-        : '<span class="empty">（无）</span>';
-
-      const pwdHtml = it.password ? esc(it.password) : '<span class="empty">（无）</span>';
-      const expHtml = it.expiresAt ? esc(fmtDate(it.expiresAt)) : '<span class="empty">（无）</span>';
-      const actionHtml = it.expireAction === "delete" ? "删除" : "暂停";
-      const statusHtml = it.paused ? '<span class="status-off">已暂停</span>' : '<span class="status-on">正常</span>';
-      const statusCodeHtml = '<span class="status-code">' + it.statusCode + '</span>';
-      const updatedHtml = it.updatedAt ? '<span class="updated">' + esc(fmtDate(it.updatedAt)) + '</span>' : '<span class="empty">（无）</span>';
-
-      const remarkFirst = firstLineRemark(it.remark);
-      const remarkHtml = remarkFirst
-        ? '<span class="remark" title="' + esc(it.remark) + '">' + esc(remarkFirst) + '</span>'
-        : '<span class="empty">（无）</span>';
-
-      const keyEsc = esc(it.key);
-      const keyURL = encodeURIComponent(it.key);
-      const nextPausedVal = it.paused ? "false" : "true";
-      const toggleBtnText = it.paused ? "启用" : "暂停";
-      const toggleBtnClass = it.paused ? "toggle on" : "toggle";
-      const delConfirm = "确定要删除 " + it.key.replace(/'/g, "\\'") + " 吗？";
-
-      const editHref = "/l?edit=" + keyURL +
-        "&page=" + currentPage +
-        "&size=" + pageSize +
-        "&search=" + encodeURIComponent(search) +
-        "&sort=" + sortMode;
-      const backHref = "/l?page=" + currentPage +
-        "&size=" + pageSize +
-        "&search=" + encodeURIComponent(search) +
-        "&sort=" + sortMode;
-
-      listHTML += '<div class="item">' +
-        '<div class="field"><span class="fl">路径：</span>' + keyClickable + '</div>' +
-        '<div class="field"><span class="fl">原链接：</span>' + urlClickable + '</div>' +
-        '<div class="field"><span class="fl">备注：</span>' + remarkHtml + '</div>' +
-        '<div class="field"><span class="fl">访问密码：</span><span class="fv pwd">' + pwdHtml + '</span></div>' +
-        '<div class="field"><span class="fl">过期时间：</span><span class="fv exp">' + expHtml + '</span></div>' +
-        '<div class="field"><span class="fl">过期操作：</span><span class="fv">' + actionHtml + '</span></div>' +
-        '<div class="field"><span class="fl">状态码：</span>' + statusCodeHtml + '</div>' +
-        '<div class="field"><span class="fl">状态：</span>' + statusHtml + '</div>' +
-        '<div class="field"><span class="fl">最近编辑：</span>' + updatedHtml + '</div>' +
-        '<div class="actions">' +
-        '<a class="btn edit icon" href="' + editHref + '" title="编辑">✎</a>' +
-        '<form class="inline" method="POST" action="/l/toggle">' +
-        '<input type="hidden" name="key" value="' + keyEsc + '">' +
-        '<input type="hidden" name="paused" value="' + nextPausedVal + '">' +
-        '<input type="hidden" name="back" value="' + esc(backHref) + '">' +
-        '<button type="submit" class="' + toggleBtnClass + ' icon" title="' + toggleBtnText + '">' + (it.paused ? '▶' : '⏸') + '</button>' +
-        '</form>' +
-        '<form class="inline" method="POST" action="/l/delete" onsubmit="return confirm(\'' + delConfirm + '\');">' +
-        '<input type="hidden" name="key" value="' + keyEsc + '">' +
-        '<input type="hidden" name="back" value="' + esc(backHref) + '">' +
-        '<button type="submit" class="del icon" title="删除">🗑</button>' +
-        '</form>' +
-        '</div>' +
-        '</div>';
+      listHTML += renderListItemHTML(pageItems[i], host, currentPage, pageSize, search, sortMode);
     }
   }
 
-  const searchEnc = encodeURIComponent(search);
   const prevDisabled = currentPage <= 1;
   const nextDisabled = currentPage >= totalPages;
+  const searchEnc = encodeURIComponent(search);
   const baseQuery = "size=" + pageSize + "&search=" + searchEnc + "&sort=" + sortMode;
   const prevHref = prevDisabled ? "#" : "/l?page=" + (currentPage - 1) + "&" + baseQuery;
   const nextHref = nextDisabled ? "#" : "/l?page=" + (currentPage + 1) + "&" + baseQuery;
-
-  const selected = function (v) { return formAction === v ? " selected" : ""; };
-
   const sortEditedClass = (sortMode === "edited") ? "btn refresh active" : "btn refresh";
   const sortDictClass = (sortMode === "dict") ? "btn refresh active" : "btn refresh";
-  const sortEditedHref = "/l?sort=edited&size=" + pageSize + "&search=" + searchEnc;
-  const sortDictHref = "/l?sort=dict&size=" + pageSize + "&search=" + searchEnc;
-
-  const cancelEditHref = "/l?page=" + currentPage + "&size=" + pageSize +
-    "&search=" + encodeURIComponent(search) + "&sort=" + sortMode;
 
   return pageHTML("短链接管理", `
     <div class="clearfix">
-      <h1 style="display:inline-block;margin:0 0 16px">短链接管理（管理员）</h1>
-      <a class="logout" href="/l/logout">退出登录</a>
+      <h1 style="display:inline-block;margin:0 0 1rem">短链接管理</h1>
+      <a class="logout" href="/l/logout" title="退出登录">${icon("logout")} 退出</a>
     </div>
 
-    <div class="card">
-      <h2>${isEdit ? "修改短链接" : "新增短链接"}</h2>
-      <p class="hint">${isEdit ? "编辑中：" + esc(formKey || "/") + ' <a href="' + cancelEditHref + '">取消</a>' : ""}</p>
-
-      <form method="POST" action="/l/save">
-        <input type="hidden" name="isEdit" value="${isEdit ? "1" : "0"}">
-        <input type="hidden" name="editKey" value="${esc(editItem ? editItem.key : "")}">
-        <input type="hidden" name="sort" value="${sortMode}">
-        <input type="hidden" name="page" value="${currentPage}">
-        <input type="hidden" name="size" value="${pageSize}">
-        <input type="hidden" name="search" value="${esc(search)}">
-
-        <label>短链接路径（留空即为根路径）</label>
-        <input type="text" name="key" value="${esc(formKey)}" placeholder="仅允许大小写字母以及数字，留空即为根路径" autocomplete="off">
-
-        <label>目标链接（新路径必须填写，编辑时留空不修改）</label>
-        <input type="text" name="url" value="${esc(formUrl)}" placeholder="https://example.com 或 weixin://" autocomplete="off">
-
-        <label>备注（可选，可被搜索到，支持多行）</label>
-        <textarea name="remark" placeholder="给自己看的备注，列表里只显示第一行">${esc(formRemark)}</textarea>
-
-        <label>访问密码（留空即为不设置密码）</label>
-        <input type="text" name="password" value="${esc(formPwd)}" placeholder="留空则清空密码" autocomplete="off">
-
-        <label>过期时间（留空即为不设置过期时间）</label>
-        <input type="text" name="expiresAt" value="${esc(formExp)}" placeholder="YYYY-MM-DD HH:MM，留空则不设置" autocomplete="off">
-
-        <label>过期操作（留空不修改）</label>
-        <select name="expireAction">
-          <option value=""${selected("")}>不修改</option>
-          <option value="pause"${selected("pause")}>暂停（保留记录）</option>
-          <option value="delete"${selected("delete")}>删除（不留记录）</option>
-        </select>
-
-        <label>跳转状态码</label>
-        ${statusSelectHTML("statusCode", formStatus)}
-
-        <button type="submit">保存</button>
-      </form>
-
-      <div class="msg ${ok ? 'ok' : 'err'}">${ok ? esc(ok) : (err ? esc(err) : "")}</div>
-    </div>
-
-    <div class="card">
-      <h2>已有短链接</h2>
-      
-
-      <form method="GET" action="/l" class="search-bar">
-        <input type="text" name="search" value="${esc(search)}" placeholder="搜索路径、备注或原链接">
-        <input type="hidden" name="sort" value="${sortMode}">
-        <button type="submit" class="btn refresh">🔍</button>
-        <a class="btn refresh" href="/l?sort=${sortMode}">↺</a>
-      </form>
-
-      <div class="toolbar">
-        排序方式：
-        <a class="${sortEditedClass}" href="${sortEditedHref}">⏱ 最近</a>
-        <a class="${sortDictClass}" href="${sortDictHref}">A↕ 字典</a>
-      </div>
-
-      <form method="GET" action="/l" style="margin-bottom:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-        <input type="hidden" name="search" value="${esc(search)}">
-        <input type="hidden" name="sort" value="${sortMode}">
-        每页
-        <input type="text" name="size" value="${pageSize}" style="display:inline-block;width:70px;margin:0">
-        条
-        <button type="submit" class="btn refresh">应用</button>
-      </form>
-
-      <div class="hint">共 ${total} 条（${sortMode === "dict" ? "字典序" : "最近编辑优先"}）</div>
-      <div>${listHTML}</div>
-
-      <div class="pager">
-        <a href="${prevHref}" class="${prevDisabled ? 'disabled' : ''}">‹ 上一页</a>
-        <span class="pageinfo">${currentPage} / ${totalPages}</span>
-        <a href="${nextHref}" class="${nextDisabled ? 'disabled' : ''}">下一页 ›</a>
-        <form method="GET" action="/l">
-          <input type="hidden" name="size" value="${pageSize}">
-          <input type="hidden" name="search" value="${esc(search)}">
-          <input type="hidden" name="sort" value="${sortMode}">
-          <input type="text" name="page" value="${currentPage}" title="页码">
-          <button type="submit" class="btn refresh">跳转</button>
+    <!-- 表单面板（默认显示） -->
+    <div id="panel-form" class="panel">
+      <div class="card">
+        <h2 id="form-title">新增短链接</h2>
+        <p class="hint" id="form-hint" style="display:none"></p>
+        <div id="form-msg" class="msg"></div>
+        <form id="sl-form" onsubmit="return false;">
+          <input type="hidden" id="f-isEdit" value="0">
+          <input type="hidden" id="f-editKey" value="">
+          <label>短链接路径 <span title="仅允许字母和数字，留空为根路径 /">(?)</span></label>
+          <input type="text" id="f-key" placeholder="留空即为根路径" autocomplete="off" title="仅允许大小写字母和数字">
+          <label>目标链接</label>
+          <input type="text" id="f-url" placeholder="https://example.com 或 weixin://" autocomplete="off" title="新路径必须填写；编辑时留空不修改">
+          <label>备注</label>
+          <textarea id="f-remark" placeholder="可选，支持多行，可被搜索" title="列表只显示第一行"></textarea>
+          <label>访问密码</label>
+          <input type="text" id="f-password" placeholder="留空则清空密码" autocomplete="off" title="留空表示不设置或清空密码">
+          <label>过期时间</label>
+          <input type="text" id="f-expiresAt" placeholder="YYYY-MM-DD HH:MM" autocomplete="off" title="留空表示不设置过期">
+          <label>过期操作</label>
+          <select id="f-expireAction" title="过期后的行为">
+            <option value="">不修改</option>
+            <option value="pause">暂停（保留记录）</option>
+            <option value="delete">删除（不留记录）</option>
+          </select>
+          <label>跳转状态码</label>
+          ${statusSelectHTML("statusCode", 302).replace('name="statusCode"', 'id="f-statusCode"')}
+          <div class="btnrow">
+            <button type="button" id="btn-save">${icon("save")} 保存</button>
+            <button type="button" id="btn-reset" class="btn tonal" style="display:none">${icon("refresh")} 取消编辑</button>
+          </div>
         </form>
       </div>
     </div>
+
+    <!-- 列表面板 -->
+    <div id="panel-list" class="panel" style="display:none">
+      <div class="card">
+        <div class="search-bar">
+          <input type="text" id="q-search" value="${esc(search)}" placeholder="搜索路径 / 备注 / 原链接" title="搜索">
+          <button type="button" id="btn-search" class="btn refresh icon" title="搜索">${icon("search")}</button>
+          <button type="button" id="btn-search-reset" class="btn refresh icon" title="重置">${icon("refresh")}</button>
+        </div>
+        <div class="toolbar">
+          <button type="button" class="${sortEditedClass}" id="btn-sort-edited" data-sort="edited" title="按最近编辑排序">${icon("time")} 最近</button>
+          <button type="button" class="${sortDictClass}" id="btn-sort-dict" data-sort="dict" title="按路径字典序">${icon("sort")} 字典</button>
+          <span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px">
+            <span style="font-size:0.85rem;color:var(--md-sys-color-on-surface-variant)">每页</span>
+            <input type="text" id="q-size" value="${pageSize}" style="width:3.2rem;margin:0;padding:0.4rem;text-align:center" title="每页条数">
+            <button type="button" id="btn-size" class="btn refresh icon" title="应用">${icon("save")}</button>
+          </span>
+        </div>
+        <div class="hint" id="list-count">共 ${total} 条</div>
+        <div class="pager pager-top" id="list-pager">
+          <button type="button" class="btn refresh" id="btn-prev" ${prevDisabled ? "disabled" : ""} title="上一页">${icon("prev")} 上一页</button>
+          <span class="pageinfo" id="page-info">${currentPage} / ${totalPages}</span>
+          <button type="button" class="btn refresh" id="btn-next" ${nextDisabled ? "disabled" : ""} title="下一页">下一页 ${icon("next")}</button>
+          <input type="text" id="q-page" value="${currentPage}" title="页码" style="width:3rem;margin:0;padding:0.4rem;text-align:center">
+          <button type="button" class="btn refresh" id="btn-goto">跳转</button>
+        </div>
+        <div class="list-scroll" id="list-body">${listHTML}</div>
+      </div>
+    </div>
+
+    ${bottomNavHTML()}
     ${copyFeatureHTML()}
-    ${(ok || err) ? "<script>setTimeout(function(){var u=location.pathname+location.search.replace(/[?&](ok|err)=[^&]*/g,'').replace(/\\?&/,'?').replace(/\\?$/,'');location.href=u||'/l';}, 2200);</script>" : ""}
-  `);
+    ${adminSPAScript(host)}
+  `, null, "has-bottom-nav");
+}
+
+function renderListItemHTML(it, host, currentPage, pageSize, search, sortMode) {
+  const keyText = it.key === "/" ? "/ （根路径）" : it.key;
+  const copyPath = "https://" + host + (it.key === "/" ? "/" : it.key);
+  const keyClickable = '<span class="fv key copyable" data-copy="' + esc(copyPath) + '" title="点击复制完整短链接">' + esc(keyText) + '</span>';
+  const urlClickable = it.value
+    ? '<span class="fv url copyable" data-copy="' + esc(it.value) + '" title="点击复制原链接">' + esc(it.value) + '</span>'
+    : '<span class="empty">（无）</span>';
+  const pwdHtml = it.password ? esc(it.password) : '<span class="empty">（无）</span>';
+  const expHtml = it.expiresAt ? esc(fmtDate(it.expiresAt)) : '<span class="empty">（无）</span>';
+  const actionHtml = it.expireAction === "delete" ? "删除" : "暂停";
+  const statusHtml = it.paused ? '<span class="status-off">已暂停</span>' : '<span class="status-on">正常</span>';
+  const statusCodeHtml = '<span class="status-code">' + it.statusCode + '</span>';
+  const updatedHtml = it.updatedAt ? '<span class="updated">' + esc(fmtDate(it.updatedAt)) + '</span>' : '<span class="empty">（无）</span>';
+  const remarkFirst = firstLineRemark(it.remark);
+  const remarkHtml = remarkFirst
+    ? '<span class="remark" title="' + esc(it.remark) + '">' + esc(remarkFirst) + '</span>'
+    : '<span class="empty">（无）</span>';
+  const keyEsc = esc(it.key);
+  const toggleIcon = it.paused ? icon("play") : icon("pause");
+  const toggleTitle = it.paused ? "启用" : "暂停";
+  const toggleClass = it.paused ? "toggle on icon" : "toggle icon";
+
+  return '<div class="item" data-key="' + keyEsc + '">' +
+    '<div class="field"><span class="fl">路径</span>' + keyClickable + '</div>' +
+    '<div class="field"><span class="fl">原链接</span>' + urlClickable + '</div>' +
+    '<div class="field"><span class="fl">备注</span>' + remarkHtml + '</div>' +
+    '<div class="field"><span class="fl">密码</span><span class="fv pwd">' + pwdHtml + '</span></div>' +
+    '<div class="field"><span class="fl">过期</span><span class="fv exp">' + expHtml + '</span></div>' +
+    '<div class="field"><span class="fl">过期操作</span><span class="fv">' + actionHtml + '</span></div>' +
+    '<div class="field"><span class="fl">状态码</span>' + statusCodeHtml + '</div>' +
+    '<div class="field"><span class="fl">状态</span>' + statusHtml + '</div>' +
+    '<div class="field"><span class="fl">编辑于</span>' + updatedHtml + '</div>' +
+    '<div class="actions">' +
+    '<button type="button" class="btn edit icon btn-edit" data-key="' + keyEsc + '" title="编辑">' + icon("edit") + '</button>' +
+    '<button type="button" class="' + toggleClass + ' btn-toggle" data-key="' + keyEsc + '" data-paused="' + (it.paused ? "false" : "true") + '" title="' + toggleTitle + '">' + toggleIcon + '</button>' +
+    '<button type="button" class="del icon btn-delete" data-key="' + keyEsc + '" title="删除">' + icon("delete") + '</button>' +
+    '</div></div>';
+}
+
+function adminSPAScript(host) {
+  return `<script>
+(function(){
+  var state = { page: 1, size: 20, search: "", sort: "edited", host: ${JSON.stringify(host)} };
+  var formPanel = document.getElementById("panel-form");
+  var listPanel = document.getElementById("panel-list");
+  var formMsg = document.getElementById("form-msg");
+
+  function showMsg(el, text, ok) {
+    if (!el) return;
+    el.textContent = text || "";
+    el.className = "msg " + (ok ? "ok" : (text ? "err" : ""));
+  }
+
+  function switchTab(tab) {
+    var isForm = tab === "form";
+    formPanel.style.display = isForm ? "" : "none";
+    listPanel.style.display = isForm ? "none" : "";
+    document.querySelectorAll(".bottom-nav a").forEach(function(a){
+      a.classList.toggle("active", a.getAttribute("data-tab") === tab);
+    });
+  }
+
+  document.querySelectorAll(".bottom-nav a").forEach(function(a){
+    a.addEventListener("click", function(e){
+      e.preventDefault();
+      switchTab(a.getAttribute("data-tab"));
+    });
+  });
+
+  function api(path, opts) {
+    opts = opts || {};
+    opts.headers = opts.headers || {};
+    if (opts.body && typeof opts.body === "object" && !(opts.body instanceof FormData)) {
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(opts.body);
+    }
+    return fetch(path, opts).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, status: r.status, data: j }; }); });
+  }
+
+  function loadList() {
+    var q = "page=" + state.page + "&size=" + state.size + "&search=" + encodeURIComponent(state.search) + "&sort=" + state.sort;
+    return api("/l/api/list?" + q).then(function(res){
+      if (!res.ok) { showMsg(formMsg, res.data.error || "加载失败", false); return; }
+      var d = res.data;
+      state.page = d.currentPage;
+      state.size = d.pageSize;
+      document.getElementById("list-count").textContent = "共 " + d.total + " 条";
+      document.getElementById("page-info").textContent = d.currentPage + " / " + d.totalPages;
+      document.getElementById("q-page").value = d.currentPage;
+      document.getElementById("q-size").value = d.pageSize;
+      document.getElementById("btn-prev").disabled = d.currentPage <= 1;
+      document.getElementById("btn-next").disabled = d.currentPage >= d.totalPages;
+      document.getElementById("btn-sort-edited").className = "btn refresh" + (d.sortMode === "edited" ? " active" : "");
+      document.getElementById("btn-sort-dict").className = "btn refresh" + (d.sortMode === "dict" ? " active" : "");
+      document.getElementById("list-body").innerHTML = d.html || '<div class="msg">暂无短链接</div>';
+      return d;
+    });
+  }
+
+  function resetForm() {
+    document.getElementById("f-isEdit").value = "0";
+    document.getElementById("f-editKey").value = "";
+    document.getElementById("f-key").value = "";
+    document.getElementById("f-url").value = "";
+    document.getElementById("f-remark").value = "";
+    document.getElementById("f-password").value = "";
+    document.getElementById("f-expiresAt").value = "";
+    document.getElementById("f-expireAction").value = "";
+    document.getElementById("f-statusCode").value = "302";
+    document.getElementById("form-title").textContent = "新增短链接";
+    document.getElementById("form-hint").style.display = "none";
+    document.getElementById("btn-reset").style.display = "none";
+    showMsg(formMsg, "", true);
+  }
+
+  function fillEdit(item) {
+    document.getElementById("f-isEdit").value = "1";
+    document.getElementById("f-editKey").value = item.key || "";
+    document.getElementById("f-key").value = item.key === "/" ? "/" : (item.key || "").replace(/^\\//, "");
+    document.getElementById("f-url").value = item.value || item.url || "";
+    document.getElementById("f-remark").value = item.remark || "";
+    document.getElementById("f-password").value = item.password || "";
+    document.getElementById("f-expiresAt").value = item.expiresAtFmt || "";
+    document.getElementById("f-expireAction").value = item.expireAction || "pause";
+    document.getElementById("f-statusCode").value = String(item.statusCode || 302);
+    document.getElementById("form-title").textContent = "编辑短链接";
+    document.getElementById("form-hint").style.display = "";
+    document.getElementById("form-hint").textContent = "正在编辑：" + (item.key || "/");
+    document.getElementById("btn-reset").style.display = "";
+    showMsg(formMsg, "", true);
+    switchTab("form");
+  }
+
+  document.getElementById("btn-reset").addEventListener("click", resetForm);
+
+  document.getElementById("btn-save").addEventListener("click", function(){
+    var payload = {
+      isEdit: document.getElementById("f-isEdit").value === "1",
+      editKey: document.getElementById("f-editKey").value,
+      key: document.getElementById("f-key").value,
+      url: document.getElementById("f-url").value,
+      remark: document.getElementById("f-remark").value,
+      password: document.getElementById("f-password").value,
+      expiresAt: document.getElementById("f-expiresAt").value,
+      expireAction: document.getElementById("f-expireAction").value,
+      statusCode: document.getElementById("f-statusCode").value
+    };
+    var btn = document.getElementById("btn-save");
+    btn.disabled = true;
+    showMsg(formMsg, "保存中…", true);
+    api("/l/api/save", { method: "POST", body: payload }).then(function(res){
+      if (!res.ok) {
+        showMsg(formMsg, res.data.error || "保存失败", false);
+        btn.disabled = false;
+        return;
+      }
+      var savedKey = res.data.key;
+      showMsg(formMsg, "正在验证…", true);
+      // 轮询直到新/更新的 key 出现在列表数据中
+      var tries = 0;
+      function poll() {
+        tries++;
+        api("/l/api/get?key=" + encodeURIComponent(savedKey)).then(function(r){
+          if (r.ok && r.data && r.data.url) {
+            showMsg(formMsg, "保存成功", true);
+            btn.disabled = false;
+            resetForm();
+            // 刷新列表数据（不整页刷新）
+            state.page = 1;
+            state.sort = "edited";
+            loadList().then(function(){ switchTab("list"); });
+            return;
+          }
+          if (tries < 15) {
+            setTimeout(poll, 400);
+          } else {
+            showMsg(formMsg, "已保存，同步稍慢，请手动打开列表查看", true);
+            btn.disabled = false;
+            loadList();
+          }
+        }).catch(function(){
+          if (tries < 15) setTimeout(poll, 400);
+          else { showMsg(formMsg, "已保存", true); btn.disabled = false; }
+        });
+      }
+      setTimeout(poll, 300);
+    }).catch(function(e){
+      showMsg(formMsg, "网络错误", false);
+      btn.disabled = false;
+    });
+  });
+
+  document.getElementById("btn-search").addEventListener("click", function(){
+    state.search = document.getElementById("q-search").value.trim();
+    state.page = 1;
+    loadList();
+  });
+  document.getElementById("btn-search-reset").addEventListener("click", function(){
+    document.getElementById("q-search").value = "";
+    state.search = "";
+    state.page = 1;
+    loadList();
+  });
+  document.getElementById("btn-size").addEventListener("click", function(){
+    var n = parseInt(document.getElementById("q-size").value, 10);
+    if (!isNaN(n) && n > 0) state.size = Math.min(n, 1000);
+    state.page = 1;
+    loadList();
+  });
+  document.getElementById("btn-prev").addEventListener("click", function(){
+    if (state.page > 1) { state.page--; loadList(); }
+  });
+  document.getElementById("btn-next").addEventListener("click", function(){
+    state.page++; loadList();
+  });
+  document.getElementById("btn-goto").addEventListener("click", function(){
+    var n = parseInt(document.getElementById("q-page").value, 10);
+    if (!isNaN(n) && n > 0) { state.page = n; loadList(); }
+  });
+  document.getElementById("btn-sort-edited").addEventListener("click", function(){
+    state.sort = "edited"; state.page = 1; loadList();
+  });
+  document.getElementById("btn-sort-dict").addEventListener("click", function(){
+    state.sort = "dict"; state.page = 1; loadList();
+  });
+
+  // 事件委托：编辑 / 启停 / 删除
+  document.getElementById("list-body").addEventListener("click", function(e){
+    var t = e.target;
+    while (t && t !== this) {
+      if (t.classList && t.classList.contains("btn-edit")) {
+        var key = t.getAttribute("data-key");
+        api("/l/api/get?key=" + encodeURIComponent(key)).then(function(res){
+          if (res.ok && res.data) fillEdit(res.data);
+          else showMsg(formMsg, "加载失败", false);
+        });
+        return;
+      }
+      if (t.classList && t.classList.contains("btn-toggle")) {
+        var key = t.getAttribute("data-key");
+        var paused = t.getAttribute("data-paused") === "true";
+        api("/l/api/toggle", { method: "POST", body: { key: key, paused: paused } }).then(function(res){
+          if (res.ok) loadList();
+          else alert(res.data.error || "操作失败");
+        });
+        return;
+      }
+      if (t.classList && t.classList.contains("btn-delete")) {
+        var key = t.getAttribute("data-key");
+        if (!confirm("确定删除 " + key + " 吗？")) return;
+        api("/l/api/delete", { method: "POST", body: { key: key } }).then(function(res){
+          if (res.ok) loadList();
+          else alert(res.data.error || "删除失败");
+        });
+        return;
+      }
+      t = t.parentNode;
+    }
+  });
+
+  // init state from server
+  state.page = ${currentPage};
+  state.size = ${pageSize};
+  state.search = ${JSON.stringify(search)};
+  state.sort = ${JSON.stringify(sortMode)};
+})();
+</script>`;
 }
 
 // ===== 访问密码页 =====
@@ -1399,6 +1409,120 @@ async function handleSave(form, role, env) {
 }
 
 // ===== Worker 入口 =====
+
+function jsonResponse(obj, status) {
+  return new Response(JSON.stringify(obj), {
+    status: status || 200,
+    headers: noCacheHeaders({ "Content-Type": "application/json; charset=utf-8" })
+  });
+}
+
+async function handleAdminAPI(request, env, path, params, host) {
+  // GET /l/api/list
+  if (path === "/l/api/list" && request.method === "GET") {
+    const data = await loadAndFilterItems(env, params);
+    let html = "";
+    if (!data.pageItems.length) {
+      html = '<div class="msg">' + (data.total === 0 ? "暂无短链接" : "无匹配结果") + '</div>';
+    } else {
+      for (let i = 0; i < data.pageItems.length; i++) {
+        html += renderListItemHTML(data.pageItems[i], host, data.currentPage, data.pageSize, data.search, data.sortMode);
+      }
+    }
+    return jsonResponse({
+      total: data.total,
+      totalPages: data.totalPages,
+      currentPage: data.currentPage,
+      pageSize: data.pageSize,
+      search: data.search,
+      sortMode: data.sortMode,
+      html: html
+    });
+  }
+
+  // GET /l/api/get?key=
+  if (path === "/l/api/get" && request.method === "GET") {
+    const key = normalizeKey(params.get("key") || "");
+    if (!key || !isValidKey(key)) return jsonResponse({ error: "路径无效" }, 400);
+    const raw = await env.SHORTLINKS_KV.get(key);
+    if (!raw) return jsonResponse({ error: "不存在" }, 404);
+    const e = parseEntry(raw);
+    if (!e || !e.url) return jsonResponse({ error: "不存在" }, 404);
+    return jsonResponse({
+      key: key,
+      url: e.url,
+      value: e.url,
+      password: e.password,
+      expiresAt: e.expiresAt,
+      expiresAtFmt: e.expiresAt ? fmtDate(e.expiresAt) : "",
+      paused: e.paused,
+      expireAction: e.expireAction,
+      statusCode: e.statusCode,
+      remark: e.remark,
+      updatedAt: e.updatedAt
+    });
+  }
+
+  // POST /l/api/save
+  if (path === "/l/api/save" && request.method === "POST") {
+    let body = {};
+    try { body = await request.json(); } catch (e) { return jsonResponse({ error: "JSON 解析失败" }, 400); }
+    // adapt to handleSave form-like interface
+    const form = {
+      get: function(k) {
+        if (k === "isEdit") return body.isEdit ? "1" : "0";
+        if (k === "editKey") return body.editKey || "";
+        if (k === "key") return body.key != null ? body.key : "";
+        if (k === "url") return body.url != null ? body.url : "";
+        if (k === "password") return body.password != null ? body.password : "";
+        if (k === "expiresAt") return body.expiresAt != null ? body.expiresAt : "";
+        if (k === "expireAction") return body.expireAction || "";
+        if (k === "statusCode") return body.statusCode != null ? body.statusCode : "";
+        if (k === "remark") return body.remark != null ? body.remark : "";
+        return null;
+      }
+    };
+    const errMsg = await handleSave(form, "admin", env);
+    if (errMsg) return jsonResponse({ error: errMsg }, 400);
+    // compute final key
+    let key;
+    const rawKey = (body.key || "").replace(/^\s+|\s+$/g, "");
+    if (body.isEdit && body.editKey && rawKey === "") key = body.editKey;
+    else key = rawKey === "" ? "/" : normalizeKey(rawKey);
+    return jsonResponse({ ok: true, key: key });
+  }
+
+  // POST /l/api/delete
+  if (path === "/l/api/delete" && request.method === "POST") {
+    let body = {};
+    try { body = await request.json(); } catch (e) { return jsonResponse({ error: "JSON 解析失败" }, 400); }
+    const key = normalizeKey(body.key || "");
+    if (!key || !isValidKey(key) || isReserved(key)) return jsonResponse({ error: "路径无效" }, 400);
+    await env.SHORTLINKS_KV.delete(key);
+    return jsonResponse({ ok: true });
+  }
+
+  // POST /l/api/toggle
+  if (path === "/l/api/toggle" && request.method === "POST") {
+    let body = {};
+    try { body = await request.json(); } catch (e) { return jsonResponse({ error: "JSON 解析失败" }, 400); }
+    const key = normalizeKey(body.key || "");
+    const paused = body.paused === true || body.paused === "true";
+    if (!key || !isValidKey(key) || isReserved(key)) return jsonResponse({ error: "路径无效" }, 400);
+    const raw = await env.SHORTLINKS_KV.get(key);
+    if (!raw) return jsonResponse({ error: "短链接不存在" }, 404);
+    const e = parseEntry(raw);
+    if (!e || !e.url) return jsonResponse({ error: "短链接不存在" }, 404);
+    e.paused = paused;
+    e.updatedAt = Date.now();
+    await env.SHORTLINKS_KV.put(key, JSON.stringify(e));
+    return jsonResponse({ ok: true, paused: paused });
+  }
+
+  return jsonResponse({ error: "Not Found" }, 404);
+}
+
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -1414,6 +1538,18 @@ export default {
       }
       if (role === "admin") return htmlResponse(await renderAdmin(env, params, url.hostname));
       return htmlResponse(await renderGuest(env, params));
+    }
+
+    // 1b. Admin JSON APIs
+    if (path.startsWith("/l/api/")) {
+      const role = getRole(request, env);
+      if (role !== "admin") {
+        return new Response(JSON.stringify({ error: "未登录或无权限" }), {
+          status: 401,
+          headers: noCacheHeaders({ "Content-Type": "application/json; charset=utf-8" })
+        });
+      }
+      return handleAdminAPI(request, env, path, params, url.hostname);
     }
 
     // 2. 登录
@@ -1455,13 +1591,7 @@ export default {
         if (checkKey && isValidKey(checkKey) && !isReserved(checkKey)) {
           const existing = await env.SHORTLINKS_KV.get(checkKey);
           if (existing) {
-            const editURL = "/l?edit=" + encodeURIComponent(checkKey) +
-              "&ok=" + encodeURIComponent("路径已被占用，已自动切换到编辑该短链接") +
-              "&sort=" + encodeURIComponent(sortQ) +
-              "&page=" + encodeURIComponent(pageQ) +
-              "&size=" + encodeURIComponent(sizeQ) +
-              "&search=" + encodeURIComponent(searchQ);
-            return redirectResponse(editURL, 302);
+            return redirectResponse("/l?err=" + encodeURIComponent("路径已被占用"), 302);
           }
         }
       }

@@ -67,13 +67,6 @@ function normalizeStatusCode(v) {
   return 302;
 }
 
-function jsonResponse(obj, status) {
-  return new Response(JSON.stringify(obj), {
-    status: status || 200,
-    headers: noCacheHeaders({ "Content-Type": "application/json; charset=utf-8" })
-  });
-}
-
 // ===== 数据解析 =====
 function parseEntry(raw) {
   if (!raw) return null;
@@ -175,7 +168,135 @@ function getRole(request, env) {
   return getRoleFromPassword(getCookie(request, "sl_auth"), env);
 }
 
-// ===== MD3 风格样式 =====
+
+// ===== SVG 图标 =====
+function icon(name, size) {
+  size = size || 20;
+  var paths = {
+    edit: '<path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>',
+    delete: '<path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>',
+    pause: '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>',
+    play: '<path d="M8 5v14l11-7z"/>',
+    search: '<path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>',
+    refresh: '<path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>',
+    add: '<path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>',
+    list: '<path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>',
+    logout: '<path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>',
+    save: '<path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>',
+    prev: '<path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>',
+    next: '<path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>',
+    sort: '<path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/>',
+    time: '<path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>'
+  };
+  var p = paths[name] || '';
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-0.2em;flex-shrink:0">'+p+'</svg>';
+}
+
+function statusSelectHTML(name, current) {
+  var c = normalizeStatusCode(current);
+  return '<select name="'+name+'" id="'+name+'">' +
+    '<option value="302"'+(c===302?' selected':'')+'>302（临时重定向，默认）</option>' +
+    '<option value="303"'+(c===303?' selected':'')+'>303（See Other）</option>' +
+    '<option value="307"'+(c===307?' selected':'')+'>307（保持请求方法）</option>' +
+    '</select>';
+}
+
+function copyFeatureHTML() {
+  return `
+    <div id="copyTip">已复制</div>
+    <script>
+    (function () {
+      function showTip(text) {
+        var tip = document.getElementById("copyTip");
+        if (!tip) return;
+        tip.textContent = text;
+        tip.style.opacity = "1";
+        if (tip._t) clearTimeout(tip._t);
+        tip._t = setTimeout(function () { tip.style.opacity = "0"; }, 1200);
+      }
+      function fallbackCopy(text) {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "readonly");
+        ta.style.position = "fixed";
+        ta.style.top = "0";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        ta.setSelectionRange(0, ta.value.length);
+        var ok = false;
+        try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+        showTip(ok ? "已复制" : "复制失败");
+      }
+      function copyText(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () { showTip("已复制"); })["catch"](function () { fallbackCopy(text); });
+        } else { fallbackCopy(text); }
+      }
+      document.addEventListener("click", function (e) {
+        var el = e.target;
+        while (el && el !== document.body) {
+          if (el.getAttribute && el.getAttribute("data-copy") !== null) {
+            copyText(el.getAttribute("data-copy"));
+            return;
+          }
+          el = el.parentNode;
+        }
+      }, false);
+    })();
+    </script>
+  `;
+}
+
+async function loadAllEntries(env) {
+  const items = [];
+  const now = Date.now();
+  let cursor = undefined;
+  let listComplete = false;
+  const maxRounds = 10;
+  let rounds = 0;
+
+  while (!listComplete && rounds < maxRounds) {
+    const opts = { limit: 1000 };
+    if (cursor) opts.cursor = cursor;
+    const listResult = await env.SHORTLINKS_KV.list(opts);
+    const keys = listResult.keys || [];
+    listComplete = !!listResult.list_complete;
+    cursor = listResult.cursor;
+    rounds++;
+    if (keys.length === 0) continue;
+
+    const raws = await Promise.all(keys.map(k => env.SHORTLINKS_KV.get(k.name)));
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      const raw = raws[i];
+      const e = parseEntry(raw);
+      if (!e || !e.url) continue;
+      let paused = e.paused;
+      if (e.expiresAt > 0 && now > e.expiresAt) {
+        if (e.expireAction === "delete") {
+          env.SHORTLINKS_KV.delete(k.name).catch(function(){});
+          continue;
+        } else {
+          paused = true;
+          if (!e.paused) {
+            e.paused = true;
+            e.updatedAt = Date.now();
+            env.SHORTLINKS_KV.put(k.name, JSON.stringify(e)).catch(function(){});
+          }
+        }
+      }
+      items.push({
+        key: k.name, value: e.url, password: e.password,
+        expiresAt: e.expiresAt, paused: paused, expireAction: e.expireAction,
+        statusCode: e.statusCode, remark: e.remark, updatedAt: e.updatedAt
+      });
+    }
+  }
+  return items;
+}
+
 function baseCSS() {
   return `
     @import url('https://fonts.font.im/css?family=Roboto:400,500,700&display=swap');
@@ -183,6 +304,7 @@ function baseCSS() {
 
     :root {
       color-scheme: light dark;
+      /* Material 3 Legacy Green – deeper */
       --md-sys-color-primary: #1B5E20;
       --md-sys-color-on-primary: #FFFFFF;
       --md-sys-color-primary-container: #A5D6A7;
@@ -259,9 +381,19 @@ function baseCSS() {
 
     .wrap { max-width: 800px; margin: 0 auto; width: 100%; }
 
-    h1 { font-size: 1.55rem; font-weight: 700; margin: 0 0 1.1rem; letter-spacing: -0.01em; }
-    h2 { font-size: 1.15rem; font-weight: 600; margin: 0 0 0.9rem; }
+    h1 {
+      font-size: 1.55rem;
+      font-weight: 700;
+      margin: 0 0 1.1rem;
+      letter-spacing: -0.01em;
+    }
+    h2 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 0 0 0.9rem;
+    }
 
+    /* 无边框卡片 */
     .card {
       background: var(--md-sys-color-surface-container-low);
       border-radius: var(--md-sys-shape-corner-large);
@@ -305,6 +437,7 @@ function baseCSS() {
       opacity: 0.65;
     }
 
+    /* 大按钮 + 图标风格 */
     button, .btn {
       display: inline-flex;
       align-items: center;
@@ -331,15 +464,31 @@ function baseCSS() {
     button:active, .btn:active { opacity: 0.85; transform: scale(0.97); }
     button:hover, .btn:hover { opacity: 0.92; }
 
-    button.del, .btn.del { background: var(--md-sys-color-error); color: var(--md-sys-color-on-error); }
+    button.del, .btn.del {
+      background: var(--md-sys-color-error);
+      color: var(--md-sys-color-on-error);
+    }
     .btn.edit, .btn.tonal, .btn.refresh {
       background: var(--md-sys-color-secondary-container);
       color: var(--md-sys-color-on-secondary-container);
     }
-    button.toggle { background: var(--md-sys-color-tertiary); color: #fff; }
-    button.toggle.on { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
-    .btn.active { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
-    .btn.icon { min-width: 48px; padding: 0.75rem; font-size: 1.15rem; }
+    button.toggle {
+      background: var(--md-sys-color-tertiary);
+      color: #fff;
+    }
+    button.toggle.on {
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+    }
+    .btn.active {
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+    }
+    .btn.icon {
+      min-width: 48px;
+      padding: 0.75rem;
+      font-size: 1.15rem;
+    }
 
     a.logout {
       float: right;
@@ -355,7 +504,10 @@ function baseCSS() {
       align-items: center;
     }
 
-    .item { padding: 1.1rem 0; border-bottom: 1px solid var(--md-sys-color-outline-variant); }
+    .item {
+      padding: 1.1rem 0;
+      border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    }
     .item:last-child { border-bottom: 0; }
 
     .field {
@@ -377,25 +529,52 @@ function baseCSS() {
     .url { color: var(--md-sys-color-on-surface-variant); }
     .pwd { color: #B26A00; }
     .exp { color: #00695C; }
-    .remark { color: var(--md-sys-color-on-surface-variant); font-style: italic; word-break: break-all; }
-    .updated { color: var(--md-sys-color-on-surface-variant); font-size: 0.82rem; }
+    .remark {
+      color: var(--md-sys-color-on-surface-variant);
+      font-style: italic;
+      word-break: break-all;
+    }
+    .updated {
+      color: var(--md-sys-color-on-surface-variant);
+      font-size: 0.82rem;
+    }
     .status-code { color: #5E35B1; font-weight: 600; }
     .status-on { color: #2E7D32; font-weight: 700; }
     .status-off { color: var(--md-sys-color-error); font-weight: 700; }
     .empty { color: var(--md-sys-color-outline); }
 
-    .actions { margin-top: 0.85rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .actions {
+      margin-top: 0.85rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
     .actions form { display: inline; margin: 0; }
     .actions button, .actions .btn { margin: 0; }
 
-    .msg { font-size: 0.9rem; margin-top: 0.9rem; min-height: 1.3rem; font-weight: 500; }
+    .msg {
+      font-size: 0.9rem;
+      margin-top: 0.9rem;
+      min-height: 1.3rem;
+      font-weight: 500;
+    }
     .msg.err { color: var(--md-sys-color-error); }
     .msg.ok { color: #2E7D32; }
-    .msg.warn { color: #B26A00; }
 
-    .hint { font-size: 0.82rem; color: var(--md-sys-color-on-surface-variant); margin: 0.2rem 0 0.8rem; }
+    .hint {
+      font-size: 0.82rem;
+      color: var(--md-sys-color-on-surface-variant);
+      margin: 0.2rem 0 0.8rem;
+    }
 
-    .pager { margin-top: 1.2rem; font-size: 0.9rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+    .pager {
+      margin-top: 1.2rem;
+      font-size: 0.9rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+    }
     .pager a, .pager .btn {
       color: var(--md-sys-color-on-secondary-container);
       background: var(--md-sys-color-secondary-container);
@@ -407,9 +586,21 @@ function baseCSS() {
       display: inline-flex;
       align-items: center;
     }
-    .pager a.disabled { opacity: 0.4; pointer-events: none; }
-    .pager .pageinfo { color: var(--md-sys-color-on-surface-variant); font-weight: 500; padding: 0 0.3rem; }
-    .pager form { display: inline-flex; align-items: center; gap: 0.35rem; margin: 0; }
+    .pager a.disabled {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+    .pager .pageinfo {
+      color: var(--md-sys-color-on-surface-variant);
+      font-weight: 500;
+      padding: 0 0.3rem;
+    }
+    .pager form {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin: 0;
+    }
     .pager input[type="text"] {
       display: inline-block;
       width: 3.2rem;
@@ -418,15 +609,30 @@ function baseCSS() {
       font-size: 0.9rem;
       text-align: center;
     }
-    .pager button { padding: 0.5rem 0.9rem; font-size: 0.85rem; margin: 0; min-height: 40px; }
+    .pager button {
+      padding: 0.5rem 0.9rem;
+      font-size: 0.85rem;
+      margin: 0;
+      min-height: 40px;
+    }
 
-    hr { border: 0; height: 1px; background: var(--md-sys-color-outline-variant); margin: 1.1rem 0; }
+    hr {
+      border: 0;
+      height: 1px;
+      background: var(--md-sys-color-outline-variant);
+      margin: 1.1rem 0;
+    }
 
     .clearfix:after { content: ""; display: table; clear: both; }
     form.inline { display: inline; margin: 0; }
     form.inline button { margin: 0; }
 
-    .btnrow { margin: 0.8rem 0 0; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .btnrow {
+      margin: 0.8rem 0 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
 
     .infobox {
       background: var(--md-sys-color-primary-container);
@@ -484,20 +690,30 @@ function baseCSS() {
       flex-wrap: wrap;
       margin-bottom: 0.9rem;
     }
-    .search-bar input[type="text"] { flex: 1; min-width: 140px; margin: 0; }
+    .search-bar input[type="text"] {
+      flex: 1;
+      min-width: 140px;
+      margin: 0;
+    }
 
+    /* 手机 */
     @media (max-width: 600px) {
       body { padding: 12px; font-size: 15.5px; }
       .wrap { max-width: 100%; }
       h1 { font-size: 1.35rem; }
       .card { padding: 1.15rem; }
-      button, .btn { padding: 0.8rem 1.3rem; font-size: 0.92rem; min-height: 46px; }
+      button, .btn {
+        padding: 0.8rem 1.3rem;
+        font-size: 0.92rem;
+        min-height: 46px;
+      }
       .btn.icon { min-width: 46px; padding: 0.7rem; }
       .field { font-size: 0.9rem; }
       a.logout { padding: 0.65rem 1.1rem; font-size: 0.88rem; }
       .pager a, .pager .btn { padding: 0.5rem 0.9rem; min-height: 38px; }
     }
 
+    /* 手表 / 极小屏 */
     @media (max-width: 520px) and (max-height: 520px), (max-width: 360px) {
       body { padding: 8px; font-size: 14px; line-height: 1.4; }
       h1 { font-size: 1.1rem; margin-bottom: 0.6rem; }
@@ -527,6 +743,8 @@ function baseCSS() {
       a.logout { padding: 0.5rem 0.85rem; font-size: 0.8rem; min-height: 36px; }
     }
 
+
+    /* 底部固定导航 */
     .bottom-nav {
       position: fixed;
       bottom: 0;
@@ -554,11 +772,21 @@ function baseCSS() {
       min-height: 56px;
       transition: color 0.15s, background 0.15s;
     }
-    .bottom-nav a.active { color: var(--md-sys-color-primary); background: var(--md-sys-color-primary-container); }
-    .bottom-nav a svg { width: 24px; height: 24px; }
+    .bottom-nav a.active {
+      color: var(--md-sys-color-primary);
+      background: var(--md-sys-color-primary-container);
+    }
+    .bottom-nav a svg {
+      width: 24px;
+      height: 24px;
+    }
 
-    body.has-bottom-nav { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+    /* 主内容为底栏留出空间 */
+    body.has-bottom-nav {
+      padding-bottom: calc(64px + env(safe-area-inset-bottom));
+    }
 
+    /* 列表可滚动区域 */
     .list-scroll {
       max-height: calc(100vh - 280px);
       overflow-y: auto;
@@ -566,9 +794,15 @@ function baseCSS() {
       margin: 0 -0.25rem;
       padding: 0 0.25rem;
     }
-    @media (max-width: 600px) { .list-scroll { max-height: calc(100vh - 260px); } }
+    @media (max-width: 600px) {
+      .list-scroll {
+        max-height: calc(100vh - 260px);
+      }
+    }
     @media (max-width: 520px) and (max-height: 520px), (max-width: 360px) {
-      .list-scroll { max-height: calc(100vh - 220px); }
+      .list-scroll {
+        max-height: calc(100vh - 220px);
+      }
       .bottom-nav a { font-size: 0.7rem; min-height: 48px; padding: 6px 2px; }
       .bottom-nav a svg { width: 20px; height: 20px; }
     }
@@ -607,39 +841,13 @@ function pageHTML(title, body, maxWidth, bodyClass) {
 </html>`;
 }
 
-// ===== 图标 =====
-function icon(name) {
-  const paths = {
-    add: '<path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>',
-    list: '<path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>',
-    logout: '<path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>',
-    save: '<path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>',
-    refresh: '<path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>',
-    search: '<path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>',
-    time: '<path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>',
-    sort: '<path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/>',
-    prev: '<path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>',
-    next: '<path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>',
-    edit: '<path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>',
-    play: '<path d="M8 5v14l11-7z"/>',
-    pause: '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>',
-    delete: '<path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>'
-  };
-  const p = paths[name] || '';
-  return '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true" style="vertical-align:middle;flex-shrink:0">' + p + '</svg>';
+function bottomNavHTML() {
+  return `<nav class="bottom-nav">
+    <a href="javascript:void(0)" data-tab="form" class="active" title="新增或编辑">${icon("add")}<span>编辑</span></a>
+    <a href="javascript:void(0)" data-tab="list" title="短链接列表">${icon("list")}<span>列表</span></a>
+  </nav>`;
 }
 
-// ===== 状态码选择框 =====
-function statusSelectHTML(name, current) {
-  var c = normalizeStatusCode(current);
-  return `<select name="${esc(name)}" title="跳转状态码">
-    <option value="302"${c === 302 ? " selected" : ""}>302（临时重定向，默认，兼容性最好）</option>
-    <option value="303"${c === 303 ? " selected" : ""}>303（See Other，强制 GET）</option>
-    <option value="307"${c === 307 ? " selected" : ""}>307（保持请求方法，兼容性稍差）</option>
-  </select>`;
-}
-
-// ===== 登录页 =====
 function renderLogin(errMsg) {
   return pageHTML("登录", `
     <div style="max-width:360px;margin:48px auto 0">
@@ -655,7 +863,6 @@ function renderLogin(errMsg) {
   `);
 }
 
-// ===== 游客页 =====
 async function renderGuest(env, params) {
   const raw = await env.SHORTLINKS_KV.get("/");
   const e = parseEntry(raw) || {
@@ -667,14 +874,14 @@ async function renderGuest(env, params) {
   const err = params.get("err") || "";
 
   const nextPaused = e.paused ? "false" : "true";
-  const toggleText = e.paused ? "启用访问" : "暂停访问";
+  const toggleText = e.paused ? (icon("play") + " 启用") : (icon("pause") + " 暂停");
   const toggleClass = e.paused ? "toggle on" : "toggle";
 
   const deleteBtn = exists ? `
-    <form class="inline" method="POST" action="/l/delete" onsubmit="return confirm('确定要删除根路径短链接吗？\\n删除后无法恢复。');">
+    <form class="inline" method="POST" action="/l/delete" onsubmit="return confirm('确定删除根路径？');">
       <input type="hidden" name="key" value="/">
       <input type="hidden" name="back" value="/l">
-      <button type="submit" class="del">删除根路径</button>
+      <button type="submit" class="del">${icon("delete")} 删除</button>
     </form>
   ` : "";
 
@@ -688,18 +895,16 @@ async function renderGuest(env, params) {
 
   return pageHTML("短链接管理", `
     <div class="clearfix">
-      <h1 style="display:inline-block;margin:0 0 16px">根路径设置（游客）</h1>
-      <a class="logout" href="/l/logout">${icon("logout")} 退出登录</a>
+      <h1 style="display:inline-block;margin:0 0 1rem">根路径（游客）</h1>
+      <a class="logout" href="/l/logout" title="退出登录">${icon("logout")} 退出</a>
     </div>
 
     <div class="card">
       <div class="infobox">
-        <div class="row"><span class="fl">当前状态：</span>${e.paused ? '<span class="status-off">已暂停</span>' : '<span class="status-on">正常</span>'}</div>
-        <div class="row"><span class="fl">当前过期时间：</span><span class="exp">${e.expiresAt ? esc(fmtDate(e.expiresAt)) : "无"}</span></div>
-        <div class="row"><span class="fl">当前状态码：</span><span class="status-code">${e.statusCode}</span></div>
+        <div class="row">状态：${e.paused ? '<span class="status-off">已暂停</span>' : '<span class="status-on">正常</span>'}</div>
+        <div class="row">过期：${e.expiresAt ? esc(fmtDate(e.expiresAt)) : "无"}</div>
+        <div class="row">状态码：${e.statusCode}</div>
       </div>
-
-      <p class="hint">你只能修改或删除根路径（/）的设置，无法查看当前原链接和密码。</p>
 
       <div class="btnrow">
         ${toggleBtn}
@@ -709,148 +914,31 @@ async function renderGuest(env, params) {
       <hr>
 
       <form method="POST" action="/l/save">
-        <input type="hidden" name="isEdit" value="1">
-        <input type="hidden" name="editKey" value="/">
-        <input type="hidden" name="key" value="">
-        <label>新目标链接（留空不修改）</label>
+        <input type="hidden" name="guest" value="1">
+        <label>目标链接</label>
         <input type="text" name="url" placeholder="https://example.com 或 weixin://" autocomplete="off">
-        <label>新访问密码（留空即为不设置密码）</label>
-        <input type="text" name="password" placeholder="留空则清空密码" autocomplete="off">
-        <label>过期时间（留空即为不设置过期时间）</label>
-        <input type="text" name="expiresAt" placeholder="YYYY-MM-DD HH:MM，留空则不设置" autocomplete="off">
-        <label>过期操作（留空不修改）</label>
+        <label>访问密码</label>
+        <input type="text" name="password" placeholder="留空则清空" autocomplete="off">
+        <label>过期时间</label>
+        <input type="text" name="expiresAt" placeholder="YYYY-MM-DD HH:MM" autocomplete="off">
+        <label>过期操作</label>
         <select name="expireAction">
           <option value="">不修改</option>
-          <option value="pause">暂停（保留记录）</option>
-          <option value="delete">删除（不留记录）</option>
+          <option value="pause">暂停</option>
+          <option value="delete">删除</option>
         </select>
         <label>跳转状态码</label>
         ${statusSelectHTML("statusCode", e.statusCode)}
-        <button type="submit">保存</button>
+        <button type="submit">${icon("save")} 保存</button>
       </form>
 
       <div class="msg ${ok ? 'ok' : 'err'}">${ok ? esc(ok) : (err ? esc(err) : "")}</div>
     </div>
-    ${copyFeatureHTML()}
   `);
 }
 
-// ===== 复制功能 =====
-function copyFeatureHTML() {
-  return `
-    <div id="copyTip">已复制</div>
-    <script>
-    (function () {
-      function showTip(text) {
-        var tip = document.getElementById("copyTip");
-        if (!tip) return;
-        tip.textContent = text;
-        tip.style.opacity = "1";
-        if (tip._t) clearTimeout(tip._t);
-        tip._t = setTimeout(function () { tip.style.opacity = "0"; }, 1200);
-      }
+// ===== MD3 风格样式 =====
 
-      function fallbackCopy(text) {
-        var ta = document.createElement("textarea");
-        ta.value = text;
-        ta.setAttribute("readonly", "readonly");
-        ta.style.position = "fixed";
-        ta.style.top = "0";
-        ta.style.left = "-9999px";
-        document.body.appendChild(ta);
-        ta.select();
-        ta.setSelectionRange(0, ta.value.length);
-        var ok = false;
-        try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
-        document.body.removeChild(ta);
-        showTip(ok ? "已复制" : "复制失败");
-      }
-
-      function copyText(text) {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(text).then(function () { showTip("已复制"); })["catch"](function () { fallbackCopy(text); });
-        } else {
-          fallbackCopy(text);
-        }
-      }
-
-      document.addEventListener("click", function (e) {
-        var el = e.target;
-        while (el && el !== document.body) {
-          if (el.getAttribute && el.getAttribute("data-copy") !== null) {
-            copyText(el.getAttribute("data-copy"));
-            return;
-          }
-          el = el.parentNode;
-        }
-      }, false);
-    })();
-    </script>
-  `;
-}
-
-// ===== 并行加载所有短链接 =====
-async function loadAllEntries(env) {
-  const items = [];
-  const now = Date.now();
-  let cursor = undefined;
-  let listComplete = false;
-  const maxRounds = 10;
-  let rounds = 0;
-
-  while (!listComplete && rounds < maxRounds) {
-    const opts = { limit: 1000 };
-    if (cursor) opts.cursor = cursor;
-    const listResult = await env.SHORTLINKS_KV.list(opts);
-    const keys = listResult.keys || [];
-    listComplete = !!listResult.list_complete;
-    cursor = listResult.cursor;
-    rounds++;
-
-    if (keys.length === 0) continue;
-
-    const raws = await Promise.all(keys.map(k => env.SHORTLINKS_KV.get(k.name)));
-
-    for (let i = 0; i < keys.length; i++) {
-      const k = keys[i];
-      const raw = raws[i];
-      if (isReserved(k.name)) continue;
-      const e = parseEntry(raw);
-      if (!e || !e.url) continue;
-
-      let paused = e.paused;
-      if (e.expiresAt > 0 && now > e.expiresAt) {
-        if (e.expireAction === "delete") {
-          env.SHORTLINKS_KV.delete(k.name).catch(() => {});
-          continue;
-        } else {
-          paused = true;
-          if (!e.paused) {
-            e.paused = true;
-            e.updatedAt = Date.now();
-            env.SHORTLINKS_KV.put(k.name, JSON.stringify(e)).catch(() => {});
-          }
-        }
-      }
-
-      items.push({
-        key: k.name,
-        value: e.url,
-        url: e.url,
-        password: e.password,
-        expiresAt: e.expiresAt,
-        paused: paused,
-        expireAction: e.expireAction,
-        statusCode: e.statusCode,
-        remark: e.remark,
-        updatedAt: e.updatedAt
-      });
-    }
-  }
-  return items;
-}
-
-// ===== 过滤 + 分页 =====
 async function loadAndFilterItems(env, params) {
   let page = parseInt(params.get("page"), 10);
   if (isNaN(page) || page < 1) page = 1;
@@ -897,7 +985,106 @@ async function loadAndFilterItems(env, params) {
   return { items, pageItems, total, totalPages, currentPage, pageSize, search, sortMode };
 }
 
-// ===== 列表项 HTML =====
+// ===== 管理员单页（表单默认 + 列表，底栏切换，JS 操作） =====
+async function renderAdmin(env, params, host) {
+  const data = await loadAndFilterItems(env, params);
+  const { pageItems, total, totalPages, currentPage, pageSize, search, sortMode } = data;
+
+  // initial list HTML (server-rendered first paint)
+  let listHTML = "";
+  if (!pageItems.length) {
+    listHTML = '<div class="msg">' + (total === 0 ? "暂无短链接" : "无匹配结果") + '</div>';
+  } else {
+    for (let i = 0; i < pageItems.length; i++) {
+      listHTML += renderListItemHTML(pageItems[i], host, currentPage, pageSize, search, sortMode);
+    }
+  }
+
+  const prevDisabled = currentPage <= 1;
+  const nextDisabled = currentPage >= totalPages;
+  const searchEnc = encodeURIComponent(search);
+  const baseQuery = "size=" + pageSize + "&search=" + searchEnc + "&sort=" + sortMode;
+  const prevHref = prevDisabled ? "#" : "/l?page=" + (currentPage - 1) + "&" + baseQuery;
+  const nextHref = nextDisabled ? "#" : "/l?page=" + (currentPage + 1) + "&" + baseQuery;
+  const sortEditedClass = (sortMode === "edited") ? "btn refresh active" : "btn refresh";
+  const sortDictClass = (sortMode === "dict") ? "btn refresh active" : "btn refresh";
+
+  return pageHTML("短链接管理", `
+    <div class="clearfix">
+      <h1 style="display:inline-block;margin:0 0 1rem">短链接管理</h1>
+      <a class="logout" href="/l/logout" title="退出登录">${icon("logout")} 退出</a>
+    </div>
+
+    <!-- 表单面板（默认显示） -->
+    <div id="panel-form" class="panel">
+      <div class="card">
+        <h2 id="form-title">新增短链接</h2>
+        <p class="hint" id="form-hint" style="display:none"></p>
+        <div id="form-msg" class="msg"></div>
+        <form id="sl-form" onsubmit="return false;">
+          <input type="hidden" id="f-isEdit" value="0">
+          <input type="hidden" id="f-editKey" value="">
+          <label>短链接路径 <span title="仅允许字母和数字，留空为根路径 /">(?)</span></label>
+          <input type="text" id="f-key" placeholder="留空即为根路径" autocomplete="off" title="仅允许大小写字母和数字">
+          <label>目标链接</label>
+          <input type="text" id="f-url" placeholder="https://example.com 或 weixin://" autocomplete="off" title="新路径必须填写；编辑时留空不修改">
+          <label>备注</label>
+          <textarea id="f-remark" placeholder="可选，支持多行，可被搜索" title="列表只显示第一行"></textarea>
+          <label>访问密码</label>
+          <input type="text" id="f-password" placeholder="留空则清空密码" autocomplete="off" title="留空表示不设置或清空密码">
+          <label>过期时间</label>
+          <input type="text" id="f-expiresAt" placeholder="YYYY-MM-DD HH:MM" autocomplete="off" title="留空表示不设置过期">
+          <label>过期操作</label>
+          <select id="f-expireAction" title="过期后的行为">
+            <option value="">不修改</option>
+            <option value="pause">暂停（保留记录）</option>
+            <option value="delete">删除（不留记录）</option>
+          </select>
+          <label>跳转状态码</label>
+          ${statusSelectHTML("statusCode", 302).replace('name="statusCode"', 'id="f-statusCode"')}
+          <div class="btnrow">
+            <button type="button" id="btn-save">${icon("save")} 保存</button>
+            <button type="button" id="btn-reset" class="btn tonal" style="display:none">${icon("refresh")} 取消编辑</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 列表面板 -->
+    <div id="panel-list" class="panel" style="display:none">
+      <div class="card">
+        <div class="search-bar">
+          <input type="text" id="q-search" value="${esc(search)}" placeholder="搜索路径 / 备注 / 原链接" title="搜索">
+          <button type="button" id="btn-search" class="btn refresh icon" title="搜索">${icon("search")}</button>
+          <button type="button" id="btn-search-reset" class="btn refresh icon" title="重置">${icon("refresh")}</button>
+        </div>
+        <div class="toolbar">
+          <button type="button" class="${sortEditedClass}" id="btn-sort-edited" data-sort="edited" title="按最近编辑排序">${icon("time")} 最近</button>
+          <button type="button" class="${sortDictClass}" id="btn-sort-dict" data-sort="dict" title="按路径字典序">${icon("sort")} 字典</button>
+          <span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px">
+            <span style="font-size:0.85rem;color:var(--md-sys-color-on-surface-variant)">每页</span>
+            <input type="text" id="q-size" value="${pageSize}" style="width:3.2rem;margin:0;padding:0.4rem;text-align:center" title="每页条数">
+            <button type="button" id="btn-size" class="btn refresh icon" title="应用">${icon("save")}</button>
+          </span>
+        </div>
+        <div class="hint" id="list-count">共 ${total} 条</div>
+        <div class="pager pager-top" id="list-pager">
+          <button type="button" class="btn refresh" id="btn-prev" ${prevDisabled ? "disabled" : ""} title="上一页">${icon("prev")} 上一页</button>
+          <span class="pageinfo" id="page-info">${currentPage} / ${totalPages}</span>
+          <button type="button" class="btn refresh" id="btn-next" ${nextDisabled ? "disabled" : ""} title="下一页">下一页 ${icon("next")}</button>
+          <input type="text" id="q-page" value="${currentPage}" title="页码" style="width:3rem;margin:0;padding:0.4rem;text-align:center">
+          <button type="button" class="btn refresh" id="btn-goto">跳转</button>
+        </div>
+        <div class="list-scroll" id="list-body">${listHTML}</div>
+      </div>
+    </div>
+
+    ${bottomNavHTML()}
+    ${copyFeatureHTML()}
+    ${adminSPAScript(host)}
+  `, null, "has-bottom-nav");
+}
+
 function renderListItemHTML(it, host, currentPage, pageSize, search, sortMode) {
   const keyText = it.key === "/" ? "/ （根路径）" : it.key;
   const copyPath = "https://" + host + (it.key === "/" ? "/" : it.key);
@@ -937,16 +1124,7 @@ function renderListItemHTML(it, host, currentPage, pageSize, search, sortMode) {
     '</div></div>';
 }
 
-// ===== 底部导航 =====
-function bottomNavHTML() {
-  return `<nav class="bottom-nav">
-    <a href="javascript:void(0)" data-tab="form" class="active" title="新增或编辑">${icon("add")}<span>编辑</span></a>
-    <a href="javascript:void(0)" data-tab="list" title="短链接列表">${icon("list")}<span>列表</span></a>
-  </nav>`;
-}
-
-// ===== 管理员 SPA 脚本（★ 已增加 currentPage/pageSize/search/sortMode 参数） =====
-function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
+function adminSPAScript(host) {
   return `<script>
 (function(){
   var state = { page: 1, size: 20, search: "", sort: "edited", host: ${JSON.stringify(host)} };
@@ -1065,6 +1243,7 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
       }
       var savedKey = res.data.key;
       showMsg(formMsg, "正在验证…", true);
+      // 轮询直到新/更新的 key 出现在列表数据中
       var tries = 0;
       function poll() {
         tries++;
@@ -1073,13 +1252,15 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
             showMsg(formMsg, "保存成功", true);
             btn.disabled = false;
             resetForm();
+            // 刷新列表数据（不整页刷新）
             state.page = 1;
             state.sort = "edited";
             loadList().then(function(){ switchTab("list"); });
             return;
           }
-          if (tries < 15) { setTimeout(poll, 400); }
-          else {
+          if (tries < 15) {
+            setTimeout(poll, 400);
+          } else {
             showMsg(formMsg, "已保存，同步稍慢，请手动打开列表查看", true);
             btn.disabled = false;
             loadList();
@@ -1130,6 +1311,7 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
     state.sort = "dict"; state.page = 1; loadList();
   });
 
+  // 事件委托：编辑 / 启停 / 删除
   document.getElementById("list-body").addEventListener("click", function(e){
     var t = e.target;
     while (t && t !== this) {
@@ -1142,18 +1324,18 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
         return;
       }
       if (t.classList && t.classList.contains("btn-toggle")) {
-        var key2 = t.getAttribute("data-key");
+        var key = t.getAttribute("data-key");
         var paused = t.getAttribute("data-paused") === "true";
-        api("/l/api/toggle", { method: "POST", body: { key: key2, paused: paused } }).then(function(res){
+        api("/l/api/toggle", { method: "POST", body: { key: key, paused: paused } }).then(function(res){
           if (res.ok) loadList();
           else alert(res.data.error || "操作失败");
         });
         return;
       }
       if (t.classList && t.classList.contains("btn-delete")) {
-        var key3 = t.getAttribute("data-key");
-        if (!confirm("确定删除 " + key3 + " 吗？")) return;
-        api("/l/api/delete", { method: "POST", body: { key: key3 } }).then(function(res){
+        var key = t.getAttribute("data-key");
+        if (!confirm("确定删除 " + key + " 吗？")) return;
+        api("/l/api/delete", { method: "POST", body: { key: key } }).then(function(res){
           if (res.ok) loadList();
           else alert(res.data.error || "删除失败");
         });
@@ -1163,105 +1345,13 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
     }
   });
 
+  // init state from server
   state.page = ${currentPage};
   state.size = ${pageSize};
   state.search = ${JSON.stringify(search)};
   state.sort = ${JSON.stringify(sortMode)};
 })();
 </script>`;
-}
-
-// ===== 管理员 SPA 页面（★ 调用处已传入 4 个新参数） =====
-async function renderAdmin(env, params, host) {
-  const data = await loadAndFilterItems(env, params);
-  const { pageItems, total, totalPages, currentPage, pageSize, search, sortMode } = data;
-
-  let listHTML = "";
-  if (!pageItems.length) {
-    listHTML = '<div class="msg">' + (total === 0 ? "暂无短链接" : "无匹配结果") + '</div>';
-  } else {
-    for (let i = 0; i < pageItems.length; i++) {
-      listHTML += renderListItemHTML(pageItems[i], host, currentPage, pageSize, search, sortMode);
-    }
-  }
-
-  const prevDisabled = currentPage <= 1;
-  const nextDisabled = currentPage >= totalPages;
-  const sortEditedClass = (sortMode === "edited") ? "btn refresh active" : "btn refresh";
-  const sortDictClass = (sortMode === "dict") ? "btn refresh active" : "btn refresh";
-
-  return pageHTML("短链接管理", `
-    <div class="clearfix">
-      <h1 style="display:inline-block;margin:0 0 1rem">短链接管理</h1>
-      <a class="logout" href="/l/logout" title="退出登录">${icon("logout")} 退出</a>
-    </div>
-
-    <div id="panel-form" class="panel">
-      <div class="card">
-        <h2 id="form-title">新增短链接</h2>
-        <p class="hint" id="form-hint" style="display:none"></p>
-        <div id="form-msg" class="msg"></div>
-        <form id="sl-form" onsubmit="return false;">
-          <input type="hidden" id="f-isEdit" value="0">
-          <input type="hidden" id="f-editKey" value="">
-          <label>短链接路径 <span title="仅允许字母和数字，留空为根路径 /">(?)</span></label>
-          <input type="text" id="f-key" placeholder="留空即为根路径" autocomplete="off" title="仅允许大小写字母和数字">
-          <label>目标链接</label>
-          <input type="text" id="f-url" placeholder="https://example.com 或 weixin://" autocomplete="off" title="新路径必须填写；编辑时留空不修改">
-          <label>备注</label>
-          <textarea id="f-remark" placeholder="可选，支持多行，可被搜索" title="列表只显示第一行"></textarea>
-          <label>访问密码</label>
-          <input type="text" id="f-password" placeholder="留空则清空密码" autocomplete="off" title="留空表示不设置或清空密码">
-          <label>过期时间</label>
-          <input type="text" id="f-expiresAt" placeholder="YYYY-MM-DD HH:MM" autocomplete="off" title="留空表示不设置过期">
-          <label>过期操作</label>
-          <select id="f-expireAction" title="过期后的行为">
-            <option value="">不修改</option>
-            <option value="pause">暂停（保留记录）</option>
-            <option value="delete">删除（不留记录）</option>
-          </select>
-          <label>跳转状态码</label>
-          ${statusSelectHTML("statusCode", 302).replace('name="statusCode"', 'id="f-statusCode"')}
-          <div class="btnrow">
-            <button type="button" id="btn-save">${icon("save")} 保存</button>
-            <button type="button" id="btn-reset" class="btn tonal" style="display:none">${icon("refresh")} 取消编辑</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <div id="panel-list" class="panel" style="display:none">
-      <div class="card">
-        <div class="search-bar">
-          <input type="text" id="q-search" value="${esc(search)}" placeholder="搜索路径 / 备注 / 原链接" title="搜索">
-          <button type="button" id="btn-search" class="btn refresh icon" title="搜索">${icon("search")}</button>
-          <button type="button" id="btn-search-reset" class="btn refresh icon" title="重置">${icon("refresh")}</button>
-        </div>
-        <div class="toolbar">
-          <button type="button" class="${sortEditedClass}" id="btn-sort-edited" data-sort="edited" title="按最近编辑排序">${icon("time")} 最近</button>
-          <button type="button" class="${sortDictClass}" id="btn-sort-dict" data-sort="dict" title="按路径字典序">${icon("sort")} 字典</button>
-          <span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px">
-            <span style="font-size:0.85rem;color:var(--md-sys-color-on-surface-variant)">每页</span>
-            <input type="text" id="q-size" value="${pageSize}" style="width:3.2rem;margin:0;padding:0.4rem;text-align:center" title="每页条数">
-            <button type="button" id="btn-size" class="btn refresh icon" title="应用">${icon("save")}</button>
-          </span>
-        </div>
-        <div class="hint" id="list-count">共 ${total} 条</div>
-        <div class="pager pager-top" id="list-pager">
-          <button type="button" class="btn refresh" id="btn-prev" ${prevDisabled ? "disabled" : ""} title="上一页">${icon("prev")} 上一页</button>
-          <span class="pageinfo" id="page-info">${currentPage} / ${totalPages}</span>
-          <button type="button" class="btn refresh" id="btn-next" ${nextDisabled ? "disabled" : ""} title="下一页">下一页 ${icon("next")}</button>
-          <input type="text" id="q-page" value="${currentPage}" title="页码" style="width:3rem;margin:0;padding:0.4rem;text-align:center">
-          <button type="button" class="btn refresh" id="btn-goto">跳转</button>
-        </div>
-        <div class="list-scroll" id="list-body">${listHTML}</div>
-      </div>
-    </div>
-
-    ${bottomNavHTML()}
-    ${copyFeatureHTML()}
-    ${adminSPAScript(host, currentPage, pageSize, search, sortMode)}
-  `, null, "has-bottom-nav");
 }
 
 // ===== 访问密码页 =====
@@ -1271,6 +1361,7 @@ function passwordPage(hasError, path) {
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <title>需要访问密码</title>
@@ -1287,6 +1378,7 @@ function passwordPage(hasError, path) {
     --md-sys-color-error: #B3261E;
     --md-sys-shape-corner-large: 16px;
     --md-sys-shape-corner-extra-large: 28px;
+    --md-sys-elevation-1: none;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -1301,9 +1393,10 @@ function passwordPage(hasError, path) {
     }
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
   body {
     margin: 0; padding: 20px 16px;
-    font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
     font-size: 16px; line-height: 1.5;
     background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface);
   }
@@ -1312,6 +1405,7 @@ function passwordPage(hasError, path) {
     background: var(--md-sys-color-surface-container-low);
     border-radius: var(--md-sys-shape-corner-large);
     padding: 1.5rem;
+    box-shadow: var(--md-sys-elevation-1);
   }
   h1 { font-size: 1.25rem; margin: 0 0 1rem; font-weight: 500; }
   input[type="password"] {
@@ -1374,6 +1468,7 @@ function unavailablePage() {
     --md-sys-color-outline-variant: #C3C8BB;
     --md-sys-color-on-surface-variant: #43483E;
     --md-sys-shape-corner-large: 16px;
+    --md-sys-elevation-1: none;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -1385,9 +1480,10 @@ function unavailablePage() {
     }
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
   body {
     margin: 0; padding: 20px 16px;
-    font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
     font-size: 16px; line-height: 1.5;
     background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface);
   }
@@ -1396,6 +1492,7 @@ function unavailablePage() {
     background: var(--md-sys-color-surface-container-low);
     border-radius: var(--md-sys-shape-corner-large);
     padding: 1.5rem; text-align: center;
+    box-shadow: var(--md-sys-elevation-1);
   }
   h1 { font-size: 1.25rem; margin: 0 0 0.5rem; font-weight: 500; }
   p { font-size: 0.875rem; color: var(--md-sys-color-on-surface-variant); margin: 0; }
@@ -1417,7 +1514,7 @@ function unavailablePage() {
 </html>`;
 }
 
-// ===== 保存逻辑 =====
+// ===== 处理保存逻辑（修复路径变更 bug） =====
 async function handleSave(form, role, env) {
   const isEdit = form.get("isEdit") === "1";
   const editKey = form.get("editKey") || "";
@@ -1438,19 +1535,27 @@ async function handleSave(form, role, env) {
     }
   }
 
+  // 如果是编辑且路径发生了变化，检查新路径是否已存在
   if (isEdit && editKey && key !== editKey) {
     const existing = await env.SHORTLINKS_KV.get(key);
-    if (existing) return "目标路径已被占用，请换一个路径";
+    if (existing) {
+      return "目标路径已被占用，请换一个路径";
+    }
   }
 
   const raw = await env.SHORTLINKS_KV.get(key);
+  // 如果是新路径且已有数据（非编辑情况），上面已处理；这里取当前（可能是新路径或原路径）
   const current = parseEntry(raw) || {
     url: "", password: "", expiresAt: 0, paused: false,
     expireAction: "pause", statusCode: 302, remark: "", updatedAt: 0
   };
 
+  // 如果是编辑原路径，用原数据作为 current
   let base = current;
-  if (isEdit && editKey && key !== editKey) {
+  if (isEdit && editKey && key === editKey) {
+    // 正常编辑同路径
+  } else if (isEdit && editKey && key !== editKey) {
+    // 路径变更：从旧 key 取数据
     const oldRaw = await env.SHORTLINKS_KV.get(editKey);
     base = parseEntry(oldRaw) || current;
   }
@@ -1465,7 +1570,8 @@ async function handleSave(form, role, env) {
   let newPwd = base.password;
   const pwdRaw = form.get("password");
   if (pwdRaw !== null && pwdRaw !== undefined) {
-    newPwd = pwdRaw === "-" ? "" : pwdRaw;
+    if (pwdRaw === "-") newPwd = "";
+    else newPwd = pwdRaw;
   }
 
   let newExp = base.expiresAt;
@@ -1493,10 +1599,13 @@ async function handleSave(form, role, env) {
 
   let newRemark = base.remark;
   const remarkRaw = form.get("remark");
-  if (remarkRaw !== null && remarkRaw !== undefined) newRemark = remarkRaw;
+  if (remarkRaw !== null && remarkRaw !== undefined) {
+    newRemark = remarkRaw;
+  }
 
   if (!newUrl) return "该路径还没有目标链接，请先填写目标链接";
 
+  // 写入新 key
   await env.SHORTLINKS_KV.put(key, JSON.stringify({
     url: newUrl,
     password: newPwd,
@@ -1508,14 +1617,27 @@ async function handleSave(form, role, env) {
     updatedAt: Date.now()
   }));
 
+  // ★ 修复 bug：如果路径变更，删除旧路径
   if (isEdit && editKey && key !== editKey) {
-    try { await env.SHORTLINKS_KV.delete(editKey); } catch (e) {}
+    try {
+      await env.SHORTLINKS_KV.delete(editKey);
+    } catch (e) {}
   }
+
   return null;
 }
 
-// ===== 管理 JSON API =====
+// ===== Worker 入口 =====
+
+function jsonResponse(obj, status) {
+  return new Response(JSON.stringify(obj), {
+    status: status || 200,
+    headers: noCacheHeaders({ "Content-Type": "application/json; charset=utf-8" })
+  });
+}
+
 async function handleAdminAPI(request, env, path, params, host) {
+  // GET /l/api/list
   if (path === "/l/api/list" && request.method === "GET") {
     const data = await loadAndFilterItems(env, params);
     let html = "";
@@ -1537,6 +1659,7 @@ async function handleAdminAPI(request, env, path, params, host) {
     });
   }
 
+  // GET /l/api/get?key=
   if (path === "/l/api/get" && request.method === "GET") {
     const key = normalizeKey(params.get("key") || "");
     if (!key || !isValidKey(key)) return jsonResponse({ error: "路径无效" }, 400);
@@ -1559,9 +1682,11 @@ async function handleAdminAPI(request, env, path, params, host) {
     });
   }
 
+  // POST /l/api/save
   if (path === "/l/api/save" && request.method === "POST") {
     let body = {};
     try { body = await request.json(); } catch (e) { return jsonResponse({ error: "JSON 解析失败" }, 400); }
+    // adapt to handleSave form-like interface
     const form = {
       get: function(k) {
         if (k === "isEdit") return body.isEdit ? "1" : "0";
@@ -1578,6 +1703,7 @@ async function handleAdminAPI(request, env, path, params, host) {
     };
     const errMsg = await handleSave(form, "admin", env);
     if (errMsg) return jsonResponse({ error: errMsg }, 400);
+    // compute final key
     let key;
     const rawKey = (body.key || "").replace(/^\s+|\s+$/g, "");
     if (body.isEdit && body.editKey && rawKey === "") key = body.editKey;
@@ -1585,6 +1711,7 @@ async function handleAdminAPI(request, env, path, params, host) {
     return jsonResponse({ ok: true, key: key });
   }
 
+  // POST /l/api/delete
   if (path === "/l/api/delete" && request.method === "POST") {
     let body = {};
     try { body = await request.json(); } catch (e) { return jsonResponse({ error: "JSON 解析失败" }, 400); }
@@ -1594,6 +1721,7 @@ async function handleAdminAPI(request, env, path, params, host) {
     return jsonResponse({ ok: true });
   }
 
+  // POST /l/api/toggle
   if (path === "/l/api/toggle" && request.method === "POST") {
     let body = {};
     try { body = await request.json(); } catch (e) { return jsonResponse({ error: "JSON 解析失败" }, 400); }
@@ -1613,13 +1741,14 @@ async function handleAdminAPI(request, env, path, params, host) {
   return jsonResponse({ error: "Not Found" }, 404);
 }
 
-// ===== Worker 入口 =====
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
     const params = url.searchParams;
 
+    // 1. 管理页面主入口
     if (path === "/l" || path === "/l/") {
       const role = getRole(request, env);
       if (!role) {
@@ -1630,6 +1759,7 @@ export default {
       return htmlResponse(await renderGuest(env, params));
     }
 
+    // 1b. Admin JSON APIs
     if (path.startsWith("/l/api/")) {
       const role = getRole(request, env);
       if (role !== "admin") {
@@ -1641,6 +1771,7 @@ export default {
       return handleAdminAPI(request, env, path, params, url.hostname);
     }
 
+    // 2. 登录
     if (path === "/l/login" && request.method === "POST") {
       let form = null;
       try { form = await request.formData(); } catch (e) {}
@@ -1652,12 +1783,14 @@ export default {
       });
     }
 
+    // 3. 退出
     if (path === "/l/logout") {
       return redirectResponse("/l", 302, {
         "Set-Cookie": "sl_auth=; Path=/l; HttpOnly; SameSite=Lax; Max-Age=0"
       });
     }
 
+    // 4. 保存
     if (path === "/l/save" && request.method === "POST") {
       const role = getRole(request, env);
       if (!role) return redirectResponse("/l", 302);
@@ -1691,6 +1824,7 @@ export default {
       return redirectResponse(backBase + "&ok=" + encodeURIComponent("保存成功"), 302);
     }
 
+    // 5. 删除
     if (path === "/l/delete" && request.method === "POST") {
       const role = getRole(request, env);
       if (!role) return redirectResponse("/l", 302);
@@ -1709,6 +1843,7 @@ export default {
       return redirectResponse(back + sep + "ok=" + encodeURIComponent("已删除"), 302);
     }
 
+    // 6. 暂停/启用
     if (path === "/l/toggle" && request.method === "POST") {
       const role = getRole(request, env);
       if (!role) return redirectResponse("/l", 302);
@@ -1735,6 +1870,7 @@ export default {
       return redirectResponse(back + sep + "ok=" + encodeURIComponent(paused ? "已暂停" : "已启用"), 302);
     }
 
+    // 7. 短链接跳转
     let raw;
     try {
       raw = await env.SHORTLINKS_KV.get(path);

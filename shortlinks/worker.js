@@ -212,7 +212,6 @@ function baseCSS() {
       --md-sys-shape-corner-medium: 14px;
       --md-sys-shape-corner-large: 18px;
       --md-sys-shape-corner-extra-large: 28px;
-      --safe-pad: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
     }
 
     @media (prefers-color-scheme: dark) {
@@ -247,14 +246,17 @@ function baseCSS() {
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html { -webkit-text-size-adjust: 100%; height: 100%; }
+
     body {
       font-family: "Roboto", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
       font-size: 16px;
       line-height: 1.55;
       background: var(--md-sys-color-surface);
       color: var(--md-sys-color-on-surface);
+      box-sizing: border-box;
       min-height: 100%;
-      padding: var(--safe-pad);
+      min-height: 100dvh;
+      padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) calc(80px + env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
     }
 
     .wrap { max-width: 800px; margin: 0 auto; width: 100%; }
@@ -305,12 +307,7 @@ function baseCSS() {
       opacity: 0.65;
     }
 
-    /* 备注改为单行 */
-    #f-remark {
-      min-height: 48px;
-      padding-top: 0.9rem;
-      padding-bottom: 0.9rem;
-    }
+    #f-remark { min-height: 48px; padding-top: 0.9rem; padding-bottom: 0.9rem; }
 
     button, .btn {
       display: inline-flex;
@@ -422,7 +419,6 @@ function baseCSS() {
     }
     .infobox .row { margin: 0.25rem 0; }
 
-    /* 表单两列布局（过期操作 + 跳转状态码）—— 小屏也保持两列 */
     .form-row-2col {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -449,7 +445,7 @@ function baseCSS() {
 
     #copyTip {
       position: fixed;
-      bottom: 28px;
+      bottom: 100px;
       left: 50%;
       transform: translateX(-50%);
       min-width: 110px;
@@ -528,43 +524,87 @@ function baseCSS() {
       min-height: 42px;
     }
 
-    /* 主内容区为浮动的底部圆形按钮留出空间 */
-    body.has-bottom-nav {
-      padding-bottom: calc(112px + env(safe-area-inset-bottom));
+    /* ===== 列表页 card 自适应高度 + 内部滚动 ===== */
+    #panel-list .card {
+      display: flex;
+      flex-direction: column;
+      max-height: calc(100vh - 150px);
+      max-height: calc(100dvh - 150px);
+    }
+    #panel-list .row1,
+    #panel-list .row2,
+    #panel-list .row3 {
+      flex-shrink: 0;
     }
 
-    /* 可拖动的滚动条（webkit） */
-    .list-scroll {
-      max-height: calc(100vh - 380px);
+    /* 自绘滚动条的外层容器 */
+    #panel-list .scroll-wrap {
+      flex: 1 1 0;
+      min-height: 100px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* 滚动内容：隐藏原生滚动条，右侧预留 10px 给自绘滚动条 */
+    #panel-list .list-scroll {
+      flex: 1 1 auto;
       overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      margin: 0 -0.25rem;
-      padding: 0 0.25rem;
-      scrollbar-width: thin;
-      scrollbar-color: var(--md-sys-color-outline) transparent;
+      overflow-x: hidden;
+      overscroll-behavior: contain;
+      padding-right: 10px;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
     }
-    .list-scroll::-webkit-scrollbar {
-      width: 10px;
-      height: 10px;
+    #panel-list .list-scroll::-webkit-scrollbar {
+      display: none;
+      width: 0;
+      height: 0;
     }
-    .list-scroll::-webkit-scrollbar-track {
+
+    /* 自绘滚动条 */
+    #panel-list .custom-scrollbar {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 12px;
       background: transparent;
-      border-radius: 5px;
+      z-index: 10;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
     }
-    .list-scroll::-webkit-scrollbar-thumb {
+    #panel-list .custom-scrollbar.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #panel-list .custom-scrollbar-thumb {
+      position: absolute;
+      top: 0;
+      right: 3px;
+      width: 6px;
+      min-height: 24px;
+      border-radius: 3px;
       background: var(--md-sys-color-outline-variant);
-      border-radius: 5px;
-      border: 2px solid transparent;
-      background-clip: padding-box;
-      transition: background 0.2s;
+      pointer-events: auto;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: background 0.15s, width 0.15s, right 0.15s;
+      will-change: transform, height;
     }
-    .list-scroll::-webkit-scrollbar-thumb:hover {
+    #panel-list .custom-scrollbar-thumb:hover {
       background: var(--md-sys-color-outline);
-      background-clip: padding-box;
     }
-    .list-scroll::-webkit-scrollbar-thumb:active {
+    #panel-list .custom-scrollbar-thumb.dragging,
+    #panel-list .custom-scrollbar-thumb:active {
       background: var(--md-sys-color-primary);
-      background-clip: padding-box;
+      width: 8px;
+      right: 2px;
+      cursor: grabbing;
     }
 
     /* ===== 无边框浮动圆形底栏 ===== */
@@ -604,9 +644,11 @@ function baseCSS() {
     }
     .bottom-nav a svg { width: 24px; height: 24px; }
 
-    /* 平板 / 手机 */
     @media (max-width: 600px) {
-      body { padding: 12px; font-size: 15.5px; }
+      body {
+        padding: 12px 12px calc(80px + env(safe-area-inset-bottom)) 12px;
+        font-size: 15.5px;
+      }
       .wrap { max-width: 100%; }
       h1 { font-size: 1.35rem; }
       .card { padding: 1.15rem; }
@@ -618,10 +660,12 @@ function baseCSS() {
       .btn.icon { min-width: 44px; padding: 0.7rem; }
       .field { font-size: 0.9rem; }
       a.logout { padding: 0.65rem 1.1rem; font-size: 0.88rem; }
-      .list-scroll { max-height: calc(100vh - 360px); }
+      #panel-list .card {
+        max-height: calc(100vh - 140px);
+        max-height: calc(100dvh - 140px);
+      }
     }
 
-    /* 极窄屏：两列仍保持，压缩间距与字号，保证文字完整 */
     @media (max-width: 400px) {
       .form-row-2col { gap: 0.5rem; }
       .form-row-2col select {
@@ -630,9 +674,12 @@ function baseCSS() {
       }
     }
 
-    /* 手表 / 极小屏 */
     @media (max-width: 520px) and (max-height: 520px), (max-width: 360px) {
-      body { padding: 8px; font-size: 14px; line-height: 1.4; }
+      body {
+        padding: 8px 8px calc(70px + env(safe-area-inset-bottom)) 8px;
+        font-size: 14px;
+        line-height: 1.4;
+      }
       h1 { font-size: 1.1rem; margin-bottom: 0.6rem; }
       h2 { font-size: 0.98rem; }
       .card { padding: 0.85rem; margin-bottom: 0.7rem; border-radius: 14px; }
@@ -654,15 +701,28 @@ function baseCSS() {
       .fl { min-width: 3.4em; font-size: 0.78rem; }
       .hint { font-size: 0.75rem; }
       .infobox { padding: 0.7rem; font-size: 0.85rem; }
-      .item { padding: 0.7rem 0; }
+      .item { padding: 0.6rem 0; }
       a.logout { padding: 0.5rem 0.85rem; font-size: 0.8rem; min-height: 34px; }
-      .list-scroll { max-height: calc(100vh - 300px); }
+      #panel-list .card {
+        max-height: calc(100vh - 120px);
+        max-height: calc(100dvh - 120px);
+      }
       .row1, .row2, .row3 { gap: 0.3rem; }
+      .row1 { margin-bottom: 0.45rem; }
+      .row2 { margin-bottom: 0.45rem; }
+      .row3 {
+        margin-top: 0.4rem;
+        margin-bottom: 0.5rem;
+        padding-bottom: 0.5rem;
+      }
       .row3 .btn.icon { min-width: 34px; padding: 0.4rem; min-height: 36px; }
       .row3 input[type="text"], .page-size-group input[type="text"] { width: 2.8rem; padding: 0.4rem; }
+      #panel-list .scroll-wrap { min-height: 80px; }
       .bottom-nav { gap: 12px; bottom: calc(14px + env(safe-area-inset-bottom)); }
       .bottom-nav a { width: 48px; height: 48px; }
       .bottom-nav a svg { width: 20px; height: 20px; }
+      .form-row-2col select { padding: 0.55rem 0.5rem; font-size: 0.8rem; }
+      #copyTip { bottom: 80px; }
     }
 
     @media (min-width: 900px) {
@@ -717,7 +777,7 @@ function icon(name) {
   return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:middle;flex-shrink:0;display:inline-block">' + p + '</svg>';
 }
 
-// ===== 状态码选择框（简洁文案，去掉长解释） =====
+// ===== 状态码选择框 =====
 function statusSelectHTML(name, current) {
   var c = normalizeStatusCode(current);
   return `<select name="${esc(name)}" title="跳转状态码">
@@ -1030,7 +1090,7 @@ function renderListItemHTML(it, host, currentPage, pageSize, search, sortMode) {
     '</div></div>';
 }
 
-// ===== 底部导航（无边框浮动圆形按钮，仅图标） =====
+// ===== 底部导航 =====
 function bottomNavHTML() {
   return `<nav class="bottom-nav">
     <a href="javascript:void(0)" data-tab="form" class="active" title="编辑" aria-label="编辑">${icon("edit")}</a>
@@ -1060,6 +1120,7 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
     document.querySelectorAll(".bottom-nav a").forEach(function(a){
       a.classList.toggle("active", a.getAttribute("data-tab") === tab);
     });
+    if (!isForm && window.__sbUpdate) setTimeout(window.__sbUpdate, 0);
   }
 
   document.querySelectorAll(".bottom-nav a").forEach(function(a){
@@ -1094,6 +1155,7 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
       document.getElementById("btn-sort-edited").className = "btn refresh icon" + (d.sortMode === "edited" ? " active" : "");
       document.getElementById("btn-sort-dict").className = "btn refresh icon" + (d.sortMode === "dict" ? " active" : "");
       document.getElementById("list-body").innerHTML = d.html || '<div class="msg">暂无短链接</div>';
+      if (window.__sbUpdate) setTimeout(window.__sbUpdate, 0);
       return d;
     });
   }
@@ -1190,7 +1252,6 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
     });
   });
 
-  // ===== 回车确认 =====
   var qSearch = document.getElementById("q-search");
   var qSize = document.getElementById("q-size");
   var qPage = document.getElementById("q-page");
@@ -1271,6 +1332,149 @@ function adminSPAScript(host, currentPage, pageSize, search, sortMode) {
     }
   });
 
+  // ===== 自绘可拖动滚动条（触屏 + 鼠标通用） =====
+  (function initCustomScrollbar() {
+    var list = document.getElementById("list-body");
+    var bar = document.getElementById("custom-scrollbar");
+    var thumb = document.getElementById("scroll-thumb");
+    if (!list || !bar || !thumb) return;
+
+    var isDragging = false;
+    var dragStartY = 0;
+    var dragStartTop = 0;
+    var hideTimer = null;
+    var userInteracting = false;
+
+    function updateThumb() {
+      if (list.clientHeight === 0) {
+        // 面板隐藏中，暂不处理
+        return;
+      }
+      var sh = list.scrollHeight;
+      var ch = list.clientHeight;
+      if (sh <= ch + 1) {
+        bar.style.display = "none";
+        bar.classList.remove("visible");
+        return;
+      }
+      bar.style.display = "";
+      var bh = bar.clientHeight;
+      if (bh === 0) return;
+      var th = Math.max(24, Math.round(bh * ch / sh));
+      var maxScroll = sh - ch;
+      var top = (list.scrollTop / maxScroll) * (bh - th);
+      thumb.style.height = th + "px";
+      thumb.style.transform = "translateY(" + top + "px)";
+    }
+
+    function showBar() {
+      if (bar.style.display === "none") return;
+      bar.classList.add("visible");
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(function() {
+        if (!isDragging && !userInteracting) bar.classList.remove("visible");
+      }, 1400);
+    }
+
+    list.addEventListener("scroll", function() {
+      updateThumb();
+      showBar();
+    }, { passive: true });
+
+    window.addEventListener("resize", updateThumb);
+
+    function onMove(e) {
+      if (!isDragging) return;
+      e.preventDefault();
+      var bh = bar.clientHeight;
+      var th = thumb.offsetHeight;
+      if (bh - th <= 0) return;
+      var maxScroll = list.scrollHeight - list.clientHeight;
+      var dy = e.clientY - dragStartY;
+      var newTop = dragStartTop + (dy / (bh - th)) * maxScroll;
+      if (newTop < 0) newTop = 0;
+      if (newTop > maxScroll) newTop = maxScroll;
+      list.scrollTop = newTop;
+      showBar();
+    }
+
+    function endDrag(e) {
+      if (!isDragging) return;
+      isDragging = false;
+      userInteracting = false;
+      thumb.classList.remove("dragging");
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", endDrag);
+      document.removeEventListener("pointercancel", endDrag);
+      if (e && e.pointerId != null) {
+        try { thumb.releasePointerCapture(e.pointerId); } catch (err) {}
+      }
+      showBar();
+    }
+
+    function startDrag(e) {
+      if (bar.style.display === "none") return;
+      if (e.button !== undefined && e.button !== 0 && e.pointerType === "mouse") return;
+      e.preventDefault();
+      isDragging = true;
+      userInteracting = true;
+      dragStartY = e.clientY;
+      dragStartTop = list.scrollTop;
+      thumb.classList.add("dragging");
+      showBar();
+      document.addEventListener("pointermove", onMove, { passive: false });
+      document.addEventListener("pointerup", endDrag);
+      document.addEventListener("pointercancel", endDrag);
+      try { thumb.setPointerCapture(e.pointerId); } catch (err) {}
+    }
+
+    thumb.addEventListener("pointerdown", startDrag);
+
+    // 点击轨道跳转
+    bar.addEventListener("pointerdown", function(e) {
+      if (e.target === thumb) return;
+      if (bar.style.display === "none") return;
+      if (e.button !== undefined && e.button !== 0 && e.pointerType === "mouse") return;
+      var rect = bar.getBoundingClientRect();
+      var clickY = e.clientY - rect.top;
+      var bh = bar.clientHeight;
+      var th = thumb.offsetHeight;
+      if (bh - th <= 0) return;
+      var maxScroll = list.scrollHeight - list.clientHeight;
+      var ratio = (clickY - th / 2) / (bh - th);
+      if (ratio < 0) ratio = 0;
+      if (ratio > 1) ratio = 1;
+      try { list.scrollTo({ top: ratio * maxScroll, behavior: "smooth" }); }
+      catch (err) { list.scrollTop = ratio * maxScroll; }
+      showBar();
+    });
+
+    // 内容或尺寸变化时重算
+    var debounce = null;
+    function scheduleUpdate() {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(updateThumb, 30);
+    }
+    try {
+      var mo = new MutationObserver(scheduleUpdate);
+      mo.observe(list, { childList: true, subtree: true, characterData: true });
+    } catch (e) {}
+    try {
+      if (window.ResizeObserver) {
+        new ResizeObserver(scheduleUpdate).observe(list);
+        new ResizeObserver(scheduleUpdate).observe(bar);
+      }
+    } catch (e) {}
+
+    // 暴露给 loadList/switchTab 触发
+    window.__sbUpdate = scheduleUpdate;
+
+    // 首次
+    scheduleUpdate();
+    // 稍微延迟再刷一次，避开字体/布局抖动
+    setTimeout(scheduleUpdate, 200);
+  })();
+
   state.page = ${currentPage};
   state.size = ${pageSize};
   state.search = ${JSON.stringify(search)};
@@ -1345,14 +1549,12 @@ async function renderAdmin(env, params, host) {
 
     <div id="panel-list" class="panel" style="display:none">
       <div class="card">
-        <!-- 第 1 行：搜索 -->
         <div class="row1">
           <input type="text" id="q-search" value="${esc(search)}" placeholder="搜索路径 / 备注 / 原链接" autocomplete="off" title="回车搜索">
           <button type="button" id="btn-search" class="btn refresh icon" title="搜索" aria-label="搜索">${icon("search")}</button>
           <button type="button" id="btn-search-reset" class="btn refresh icon" title="清空搜索" aria-label="清空搜索">${icon("close")}</button>
         </div>
 
-        <!-- 第 2 行：排序 + 每页 -->
         <div class="row2">
           <button type="button" class="${sortEditedClass}" id="btn-sort-edited" data-sort="edited" title="按最近编辑排序" aria-label="按最近编辑排序">${icon("time")}</button>
           <button type="button" class="${sortDictClass}" id="btn-sort-dict" data-sort="dict" title="按路径字典序" aria-label="按路径字典序">${icon("sort")}</button>
@@ -1363,7 +1565,6 @@ async function renderAdmin(env, params, host) {
           </span>
         </div>
 
-        <!-- 第 3 行：上一页 / 下一页 / 页码跳转 -->
         <div class="row3">
           <button type="button" class="btn refresh icon" id="btn-prev" ${prevDisabled ? "disabled" : ""} title="上一页" aria-label="上一页">${icon("prev")}</button>
           <span class="pageinfo" id="page-info">${currentPage} / ${totalPages}</span>
@@ -1372,7 +1573,12 @@ async function renderAdmin(env, params, host) {
           <button type="button" class="btn refresh icon" id="btn-goto" title="跳转到该页" aria-label="跳转到该页">${icon("enter")}</button>
         </div>
 
-        <div class="list-scroll" id="list-body">${listHTML}</div>
+        <div class="scroll-wrap">
+          <div class="list-scroll" id="list-body">${listHTML}</div>
+          <div class="custom-scrollbar" id="custom-scrollbar">
+            <div class="custom-scrollbar-thumb" id="scroll-thumb"></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1428,7 +1634,7 @@ function passwordPage(hasError, path) {
   .wrap { max-width: 360px; margin: 48px auto 0; }
   .card {
     background: var(--md-sys-color-surface-container-low);
-    border-radius: var(--md-sys-shape-corner-large);
+    border-radius: var(--md-shape-corner-large);
     padding: 1.5rem;
   }
   h1 { font-size: 1.25rem; margin: 0 0 1rem; font-weight: 500; }
@@ -1444,7 +1650,7 @@ function passwordPage(hasError, path) {
   button {
     display: block; width: 100%; padding: 0.9rem;
     font-size: 1rem; font-family: inherit; font-weight: 600;
-    border: 0; border-radius: var(--md-sys-shape-corner-extra-large);
+    border: 0; border-radius: var(--md-shape-corner-extra-large);
     background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
     cursor: pointer; -webkit-appearance: none; appearance: none;
     min-height: 48px;
@@ -1599,7 +1805,6 @@ async function handleSave(form, role, env) {
     }
   }
 
-  // 过期操作：只有 pause / delete 两种有效值，缺失时默认 pause
   let newAction = base.expireAction;
   if (actionVal === "delete") newAction = "delete";
   else if (actionVal === "pause") newAction = "pause";

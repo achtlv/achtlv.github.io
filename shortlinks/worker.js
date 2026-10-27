@@ -756,14 +756,14 @@ function passwordPage(hasError, path) {
   `);
 }
 
-// ===== 游客页（精简文案版） =====
+// ===== 游客页（精简文案 + 删除态显示） =====
 async function renderGuest(env, params) {
   const raw = await env.SHORTLINKS_KV.get("/");
+  const exists = !!raw;
   const e = parseEntry(raw) || {
     url: "", password: "", expiresAt: 0, paused: false,
     expireAction: "pause", statusCode: 302, remark: "", updatedAt: 0
   };
-  const exists = !!raw;
   const ok = params.get("ok") || "";
   const err = params.get("err") || "";
 
@@ -771,6 +771,25 @@ async function renderGuest(env, params) {
   const toggleText = e.paused ? "启用" : "暂停";
   const toggleClass = e.paused ? "toggle on" : "toggle";
   const pwdPlaceholder = exists && e.password ? "留空保持原密码" : "必填";
+
+  let infoRows;
+  if (exists) {
+    infoRows =
+      '<div class="row"><span class="fl">状态</span>' +
+        (e.paused ? '<span class="status-off">已暂停</span>' : '<span class="status-on">正常</span>') +
+      '</div>' +
+      '<div class="row"><span class="fl">过期</span><span class="exp">' +
+        (e.expiresAt ? esc(fmtDate(e.expiresAt)) : "无") +
+      '</span></div>' +
+      '<div class="row"><span class="fl">状态码</span><span class="status-code">' +
+        e.statusCode +
+      '</span></div>';
+  } else {
+    infoRows =
+      '<div class="row"><span class="fl">状态</span><span class="status-off">已删除</span></div>' +
+      '<div class="row"><span class="fl">过期</span><span class="empty">无</span></div>' +
+      '<div class="row"><span class="fl">状态码</span><span class="empty">无</span></div>';
+  }
 
   const deleteBtn = exists ? `
     <form class="inline" method="POST" action="/l/delete" onsubmit="return confirm('确定要删除根路径短链接吗？\\n删除后无法恢复。');">
@@ -796,24 +815,23 @@ async function renderGuest(env, params) {
 
     <div class="card">
       <div class="infobox">
-        <div class="row"><span class="fl">状态</span>${e.paused ? '<span class="status-off">已暂停</span>' : '<span class="status-on">正常</span>'}</div>
-        <div class="row"><span class="fl">过期</span><span class="exp">${e.expiresAt ? esc(fmtDate(e.expiresAt)) : "无"}</span></div>
-        <div class="row"><span class="fl">状态码</span><span class="status-code">${e.statusCode}</span></div>
+        ${infoRows}
       </div>
 
-      <div class="btnrow">
-        ${toggleBtn}
-        ${deleteBtn}
-      </div>
-
-      <hr>
+      ${toggleBtn || deleteBtn ? `
+        <div class="btnrow">
+          ${toggleBtn}
+          ${deleteBtn}
+        </div>
+        <hr>
+      ` : ""}
 
       <form method="POST" action="/l/save">
         <input type="hidden" name="isEdit" value="1">
         <input type="hidden" name="editKey" value="/">
         <input type="hidden" name="key" value="">
         <label>目标链接</label>
-        <input type="text" name="url" placeholder="留空不修改" autocomplete="off">
+        <input type="text" name="url" placeholder="${exists ? "留空不修改" : "必填"}" autocomplete="off">
         <label>访问密码</label>
         <input type="text" name="password" placeholder="${pwdPlaceholder}" autocomplete="off">
         <label>过期时间</label>
@@ -1476,20 +1494,16 @@ async function handleSave(form, role, env) {
     newUrl = n;
   }
 
-  // 密码处理：
-  // - 游客编辑根路径且原密码非空、密码框留空 → 保持原密码
-  // - 其他情况按表单处理（空字符串 = 清空）
   let newPwd = base.password;
   const pwdRaw = form.get("password");
   if (pwdRaw !== null && pwdRaw !== undefined) {
     if (role === "guest" && key === "/" && base.password && pwdRaw === "") {
-      // 保持 base.password 不变
+      // 保持原密码
     } else {
       newPwd = pwdRaw === "-" ? "" : pwdRaw;
     }
   }
 
-  // 根路径必须设置密码
   if (key === "/" && !newPwd) {
     return "根路径必须设置访问密码";
   }

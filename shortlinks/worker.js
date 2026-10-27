@@ -171,123 +171,112 @@ function getRole(request, env) {
 // ===== MD3 风格样式 =====
 function baseCSS() {
   return `
+    @import url('https://fonts.font.im/css?family=Roboto:400,500,700&display=swap');
+    @import url('https://fonts.font.im/css?family=Noto+Sans+SC:400,500,700&display=swap');
+
     :root {
       color-scheme: light dark;
-      /* MD3 Green theme */
-      --md-sys-color-primary: #386A20;
+      /* Material 3 Legacy Green – deeper */
+      --md-sys-color-primary: #1B5E20;
       --md-sys-color-on-primary: #FFFFFF;
-      --md-sys-color-primary-container: #B8F397;
-      --md-sys-color-on-primary-container: #0A2000;
-      --md-sys-color-secondary: #55624C;
+      --md-sys-color-primary-container: #A5D6A7;
+      --md-sys-color-on-primary-container: #002106;
+      --md-sys-color-secondary: #4A6350;
       --md-sys-color-on-secondary: #FFFFFF;
-      --md-sys-color-secondary-container: #D8E7CB;
-      --md-sys-color-on-secondary-container: #131F0D;
-      --md-sys-color-tertiary: #386667;
-      --md-sys-color-error: #B3261E;
+      --md-sys-color-secondary-container: #CCE8D0;
+      --md-sys-color-on-secondary-container: #062014;
+      --md-sys-color-tertiary: #3B6653;
+      --md-sys-color-error: #BA1A1A;
       --md-sys-color-on-error: #FFFFFF;
-      --md-sys-color-error-container: #F9DEDC;
-      --md-sys-color-on-error-container: #410E0B;
-      --md-sys-color-surface: #FCFDF6;
-      --md-sys-color-on-surface: #1A1C18;
-      --md-sys-color-surface-variant: #DFE4D7;
-      --md-sys-color-on-surface-variant: #43483E;
-      --md-sys-color-outline: #74796D;
-      --md-sys-color-outline-variant: #C3C8BB;
-      --md-sys-color-surface-container: #F0F1EB;
-      --md-sys-color-surface-container-low: #F6F7F1;
-      --md-sys-color-surface-container-high: #EAEBE5;
-      --md-sys-color-surface-container-highest: #E4E5DF;
-      --md-sys-color-inverse-surface: #2F312C;
-      --md-sys-color-inverse-on-surface: #F1F1EB;
-      --md-sys-color-shadow: #000000;
-      /* 无阴影 */
-      --md-sys-elevation-1: none;
-      --md-sys-elevation-2: none;
-      --md-sys-elevation-3: none;
-      --md-sys-shape-corner-small: 8px;
-      --md-sys-shape-corner-medium: 12px;
-      --md-sys-shape-corner-large: 16px;
+      --md-sys-color-error-container: #FFDAD6;
+      --md-sys-color-on-error-container: #410002;
+      --md-sys-color-surface: #F7FBF1;
+      --md-sys-color-on-surface: #191C19;
+      --md-sys-color-surface-variant: #DDE5D9;
+      --md-sys-color-on-surface-variant: #414941;
+      --md-sys-color-outline: #717970;
+      --md-sys-color-outline-variant: #C1C9BF;
+      --md-sys-color-surface-container: #EBF0E7;
+      --md-sys-color-surface-container-low: #F1F6ED;
+      --md-sys-color-surface-container-high: #E5EAE1;
+      --md-sys-color-surface-container-highest: #DFE4DB;
+      --md-sys-color-inverse-surface: #2E312E;
+      --md-sys-color-inverse-on-surface: #EFF1EB;
+      --md-sys-shape-corner-small: 10px;
+      --md-sys-shape-corner-medium: 14px;
+      --md-sys-shape-corner-large: 18px;
       --md-sys-shape-corner-extra-large: 28px;
-      --safe-pad: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+      --safe-pad: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
     }
 
     @media (prefers-color-scheme: dark) {
       :root {
-        --md-sys-color-primary: #9CD67D;
-        --md-sys-color-on-primary: #143800;
-        --md-sys-color-primary-container: #235108;
-        --md-sys-color-on-primary-container: #B8F397;
-        --md-sys-color-secondary: #BCCBB0;
-        --md-sys-color-on-secondary: #273421;
-        --md-sys-color-secondary-container: #3D4B36;
-        --md-sys-color-on-secondary-container: #D8E7CB;
-        --md-sys-color-tertiary: #A0CFD0;
-        --md-sys-color-error: #F2B8B5;
-        --md-sys-color-on-error: #601410;
-        --md-sys-color-error-container: #8C1D18;
-        --md-sys-color-on-error-container: #F9DEDC;
-        --md-sys-color-surface: #1A1C18;
-        --md-sys-color-on-surface: #E2E3DC;
-        --md-sys-color-surface-variant: #43483E;
-        --md-sys-color-on-surface-variant: #C3C8BB;
-        --md-sys-color-outline: #8D9286;
-        --md-sys-color-outline-variant: #43483E;
-        --md-sys-color-surface-container: #1E201C;
-        --md-sys-color-surface-container-low: #1A1C18;
-        --md-sys-color-surface-container-high: #282B26;
-        --md-sys-color-surface-container-highest: #33362F;
-        --md-sys-color-inverse-surface: #E2E3DC;
-        --md-sys-color-inverse-on-surface: #2F312C;
-        --md-sys-elevation-1: none;
-        --md-sys-elevation-2: none;
-        --md-sys-elevation-3: none;
+        --md-sys-color-primary: #81C784;
+        --md-sys-color-on-primary: #003910;
+        --md-sys-color-primary-container: #0B4A16;
+        --md-sys-color-on-primary-container: #A5D6A7;
+        --md-sys-color-secondary: #B0CCB4;
+        --md-sys-color-on-secondary: #1C3526;
+        --md-sys-color-secondary-container: #334B3B;
+        --md-sys-color-on-secondary-container: #CCE8D0;
+        --md-sys-color-tertiary: #A3CFB8;
+        --md-sys-color-error: #FFB4AB;
+        --md-sys-color-on-error: #690005;
+        --md-sys-color-error-container: #93000A;
+        --md-sys-color-on-error-container: #FFDAD6;
+        --md-sys-color-surface: #111411;
+        --md-sys-color-on-surface: #E1E3DD;
+        --md-sys-color-surface-variant: #414941;
+        --md-sys-color-on-surface-variant: #C1C9BF;
+        --md-sys-color-outline: #8B938A;
+        --md-sys-color-outline-variant: #414941;
+        --md-sys-color-surface-container: #1B1F1B;
+        --md-sys-color-surface-container-low: #161A16;
+        --md-sys-color-surface-container-high: #252925;
+        --md-sys-color-surface-container-highest: #303430;
+        --md-sys-color-inverse-surface: #E1E3DD;
+        --md-sys-color-inverse-on-surface: #2E312E;
       }
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html { -webkit-text-size-adjust: 100%; height: 100%; }
     body {
-      font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-family: "Roboto", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
       font-size: 16px;
-      line-height: 1.5;
+      line-height: 1.55;
       background: var(--md-sys-color-surface);
       color: var(--md-sys-color-on-surface);
       min-height: 100%;
       padding: var(--safe-pad);
     }
 
-    .wrap {
-      max-width: 840px;
-      margin: 0 auto;
-      width: 100%;
-    }
+    .wrap { max-width: 800px; margin: 0 auto; width: 100%; }
 
     h1 {
-      font-size: 1.5rem;
-      font-weight: 500;
-      letter-spacing: 0;
-      margin: 0 0 1rem;
-      color: var(--md-sys-color-on-surface);
+      font-size: 1.55rem;
+      font-weight: 700;
+      margin: 0 0 1.1rem;
+      letter-spacing: -0.01em;
     }
     h2 {
-      font-size: 1.125rem;
-      font-weight: 500;
-      margin: 0 0 0.75rem;
-      color: var(--md-sys-color-on-surface);
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 0 0 0.9rem;
     }
 
+    /* 无边框卡片 */
     .card {
       background: var(--md-sys-color-surface-container-low);
       border-radius: var(--md-sys-shape-corner-large);
-      padding: 1.5rem;
-      margin-bottom: 1.25rem;
-      border: 1px solid var(--md-sys-color-outline-variant);
+      padding: 1.4rem 1.5rem;
+      margin-bottom: 1.2rem;
     }
 
     label {
       display: block;
       margin: 0 0 0.35rem;
-      font-size: 0.85rem;
+      font-size: 0.88rem;
       font-weight: 500;
       color: var(--md-sys-color-on-surface-variant);
     }
@@ -298,36 +287,38 @@ function baseCSS() {
     textarea {
       display: block;
       width: 100%;
-      padding: 0.85rem 1.1rem;
+      padding: 0.9rem 1.1rem;
       margin: 0 0 1rem;
       font-size: 1rem;
       font-family: inherit;
-      border: 1px solid var(--md-sys-color-outline);
+      border: none;
       border-radius: var(--md-sys-shape-corner-small);
-      background: var(--md-sys-color-surface);
+      background: var(--md-sys-color-surface-container-highest);
       color: var(--md-sys-color-on-surface);
       -webkit-appearance: none;
       appearance: none;
-      transition: border-color 0.15s, box-shadow 0.15s;
+      transition: background 0.15s, box-shadow 0.15s;
     }
     input:focus, select:focus, textarea:focus {
       outline: none;
-      border-color: var(--md-sys-color-primary);
-      box-shadow: 0 0 0 1px var(--md-sys-color-primary);
+      box-shadow: 0 0 0 2px var(--md-sys-color-primary);
     }
-    textarea { resize: vertical; min-height: 72px; }
-    input::placeholder, textarea::placeholder { color: var(--md-sys-color-on-surface-variant); opacity: 0.7; }
+    textarea { resize: vertical; min-height: 80px; }
+    input::placeholder, textarea::placeholder {
+      color: var(--md-sys-color-on-surface-variant);
+      opacity: 0.65;
+    }
 
+    /* 大按钮 + 图标风格 */
     button, .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 0.4rem;
-      padding: 0.85rem 1.7rem;
+      padding: 0.85rem 1.5rem;
       font-size: 0.95rem;
       font-weight: 600;
       font-family: inherit;
-      letter-spacing: 0.01em;
       border: 0;
       border-radius: var(--md-sys-shape-corner-extra-large);
       background: var(--md-sys-color-primary);
@@ -335,45 +326,47 @@ function baseCSS() {
       cursor: pointer;
       -webkit-appearance: none;
       appearance: none;
-      margin: 0 0.5rem 0.6rem 0;
+      margin: 0 0.45rem 0.55rem 0;
       text-decoration: none;
       text-align: center;
-      transition: opacity 0.15s, transform 0.1s, background 0.15s;
+      transition: opacity 0.15s, transform 0.1s;
       min-height: 48px;
       line-height: 1.25;
     }
-    button:active, .btn:active { opacity: 0.88; transform: scale(0.97); }
+    button:active, .btn:active { opacity: 0.85; transform: scale(0.97); }
     button:hover, .btn:hover { opacity: 0.92; }
 
     button.del, .btn.del {
       background: var(--md-sys-color-error);
       color: var(--md-sys-color-on-error);
     }
-    .btn.edit {
+    .btn.edit, .btn.tonal, .btn.refresh {
       background: var(--md-sys-color-secondary-container);
       color: var(--md-sys-color-on-secondary-container);
     }
     button.toggle {
-      background: #5B6B4A;
+      background: var(--md-sys-color-tertiary);
       color: #fff;
     }
     button.toggle.on {
       background: var(--md-sys-color-primary);
       color: var(--md-sys-color-on-primary);
     }
-    .btn.refresh, .btn.tonal {
-      background: var(--md-sys-color-secondary-container);
-      color: var(--md-sys-color-on-secondary-container);
-    }
     .btn.active {
       background: var(--md-sys-color-primary);
       color: var(--md-sys-color-on-primary);
     }
+    .btn.icon {
+      min-width: 48px;
+      padding: 0.75rem;
+      font-size: 1.15rem;
+    }
+
     a.logout {
       float: right;
       background: var(--md-sys-color-surface-container-highest);
       color: var(--md-sys-color-on-surface);
-      padding: 0.75rem 1.4rem;
+      padding: 0.7rem 1.2rem;
       border-radius: var(--md-sys-shape-corner-extra-large);
       font-size: 0.9rem;
       font-weight: 600;
@@ -384,29 +377,30 @@ function baseCSS() {
     }
 
     .item {
-      padding: 1rem 0;
+      padding: 1.1rem 0;
       border-bottom: 1px solid var(--md-sys-color-outline-variant);
     }
     .item:last-child { border-bottom: 0; }
 
     .field {
-      margin: 0.25rem 0;
-      font-size: 0.875rem;
-      line-height: 1.45;
+      margin: 0.3rem 0;
+      font-size: 0.95rem;
+      line-height: 1.5;
       display: flex;
       flex-wrap: wrap;
-      gap: 0.25rem 0.5rem;
+      gap: 0.3rem 0.6rem;
     }
     .fl {
       color: var(--md-sys-color-on-surface-variant);
-      min-width: 4.5em;
+      min-width: 4.2em;
       flex-shrink: 0;
+      font-size: 0.88rem;
     }
     .fv { word-break: break-all; }
-    .key { font-weight: 600; color: var(--md-sys-color-primary); }
+    .key { font-weight: 700; color: var(--md-sys-color-primary); font-size: 1.05rem; }
     .url { color: var(--md-sys-color-on-surface-variant); }
     .pwd { color: #B26A00; }
-    .exp { color: #006A6A; }
+    .exp { color: #00695C; }
     .remark {
       color: var(--md-sys-color-on-surface-variant);
       font-style: italic;
@@ -414,93 +408,99 @@ function baseCSS() {
     }
     .updated {
       color: var(--md-sys-color-on-surface-variant);
-      font-size: 0.75rem;
+      font-size: 0.82rem;
     }
-    .status-code {
-      color: #7C4DFF;
-      font-weight: 600;
-    }
-    .status-on {
-      color: #386A20;
-      font-weight: 600;
-    }
-    .status-off {
-      color: var(--md-sys-color-error);
-      font-weight: 600;
-    }
+    .status-code { color: #5E35B1; font-weight: 600; }
+    .status-on { color: #2E7D32; font-weight: 700; }
+    .status-off { color: var(--md-sys-color-error); font-weight: 700; }
     .empty { color: var(--md-sys-color-outline); }
 
     .actions {
-      margin-top: 0.75rem;
+      margin-top: 0.85rem;
       display: flex;
       flex-wrap: wrap;
-      gap: 0.375rem;
+      gap: 0.4rem;
     }
     .actions form { display: inline; margin: 0; }
     .actions button, .actions .btn { margin: 0; }
 
     .msg {
-      font-size: 0.8125rem;
-      margin-top: 0.75rem;
-      min-height: 1.25rem;
+      font-size: 0.9rem;
+      margin-top: 0.9rem;
+      min-height: 1.3rem;
+      font-weight: 500;
     }
     .msg.err { color: var(--md-sys-color-error); }
-    .msg.ok { color: #386A20; }
-    .msg.warn { color: #B26A00; }
+    .msg.ok { color: #2E7D32; }
 
     .hint {
-      font-size: 0.75rem;
+      font-size: 0.82rem;
       color: var(--md-sys-color-on-surface-variant);
-      margin: 0.25rem 0 0.75rem;
+      margin: 0.2rem 0 0.8rem;
     }
 
     .pager {
-      margin-top: 1rem;
-      font-size: 0.8125rem;
+      margin-top: 1.2rem;
+      font-size: 0.9rem;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       gap: 0.5rem;
     }
-    .pager a {
-      color: var(--md-sys-color-primary);
+    .pager a, .pager .btn {
+      color: var(--md-sys-color-on-secondary-container);
+      background: var(--md-sys-color-secondary-container);
       text-decoration: none;
-      padding: 0.25rem 0.5rem;
+      padding: 0.55rem 1rem;
       border-radius: 999px;
+      font-weight: 600;
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
     }
     .pager a.disabled {
-      color: var(--md-sys-color-outline);
+      opacity: 0.4;
       pointer-events: none;
     }
-    .pager .pageinfo { color: var(--md-sys-color-on-surface-variant); }
-    .pager form { display: inline-flex; align-items: center; gap: 0.25rem; margin: 0; }
+    .pager .pageinfo {
+      color: var(--md-sys-color-on-surface-variant);
+      font-weight: 500;
+      padding: 0 0.3rem;
+    }
+    .pager form {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin: 0;
+    }
     .pager input[type="text"] {
       display: inline-block;
-      width: 3.5rem;
-      padding: 0.35rem 0.5rem;
+      width: 3.2rem;
+      padding: 0.45rem 0.5rem;
       margin: 0;
-      font-size: 0.8125rem;
+      font-size: 0.9rem;
+      text-align: center;
     }
     .pager button {
-      padding: 0.35rem 0.75rem;
-      font-size: 0.8125rem;
+      padding: 0.5rem 0.9rem;
+      font-size: 0.85rem;
       margin: 0;
-      min-height: 32px;
+      min-height: 40px;
     }
 
     hr {
       border: 0;
-      border-top: 1px solid var(--md-sys-color-outline-variant);
-      margin: 1rem 0;
+      height: 1px;
+      background: var(--md-sys-color-outline-variant);
+      margin: 1.1rem 0;
     }
 
     .clearfix:after { content: ""; display: table; clear: both; }
-
     form.inline { display: inline; margin: 0; }
     form.inline button { margin: 0; }
 
     .btnrow {
-      margin: 0.75rem 0 0;
+      margin: 0.8rem 0 0;
       display: flex;
       flex-wrap: wrap;
       gap: 0.5rem;
@@ -510,24 +510,25 @@ function baseCSS() {
       background: var(--md-sys-color-primary-container);
       color: var(--md-sys-color-on-primary-container);
       border-radius: var(--md-sys-shape-corner-medium);
-      padding: 0.875rem 1rem;
-      margin: 0 0 1rem;
-      font-size: 0.875rem;
+      padding: 1rem 1.15rem;
+      margin: 0 0 1.1rem;
+      font-size: 0.95rem;
+      font-weight: 500;
     }
-    .infobox .row { margin: 0.15rem 0; }
+    .infobox .row { margin: 0.25rem 0; }
 
     .toolbar {
-      margin-bottom: 0.75rem;
+      margin-bottom: 0.9rem;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       gap: 0.5rem;
-      font-size: 0.875rem;
+      font-size: 0.9rem;
     }
 
     .copyable {
       cursor: pointer;
-      border-bottom: 1px dashed var(--md-sys-color-outline);
+      border-bottom: 1.5px dashed var(--md-sys-color-outline);
       transition: color 0.15s, border-color 0.15s;
     }
     .copyable:hover, .copyable:active {
@@ -537,22 +538,21 @@ function baseCSS() {
 
     #copyTip {
       position: fixed;
-      bottom: 24px;
+      bottom: 28px;
       left: 50%;
       transform: translateX(-50%);
-      width: auto;
-      min-width: 120px;
+      min-width: 110px;
       text-align: center;
-      padding: 0.625rem 1.25rem;
+      padding: 0.7rem 1.3rem;
       border-radius: var(--md-sys-shape-corner-extra-large);
       background: var(--md-sys-color-inverse-surface);
       color: var(--md-sys-color-inverse-on-surface);
-      font-size: 0.875rem;
+      font-size: 0.9rem;
+      font-weight: 500;
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.25s;
       z-index: 9999;
-      box-shadow: var(--md-sys-elevation-3);
     }
 
     .search-bar {
@@ -560,7 +560,7 @@ function baseCSS() {
       gap: 0.5rem;
       align-items: center;
       flex-wrap: wrap;
-      margin-bottom: 0.75rem;
+      margin-bottom: 0.9rem;
     }
     .search-bar input[type="text"] {
       flex: 1;
@@ -568,74 +568,56 @@ function baseCSS() {
       margin: 0;
     }
 
-    /* ===== 响应式：手机 ===== */
+    /* 手机 */
     @media (max-width: 600px) {
-      body { padding: 12px; font-size: 15px; }
+      body { padding: 12px; font-size: 15.5px; }
       .wrap { max-width: 100%; }
-      h1 { font-size: 1.3rem; }
-      .card { padding: 1.1rem; border-radius: var(--md-sys-shape-corner-medium); }
+      h1 { font-size: 1.35rem; }
+      .card { padding: 1.15rem; }
       button, .btn {
-        padding: 0.75rem 1.35rem;
-        font-size: 0.9rem;
-        min-height: 44px;
+        padding: 0.8rem 1.3rem;
+        font-size: 0.92rem;
+        min-height: 46px;
       }
-      .field { font-size: 0.85rem; }
-      .fl { min-width: 3.8em; }
-      a.logout { padding: 0.65rem 1.1rem; font-size: 0.85rem; min-height: 40px; }
+      .btn.icon { min-width: 46px; padding: 0.7rem; }
+      .field { font-size: 0.9rem; }
+      a.logout { padding: 0.65rem 1.1rem; font-size: 0.88rem; }
+      .pager a, .pager .btn { padding: 0.5rem 0.9rem; min-height: 38px; }
     }
 
-    /* ===== 响应式：手表 / 极小屏 (≈500×500) ===== */
+    /* 手表 / 极小屏 */
     @media (max-width: 520px) and (max-height: 520px), (max-width: 360px) {
-      body {
-        padding: 8px;
-        font-size: 13.5px;
-        line-height: 1.4;
-      }
-      .wrap { max-width: 100%; }
-      h1 { font-size: 1.05rem; margin-bottom: 0.55rem; }
-      h2 { font-size: 0.95rem; margin-bottom: 0.45rem; }
-      .card {
-        padding: 0.75rem;
+      body { padding: 8px; font-size: 14px; line-height: 1.4; }
+      h1 { font-size: 1.1rem; margin-bottom: 0.6rem; }
+      h2 { font-size: 0.98rem; }
+      .card { padding: 0.85rem; margin-bottom: 0.7rem; border-radius: 14px; }
+      label { font-size: 0.78rem; }
+      input[type="text"], input[type="password"], select, textarea {
+        padding: 0.6rem 0.75rem;
         margin-bottom: 0.6rem;
-        border-radius: 12px;
+        font-size: 0.9rem;
       }
-      label { font-size: 0.72rem; margin-bottom: 0.2rem; }
-      input[type="text"],
-      input[type="password"],
-      select,
-      textarea {
-        padding: 0.55rem 0.7rem;
-        margin-bottom: 0.55rem;
-        font-size: 0.88rem;
-        border-radius: 8px;
-      }
-      textarea { min-height: 52px; }
       button, .btn {
-        padding: 0.55rem 1rem;
-        font-size: 0.82rem;
-        min-height: 38px;
+        padding: 0.55rem 0.95rem;
+        font-size: 0.85rem;
+        min-height: 40px;
         margin: 0 0.3rem 0.35rem 0;
-        border-radius: 999px;
       }
-      .actions { gap: 0.3rem; margin-top: 0.5rem; }
-      .field { font-size: 0.8rem; margin: 0.15rem 0; }
-      .fl { min-width: 3.3em; font-size: 0.75rem; }
-      .hint { font-size: 0.7rem; margin: 0.2rem 0 0.45rem; }
-      .infobox { padding: 0.55rem 0.7rem; font-size: 0.8rem; margin-bottom: 0.55rem; }
-      .item { padding: 0.6rem 0; }
-      .pager { font-size: 0.75rem; gap: 0.3rem; }
-      .pager input[type="text"] { width: 2.6rem; padding: 0.25rem 0.35rem; font-size: 0.75rem; }
-      .pager button { padding: 0.3rem 0.6rem; font-size: 0.75rem; min-height: 30px; }
-      a.logout { padding: 0.45rem 0.85rem; font-size: 0.78rem; min-height: 34px; }
-      .toolbar { font-size: 0.8rem; gap: 0.35rem; }
-      .search-bar { gap: 0.35rem; }
-      #copyTip { bottom: 12px; font-size: 0.75rem; padding: 0.4rem 0.8rem; }
+      .btn.icon { min-width: 40px; padding: 0.5rem; font-size: 1rem; }
+      .actions { gap: 0.3rem; }
+      .field { font-size: 0.85rem; }
+      .fl { min-width: 3.4em; font-size: 0.78rem; }
+      .hint { font-size: 0.75rem; }
+      .infobox { padding: 0.7rem; font-size: 0.85rem; }
+      .item { padding: 0.7rem 0; }
+      .pager { font-size: 0.8rem; gap: 0.3rem; }
+      .pager a, .pager .btn { padding: 0.4rem 0.7rem; min-height: 34px; font-size: 0.8rem; }
+      a.logout { padding: 0.5rem 0.85rem; font-size: 0.8rem; min-height: 36px; }
     }
 
-    /* 超大屏优化 */
     @media (min-width: 900px) {
-      .wrap { max-width: 900px; }
-      .card { padding: 1.5rem; }
+      .wrap { max-width: 860px; }
+      .card { padding: 1.6rem 1.7rem; }
     }
   `;
 }
@@ -649,8 +631,8 @@ function pageHTML(title, body, maxWidth) {
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#386A20" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1A1C18" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#1B5E20" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111411" media="(prefers-color-scheme: dark)">
 <title>${esc(title)}</title>
 <style>${baseCSS()}</style>
 </head>
@@ -697,14 +679,14 @@ async function renderGuest(env, params) {
   const err = params.get("err") || "";
 
   const nextPaused = e.paused ? "false" : "true";
-  const toggleText = e.paused ? "启用访问" : "暂停访问";
+  const toggleText = e.paused ? "▶ 启用" : "⏸ 暂停";
   const toggleClass = e.paused ? "toggle on" : "toggle";
 
   const deleteBtn = exists ? `
-    <form class="inline" method="POST" action="/l/delete" onsubmit="return confirm('确定要删除根路径短链接吗？\\n删除后无法恢复。');">
+    <form class="inline" method="POST" action="/l/delete" onsubmit="return confirm('确定删除根路径？');">
       <input type="hidden" name="key" value="/">
       <input type="hidden" name="back" value="/l">
-      <button type="submit" class="del">删除根路径</button>
+      <button type="submit" class="del">🗑 删除</button>
     </form>
   ` : "";
 
@@ -716,20 +698,20 @@ async function renderGuest(env, params) {
     </form>
   ` : "";
 
+  const autoRefresh = (ok || err) ? `<script>setTimeout(function(){location.href='/l'}, 2500);</script>` : "";
+
   return pageHTML("短链接管理", `
     <div class="clearfix">
-      <h1 style="display:inline-block;margin:0 0 16px">根路径设置（游客）</h1>
-      <a class="logout" href="/l/logout">退出登录</a>
+      <h1 style="display:inline-block;margin:0 0 1rem">根路径（游客）</h1>
+      <a class="logout" href="/l/logout">退出</a>
     </div>
 
     <div class="card">
       <div class="infobox">
-        <div class="row"><span class="fl">当前状态：</span>${e.paused ? '<span class="status-off">已暂停</span>' : '<span class="status-on">正常</span>'}</div>
-        <div class="row"><span class="fl">当前过期时间：</span><span class="exp">${e.expiresAt ? esc(fmtDate(e.expiresAt)) : "无"}</span></div>
-        <div class="row"><span class="fl">当前状态码：</span><span class="status-code">${e.statusCode}</span></div>
+        <div class="row">状态：${e.paused ? '<span class="status-off">已暂停</span>' : '<span class="status-on">正常</span>'}</div>
+        <div class="row">过期：${e.expiresAt ? esc(fmtDate(e.expiresAt)) : "无"}</div>
+        <div class="row">状态码：${e.statusCode}</div>
       </div>
-
-      <p class="hint">你只能修改或删除根路径（/）的设置，无法查看当前原链接和密码。</p>
 
       <div class="btnrow">
         ${toggleBtn}
@@ -740,17 +722,17 @@ async function renderGuest(env, params) {
 
       <form method="POST" action="/l/save">
         <input type="hidden" name="guest" value="1">
-        <label>新目标链接（留空不修改）</label>
+        <label>目标链接</label>
         <input type="text" name="url" placeholder="https://example.com 或 weixin://" autocomplete="off">
-        <label>新访问密码（留空即为不设置密码）</label>
-        <input type="text" name="password" placeholder="留空则清空密码" autocomplete="off">
-        <label>过期时间（留空即为不设置过期时间）</label>
-        <input type="text" name="expiresAt" placeholder="YYYY-MM-DD HH:MM，留空则不设置" autocomplete="off">
-        <label>过期操作（留空不修改）</label>
+        <label>访问密码</label>
+        <input type="text" name="password" placeholder="留空则清空" autocomplete="off">
+        <label>过期时间</label>
+        <input type="text" name="expiresAt" placeholder="YYYY-MM-DD HH:MM" autocomplete="off">
+        <label>过期操作</label>
         <select name="expireAction">
           <option value="">不修改</option>
-          <option value="pause">暂停（保留记录）</option>
-          <option value="delete">删除（不留记录）</option>
+          <option value="pause">暂停</option>
+          <option value="delete">删除</option>
         </select>
         <label>跳转状态码</label>
         ${statusSelectHTML("statusCode", e.statusCode)}
@@ -759,6 +741,7 @@ async function renderGuest(env, params) {
 
       <div class="msg ${ok ? 'ok' : 'err'}">${ok ? esc(ok) : (err ? esc(err) : "")}</div>
     </div>
+    ${autoRefresh}
   `);
 }
 
@@ -1012,17 +995,17 @@ async function renderAdmin(env, params, host) {
         '<div class="field"><span class="fl">状态：</span>' + statusHtml + '</div>' +
         '<div class="field"><span class="fl">最近编辑：</span>' + updatedHtml + '</div>' +
         '<div class="actions">' +
-        '<a class="btn edit" href="' + editHref + '">编辑</a>' +
+        '<a class="btn edit icon" href="' + editHref + '" title="编辑">✎</a>' +
         '<form class="inline" method="POST" action="/l/toggle">' +
         '<input type="hidden" name="key" value="' + keyEsc + '">' +
         '<input type="hidden" name="paused" value="' + nextPausedVal + '">' +
         '<input type="hidden" name="back" value="' + esc(backHref) + '">' +
-        '<button type="submit" class="' + toggleBtnClass + '">' + toggleBtnText + '</button>' +
+        '<button type="submit" class="' + toggleBtnClass + ' icon" title="' + toggleBtnText + '">' + (it.paused ? '▶' : '⏸') + '</button>' +
         '</form>' +
         '<form class="inline" method="POST" action="/l/delete" onsubmit="return confirm(\'' + delConfirm + '\');">' +
         '<input type="hidden" name="key" value="' + keyEsc + '">' +
         '<input type="hidden" name="back" value="' + esc(backHref) + '">' +
-        '<button type="submit" class="del">删除</button>' +
+        '<button type="submit" class="del icon" title="删除">🗑</button>' +
         '</form>' +
         '</div>' +
         '</div>';
@@ -1054,7 +1037,7 @@ async function renderAdmin(env, params, host) {
 
     <div class="card">
       <h2>${isEdit ? "修改短链接" : "新增短链接"}</h2>
-      <p class="hint">${isEdit ? "正在编辑：" + esc(formKey || "/") + '（<a href="' + cancelEditHref + '">取消编辑</a>）' : "点下方“编辑”可修改已有条目。"}</p>
+      <p class="hint">${isEdit ? "编辑中：" + esc(formKey || "/") + ' <a href="' + cancelEditHref + '">取消</a>' : ""}</p>
 
       <form method="POST" action="/l/save">
         <input type="hidden" name="isEdit" value="${isEdit ? "1" : "0"}">
@@ -1097,19 +1080,19 @@ async function renderAdmin(env, params, host) {
 
     <div class="card">
       <h2>已有短链接</h2>
-      <p class="hint">点击“路径”复制带 https:// 的完整短链接；点击“原链接”复制原链接。备注只显示第一行，鼠标悬停可看完整内容。</p>
+      
 
       <form method="GET" action="/l" class="search-bar">
         <input type="text" name="search" value="${esc(search)}" placeholder="搜索路径、备注或原链接">
         <input type="hidden" name="sort" value="${sortMode}">
-        <button type="submit" class="btn refresh">搜索</button>
-        <a class="btn refresh" href="/l?sort=${sortMode}">重置</a>
+        <button type="submit" class="btn refresh">🔍</button>
+        <a class="btn refresh" href="/l?sort=${sortMode}">↺</a>
       </form>
 
       <div class="toolbar">
         排序方式：
-        <a class="${sortEditedClass}" href="${sortEditedHref}">最近编辑</a>
-        <a class="${sortDictClass}" href="${sortDictHref}">字典序</a>
+        <a class="${sortEditedClass}" href="${sortEditedHref}">⏱ 最近</a>
+        <a class="${sortDictClass}" href="${sortDictHref}">A↕ 字典</a>
       </div>
 
       <form method="GET" action="/l" style="margin-bottom:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -1125,21 +1108,20 @@ async function renderAdmin(env, params, host) {
       <div>${listHTML}</div>
 
       <div class="pager">
-        <a href="${prevHref}" class="${prevDisabled ? 'disabled' : ''}">上一页</a>
-        <span class="pageinfo">${currentPage}/${totalPages} 页</span>
-        <a href="${nextHref}" class="${nextDisabled ? 'disabled' : ''}">下一页</a>
+        <a href="${prevHref}" class="${prevDisabled ? 'disabled' : ''}">‹ 上一页</a>
+        <span class="pageinfo">${currentPage} / ${totalPages}</span>
+        <a href="${nextHref}" class="${nextDisabled ? 'disabled' : ''}">下一页 ›</a>
         <form method="GET" action="/l">
           <input type="hidden" name="size" value="${pageSize}">
           <input type="hidden" name="search" value="${esc(search)}">
           <input type="hidden" name="sort" value="${sortMode}">
-          跳转到
-          <input type="text" name="page" value="${currentPage}">
-          页
+          <input type="text" name="page" value="${currentPage}" title="页码">
           <button type="submit" class="btn refresh">跳转</button>
         </form>
       </div>
     </div>
     ${copyFeatureHTML()}
+    ${(ok || err) ? "<script>setTimeout(function(){var u=location.pathname+location.search.replace(/[?&](ok|err)=[^&]*/g,'').replace(/\\?&/,'?').replace(/\\?$/,'');location.href=u||'/l';}, 2200);</script>" : ""}
   `);
 }
 
@@ -1157,11 +1139,11 @@ function passwordPage(hasError, path) {
 <style>
   :root {
     color-scheme: light dark;
-    --md-sys-color-primary: #386A20;
+    --md-sys-color-primary: #1B5E20;
     --md-sys-color-on-primary: #FFFFFF;
-    --md-sys-color-surface: #FCFDF6;
+    --md-sys-color-surface: #F7FBF1;
     --md-sys-color-on-surface: #1A1C18;
-    --md-sys-color-surface-container-low: #F6F7F1;
+    --md-sys-color-surface-container-low: #F1F6ED;
     --md-sys-color-outline: #74796D;
     --md-sys-color-outline-variant: #C3C8BB;
     --md-sys-color-error: #B3261E;
@@ -1171,11 +1153,11 @@ function passwordPage(hasError, path) {
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --md-sys-color-primary: #9CD67D;
+      --md-sys-color-primary: #81C784;
       --md-sys-color-on-primary: #143800;
-      --md-sys-color-surface: #1A1C18;
+      --md-sys-color-surface: #111411;
       --md-sys-color-on-surface: #E2E3DC;
-      --md-sys-color-surface-container-low: #1A1C18;
+      --md-sys-color-surface-container-low: #161A16;
       --md-sys-color-outline: #8D9286;
       --md-sys-color-outline-variant: #43483E;
       --md-sys-color-error: #F2B8B5;
@@ -1192,7 +1174,6 @@ function passwordPage(hasError, path) {
   .wrap { max-width: 360px; margin: 48px auto 0; }
   .card {
     background: var(--md-sys-color-surface-container-low);
-    border: 1px solid var(--md-sys-color-outline-variant);
     border-radius: var(--md-sys-shape-corner-large);
     padding: 1.5rem;
     box-shadow: var(--md-sys-elevation-1);
@@ -1252,9 +1233,9 @@ function unavailablePage() {
 <style>
   :root {
     color-scheme: light dark;
-    --md-sys-color-surface: #FCFDF6;
+    --md-sys-color-surface: #F7FBF1;
     --md-sys-color-on-surface: #1A1C18;
-    --md-sys-color-surface-container-low: #F6F7F1;
+    --md-sys-color-surface-container-low: #F1F6ED;
     --md-sys-color-outline-variant: #C3C8BB;
     --md-sys-color-on-surface-variant: #43483E;
     --md-sys-shape-corner-large: 16px;
@@ -1262,9 +1243,9 @@ function unavailablePage() {
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --md-sys-color-surface: #1A1C18;
+      --md-sys-color-surface: #111411;
       --md-sys-color-on-surface: #E2E3DC;
-      --md-sys-color-surface-container-low: #1A1C18;
+      --md-sys-color-surface-container-low: #161A16;
       --md-sys-color-outline-variant: #43483E;
       --md-sys-color-on-surface-variant: #C3C8BB;
     }
@@ -1280,7 +1261,6 @@ function unavailablePage() {
   .wrap { max-width: 360px; margin: 48px auto 0; }
   .card {
     background: var(--md-sys-color-surface-container-low);
-    border: 1px solid var(--md-sys-color-outline-variant);
     border-radius: var(--md-sys-shape-corner-large);
     padding: 1.5rem; text-align: center;
     box-shadow: var(--md-sys-elevation-1);

@@ -106,7 +106,7 @@ export function parse(src) {
       expect('OP', '=');
       const init = expression();
       expect('OP', ';');
-      return { type: 'RefDecl', type, name, init, scope: 'global' };
+      return { type: 'RefDecl', varType: type, name, init, scope: 'global' };
     }
 
     // 函数：type name(...
@@ -149,7 +149,7 @@ export function parse(src) {
         const size = expression();
         expect('OP', ']');
         expect('OP', ';');
-        return { type: 'ContainerGroupDecl', type, name, size };
+        return { type: 'ContainerGroupDecl', varType: type, name, size };
       }
       if (type.kind === 'map') {
         err('E19', 'map does not support container group', peek().line, peek().col);
@@ -171,7 +171,7 @@ export function parse(src) {
       const size = expression();
       expect('OP', ')');
       expect('OP', ';');
-      return { type: 'ContainerInitDecl', type, name, size };
+      return { type: 'ContainerInitDecl', varType: type, name, size };
     }
 
     // 普通声明
@@ -180,7 +180,7 @@ export function parse(src) {
       init = expression();
     }
     expect('OP', ';');
-    return { type: 'VarDecl', type, name, init, scope };
+    return { type: 'VarDecl', varType: type, name, init, scope };
   };
 
   /* ---------- 语句 ---------- */
@@ -209,7 +209,7 @@ export function parse(src) {
           expect('OP', '=');
           const init = expression();
           expect('OP', ';');
-          return { type: 'RefDecl', type, name, init, scope: 'local' };
+          return { type: 'RefDecl', varType: type, name, init, scope: 'local' };
         }
         if (check('IDENT')) {
           const name = next().value;
@@ -284,7 +284,7 @@ export function parse(src) {
         const name = expect('IDENT').value;
         let vinit = null;
         if (match('OP', '=')) vinit = expression();
-        init = { type: 'VarDecl', type, name, init: vinit, scope: 'local' };
+        init = { type: 'VarDecl', varType: type, name, init: vinit, scope: 'local' };
       } else {
         init = expression();
       }

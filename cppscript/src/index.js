@@ -4,13 +4,17 @@ import { parse } from './parser.js';
 import { Interpreter } from './interpreter.js';
 import { resolveInput, InputStream } from './input.js';
 
-const README_URL =
-  'https://markdownreader.mutantcat.org/?url=https://v6.gh-proxy.org/https://raw.githubusercontent.com/achtlv/achtlv.github.io/main/gr/gr.md';
+// 文档见同目录 index.html（CppScript v14.2 语法规范）
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname === '/') return Response.redirect(README_URL, 302);
+    if (url.pathname === '/' || url.pathname === '/index.html') {
+      return new Response(
+        'CppScript v14.2 — see index.html for the full language reference.\nUsage: /?url=<rule-file-url>&key=...&in=...\n',
+        { status: 200, headers: { 'Content-Type': 'text/plain; charset=utf-8' } },
+      );
+    }
 
     try {
       // 参数：?url=（不要求 .txt，只要是文本）

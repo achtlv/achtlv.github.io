@@ -57,6 +57,31 @@ const MAX_RECURSION = 100;
 const MAX_FETCH = 20;
 const MAX_OUT = 1024 * 1024;
 
+/**
+ * with 修饰符由「前面的函数」定义含义。
+ * key = 修饰符 kind；value = 说明（仅文档/报错用）
+ * 未列出的函数不得带 with → E52
+ */
+const WITH_SUPPORT = {
+  get: {
+    param: 'query parameters',
+    header: 'request headers',
+    ua: 'User-Agent',
+    proxy: 'proxy URL prefix',
+  },
+  post: {
+    param: 'query parameters',
+    header: 'request headers',
+    ua: 'User-Agent',
+    proxy: 'proxy URL prefix',
+  },
+  return: {
+    status: 'HTTP status code',
+    header: 'response headers',
+    proxy: 'redirect URL proxy prefix',
+  },
+};
+
 export class Interpreter {
   constructor(ast, ctx) {
     this.ast = ast;
@@ -87,11 +112,26 @@ export class Interpreter {
     }
 
     const main = this.functions.get('main');
-    if (!main) err('E14', 'missing void main()');
-    if (main.returnType.kind !== 'void') err('E14', 'main must be void');
+    if (!main) err('E14', 'missing auto main()');
+    // auto main（推荐）或 void main（兼容）；return 可返回 URL / 状态码 / 空
+    if (main.returnType.kind !== 'auto' && main.returnType.kind !== 'void') {
+      err('E14', 'main must be auto (or void for compatibility)');
+    }
+    if (main.params.length !== 0) err('E14', 'main must have no parameters');
 
-    const ret = await this.callFunction(main, []);
-    return await this.finish(ret);
+    // 直接执行 main 体，保留 ReturnSignal（含 mods），供 finish 处理
+    const saved = this.scope;
+    this.scope = new Scope(this.global);
+    let retSignal = null;
+    try {
+      for (const stmt of main.body) await this.execStmt(stmt);
+    } catch (e) {
+      if (e instanceof ReturnSignal) retSignal = e;
+      else throw e;
+    } finally {
+      this.scope = saved;
+    }
+    return await this.finish(retSignal);
   }
 
   checkStructCycles() {
@@ -119,11 +159,65 @@ export class Interpreter {
     this.global.declare('selector', q('selector') || '1');
     this.global.declare('prerelease', q('prerelease'));
     for (let i = 1; i <= 4; i++) this.global.declare(`p${i}`, p(i));
-    this.global.declare('key', q('key'));
+    this.global.declare('key', this.parseKeyParam(q('key')));
     for (const name of ['keyword', 'repoPath', 'tag', 'selector', 'prerelease', 'p1', 'p2', 'p3', 'p4', 'key']) {
       const v = this.global.vars.get(name);
       this.global.vars.set(name, { __readonly: true, value: v });
     }
+  }
+
+  /**
+   * 解析 ?key= 参数：
+   * - 普通字符串 → string
+   * - {1,"abc",false} 形式 → deque（元素可为 number / string / bool）
+   *   · 直接访问 key 等价于 key[0]
+   *   · key[i] / key.size() / for-in key 使用完整 deque
+   */
+  parseKeyParam(raw) {
+    if (raw == null || raw === '') return '';
+    const s = String(raw).trim();
+    if (!(s.startsWith('{') && s.endsWith('}'))) return s;
+
+    const inner = s.slice(1, -1).trim();
+    const d = new Deque();
+    if (!inner) {
+      return { __container: d, __elemType: { kind: 'deque', elem: { kind: 'auto' } } };
+    }
+
+    // 按逗号拆分，尊重引号
+    const parts = [];
+    let i = 0;
+    while (i < inner.length) {
+      while (i < inner.length && /\s/.test(inner[i])) i++;
+      if (i >= inner.length) break;
+      if (inner[i] === '"' || inner[i] === "'") {
+        const quote = inner[i++];
+        let val = '';
+        while (i < inner.length && inner[i] !== quote) {
+          if (inner[i] === '\\' && i + 1 < inner.length) {
+            val += inner[i + 1];
+            i += 2;
+          } else {
+            val += inner[i++];
+          }
+        }
+        if (i < inner.length) i++; // closing quote
+        parts.push({ kind: 'string', value: val });
+      } else {
+        let start = i;
+        while (i < inner.length && inner[i] !== ',') i++;
+        const tok = inner.slice(start, i).trim();
+        if (tok === 'true') parts.push({ kind: 'bool', value: true });
+        else if (tok === 'false') parts.push({ kind: 'bool', value: false });
+        else if (/^-?\d+(\.\d+)?([eE][-+]?\d+)?$/.test(tok)) parts.push({ kind: 'number', value: Number(tok) });
+        else parts.push({ kind: 'string', value: tok });
+      }
+      while (i < inner.length && /\s/.test(inner[i])) i++;
+      if (i < inner.length && inner[i] === ',') i++;
+    }
+
+    for (const part of parts) d.push_back(part.value);
+    return { __container: d, __elemType: { kind: 'deque', elem: { kind: 'auto' } } };
   }
 
   async execTopDecl(node) {
@@ -141,10 +235,10 @@ export class Interpreter {
   async execVarDecl(node) {
     let value;
     if (node.init === null) {
-      value = { __uninit: true, type: node.type };
+      value = { __uninit: true, type: node.varType };
     } else {
       value = await this.evalExpr(node.init);
-      value = this.coerce(value, node.type, node.name);
+      value = this.coerce(value, node.varType, node.name);
     }
     const existing = this.scope.vars.get(node.name);
     if (existing && existing.__readonly) err('E07', `cannot redeclare built-in ${node.name}`);
@@ -157,7 +251,7 @@ export class Interpreter {
     const box = new RefBox(
       () => target.get(),
       (v) => target.set(v),
-      node.type,
+      node.varType,
     );
     this.scope.declare(node.name, { __ref: box });
   }
@@ -166,17 +260,17 @@ export class Interpreter {
     const size = this.toNum(await this.evalExpr(node.size));
     if (size < 0) err('E23', 'container group size must be >= 0');
     const arr = [];
-    for (let i = 0; i < size; i++) arr.push(this.makeContainer(node.type));
-    this.scope.declare(node.name, { __group: arr, __elemType: node.type });
+    for (let i = 0; i < size; i++) arr.push(this.makeContainer(node.varType));
+    this.scope.declare(node.name, { __group: arr, __elemType: node.varType });
   }
 
   async execContainerInitDecl(node) {
     const size = this.toNum(await this.evalExpr(node.size));
     if (size < 0) err('E23', 'container size must be >= 0');
-    const c = this.makeContainer(node.type);
-    const def = this.defaultValue(node.type.elem || { kind: 'auto' });
+    const c = this.makeContainer(node.varType);
+    const def = this.defaultValue(node.varType.elem || { kind: 'auto' });
     for (let i = 0; i < size; i++) c.push_back(def);
-    this.scope.declare(node.name, { __container: c, __elemType: node.type });
+    this.scope.declare(node.name, { __container: c, __elemType: node.varType });
   }
 
   async execNativeArrayDecl(node) {
@@ -272,7 +366,9 @@ export class Interpreter {
   }
 
   async execRangeFor(node) {
-    const it = await this.evalExpr(node.iterable);
+    const it = node.iterable.type === 'Ident'
+      ? this.lookupIdent(node.iterable.name, { asContainer: true })
+      : await this.evalExpr(node.iterable);
     const saved = this.scope;
     this.scope = new Scope(saved);
     try {
@@ -399,13 +495,26 @@ export class Interpreter {
     }
   }
 
-  lookupIdent(name) {
+  /**
+   * @param {{ asContainer?: boolean }} opts
+   *   asContainer=true：key 保持为完整 deque（用于 key[i] / key.size()）
+   *   默认：key 若为 deque，直接访问等价于 key[0]
+   */
+  lookupIdent(name, opts = {}) {
     const v = this.scope.get(name);
     if (v === undefined) err('E05', `unknown variable: ${name}`);
-    if (v.__readonly) return v.value;
-    if (v.__uninit) err('E36', `use of uninitialized variable '${name}'`);
-    if (v.__ref) return v.__ref.get();
-    return v;
+    let val = v;
+    if (v.__readonly) val = v.value;
+    else if (v.__uninit) err('E36', `use of uninitialized variable '${name}'`);
+    else if (v.__ref) val = v.__ref.get();
+
+    // key 直接访问默认取 key[0]
+    if (name === 'key' && val && val.__container && !opts.asContainer) {
+      const c = val.__container;
+      if (c.size() === 0) return '';
+      return c.get(0);
+    }
+    return val;
   }
 
   async evalBinary(node) {
@@ -565,7 +674,9 @@ export class Interpreter {
       );
     }
     if (node.type === 'Index') {
-      const target = await this.evalExpr(node.target);
+      const target = node.target.type === 'Ident'
+        ? this.lookupIdent(node.target.name, { asContainer: true })
+        : await this.evalExpr(node.target);
       const idx = await this.evalExpr(node.index);
       if (target && target.__container) {
         const c = target.__container;
@@ -580,8 +691,11 @@ export class Interpreter {
         const i = this.toNum(idx);
         return new RefBox(
           () => c.get(i),
-          (v) => c.set(i, v),
-          target.__elemType,
+          (v) => {
+            const et = this.containerElemType(target);
+            c.set(i, (!et || et.kind === 'auto') ? v : this.coerce(v, et, 'index'));
+          },
+          this.containerElemType(target),
         );
       }
       if (target && target.__group) {
@@ -626,7 +740,9 @@ export class Interpreter {
   }
 
   async evalIndex(node) {
-    const target = await this.evalExpr(node.target);
+    const target = node.target.type === 'Ident'
+      ? this.lookupIdent(node.target.name, { asContainer: true })
+      : await this.evalExpr(node.target);
     const index = await this.evalExpr(node.index);
     if (target && target.__container) {
       const c = target.__container;
@@ -658,7 +774,9 @@ export class Interpreter {
   }
 
   async evalMember(node) {
-    const target = await this.evalExpr(node.target);
+    const target = node.target.type === 'Ident'
+      ? this.lookupIdent(node.target.name, { asContainer: true })
+      : await this.evalExpr(node.target);
     if (target && (target.__container || target.__group || target.__native || target.__struct)) {
       return { __methodRef: { target, name: node.name } };
     }
@@ -687,7 +805,9 @@ export class Interpreter {
       err('E08', `unknown function: ${name}`);
     }
     if (node.callee.type === 'Member') {
-      const target = await this.evalExpr(node.callee.target);
+      const target = node.callee.target.type === 'Ident'
+        ? this.lookupIdent(node.callee.target.name, { asContainer: true })
+        : await this.evalExpr(node.callee.target);
       const name = node.callee.name;
       const args = [];
       for (const a of node.args) args.push(await this.evalExpr(a));
@@ -697,7 +817,7 @@ export class Interpreter {
   }
 
   callMethod(target, name, args) {
-    if (target && target.__container) return this.callContainerMethod(target.__container, name, args);
+    if (target && target.__container) return this.callContainerMethod(target, name, args);
     if (target && target.__native) {
       if (['size', 'len'].includes(name)) return target.__native.length;
       err('E32', `native array does not have method ${name}`);
@@ -709,36 +829,58 @@ export class Interpreter {
     err('E10', `cannot call method ${name}`);
   }
 
-  callContainerMethod(c, name, args) {
+  /**
+   * 容器方法。deque<auto> / set<auto>：push/insert 时按实参值决定元素运行时类型，不做强制转换。
+   * deque<number> 等：写入时 coerce 到元素类型。
+   */
+  callContainerMethod(target, name, args) {
+    const c = target.__container;
+    const elemType = this.containerElemType(target);
     const isMap = c instanceof MapContainer;
+    const coerceElem = (v) => {
+      if (!elemType || elemType.kind === 'auto') return v;
+      return this.coerce(v, elemType, name);
+    };
     switch (name) {
       case 'size': return c.size();
       case 'find': return c.find ? c.find(args[0]) : -1;
       case 'front': return c.front ? c.front() : err('E10', 'no front');
       case 'back': return c.back ? c.back() : err('E10', 'no back');
-      case 'push_back': c.push_back(args[0]); return;
-      case 'push_front': c.push_front(args[0]); return;
+      case 'push_back': c.push_back(coerceElem(args[0])); return;
+      case 'push_front': c.push_front(coerceElem(args[0])); return;
       case 'pop_back': c.pop_back(); return;
       case 'pop_front': c.pop_front(); return;
       case 'erase': isMap ? c.erase(this.toKey(args[0])) : c.erase(this.toNum(args[0])); return;
-      case 'insert': isMap ? c.set(this.toKey(args[0]), args[1]) : c.insert(this.toNum(args[0]), args[1]); return;
+      case 'insert':
+        if (isMap) c.set(this.toKey(args[0]), coerceElem(args[1]));
+        else c.insert(this.toNum(args[0]), coerceElem(args[1]));
+        return;
       case 'clear': c.clear(); return;
-      case 'fill': c.fill(args[0]); return;
+      case 'fill': c.fill(coerceElem(args[0])); return;
       case 'has': if (isMap) return c.has(this.toKey(args[0])); err('E10', 'has only on map');
       case 'keys': {
         if (!isMap) err('E10', 'keys only on map');
         const d = new Deque();
         for (const k of c.keysList()) d.push_back(k);
-        return { __container: d, __elemType: { kind: 'auto' } };
+        return { __container: d, __elemType: { kind: 'deque', elem: { kind: 'auto' } } };
       }
       case 'values': {
         if (!isMap) err('E10', 'values only on map');
         const d = new Deque();
         for (const v of c.valuesList()) d.push_back(v);
-        return { __container: d, __elemType: { kind: 'auto' } };
+        return { __container: d, __elemType: { kind: 'deque', elem: { kind: 'auto' } } };
       }
       default: err('E10', `unknown container method: ${name}`);
     }
+  }
+
+  /** 取出容器元素类型：支持 {kind:'deque',elem} 或旧的 {kind:'auto'} */
+  containerElemType(target) {
+    const t = target && target.__elemType;
+    if (!t) return { kind: 'auto' };
+    if (t.kind === 'deque' || t.kind === 'set') return t.elem || { kind: 'auto' };
+    if (t.kind === 'map') return t.val || { kind: 'auto' };
+    return t;
   }
 
   async callFunction(fn, args) {
@@ -769,26 +911,53 @@ export class Interpreter {
         else throw e;
       }
 
-      const isVoid = fn.returnType.kind === 'void';
-      if (!isVoid) {
-        if (!ret || ret.value === null) err('E18', `function ${fn.name} missing return value`);
-        return this.coerce(ret.value, fn.returnType, fn.name);
+      const kind = fn.returnType.kind;
+      if (kind === 'void' || kind === 'auto') {
+        // void / auto：允许无 return；有 return 则返回值（auto 不强制类型）
+        if (ret && ret.value !== null && kind === 'auto') return ret.value;
+        return null;
       }
-      return null;
+      if (!ret || ret.value === null) err('E18', `function ${fn.name} missing return value`);
+      return this.coerce(ret.value, fn.returnType, fn.name);
     } finally {
       this.scope = saved;
       this.recursionDepth--;
     }
   }
 
+  /**
+   * 校验 mods 是否被「with 前的函数」支持；不支持则 E52
+   */
+  assertWithMods(fnName, mods) {
+    const support = WITH_SUPPORT[fnName];
+    if (!support) {
+      err('E52', `function '${fnName}' does not support with modifiers`);
+    }
+    for (const m of mods) {
+      if (!support[m.kind]) {
+        const allowed = Object.keys(support).join(', ');
+        err(
+          'E52',
+          `with ${m.kind} is not defined for ${fnName}(); allowed: ${allowed || '(none)'}`,
+        );
+      }
+    }
+  }
+
   async evalWithExpr(node) {
+    // with 的含义由前面的函数定义
     if (node.base.type === 'Call' && node.base.callee.type === 'Ident') {
       const fnName = node.base.callee.name;
+      this.assertWithMods(fnName, node.mods);
+
       if (fnName === 'get' || fnName === 'post') {
         return await this.evalRequestWithMods(node.base, node.mods);
       }
+      // 其它已注册但未实现专用逻辑的函数
+      err('E52', `with modifiers for ${fnName}() are declared but not implemented`);
     }
-    return await this.evalExpr(node.base);
+    // 非函数调用后的 with（例如 表达式 with ...）
+    err('E52', 'with modifiers must follow a supported function call (get/post) or return');
   }
 
   async evalRequestWithMods(call, mods) {
@@ -809,7 +978,8 @@ export class Interpreter {
           break;
         case 'ua': opts.ua = this.toStr(await this.evalExpr(m.value)); break;
         case 'proxy': opts.proxy = this.toStr(await this.evalExpr(m.value)); break;
-        case 'status': err('E52', 'with status code not allowed in request context');
+        default:
+          err('E52', `with ${m.kind} is not defined for ${call.callee.name}()`);
       }
     }
     return await this.doHttpGet(method, url, body, opts);
@@ -835,7 +1005,7 @@ export class Interpreter {
     for (const it of node.items) items.push(await this.evalExpr(it));
     const d = new Deque();
     for (const v of items) d.push_back(v);
-    return { __container: d, __elemType: { kind: 'auto' } };
+    return { __container: d, __elemType: { kind: 'deque', elem: { kind: 'auto' } } };
   }
 
   async evalMapLiteral(node) {
@@ -939,6 +1109,9 @@ export class Interpreter {
       };
     }
     const { value, mods } = signal;
+    // return 的 with 含义由 return 定义：status / header / proxy
+    if (mods && mods.length) this.assertWithMods('return', mods);
+
     let statusCode = null;
     let proxy = null;
     const customHeaders = {};
@@ -953,6 +1126,8 @@ export class Interpreter {
           if (FORBIDDEN.has(k)) err('E53', `forbidden response header: ${h.key}`);
           customHeaders[h.key] = this.toStr(await this.evalExpr(h.value));
         }
+      } else {
+        err('E52', `with ${m.kind} is not defined for return`);
       }
     }
 

@@ -6,13 +6,29 @@
 <title>CppScript 语法规范 v14.2</title>
 <style>
   :root {
-    --bg: #0f1419;
-    --panel: #1a2332;
-    --text: #e7ecf3;
-    --muted: #8b9bb4;
-    --accent: #3d8bfd;
-    --code-bg: #0b1220;
-    --border: #2a3548;
+    color-scheme: light dark;
+    --bg: #f6f8fb;
+    --panel: #ffffff;
+    --text: #1a2332;
+    --muted: #5a6a82;
+    --accent: #2563eb;
+    --code-bg: #eef2f7;
+    --border: #d0d7e2;
+    --heading: #0f172a;
+    --h3: #334155;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --text: #e7ecf3;
+      --muted: #8b9bb4;
+      --accent: #3d8bfd;
+      --code-bg: #0b1220;
+      --border: #2a3548;
+      --heading: #ffffff;
+      --h3: #c5d0e0;
+    }
   }
   * { box-sizing: border-box; }
   body {
@@ -23,9 +39,9 @@
     line-height: 1.65;
   }
   .wrap { max-width: 920px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
-  h1 { font-size: 1.75rem; margin: 0 0 0.5rem; }
-  h2 { font-size: 1.35rem; margin-top: 2.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; color: #fff; }
-  h3 { font-size: 1.1rem; margin-top: 1.5rem; color: #c5d0e0; }
+  h1 { font-size: 1.75rem; margin: 0 0 0.5rem; color: var(--heading); }
+  h2 { font-size: 1.35rem; margin-top: 2.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; color: var(--heading); }
+  h3 { font-size: 1.1rem; margin-top: 1.5rem; color: var(--h3); }
   .meta { color: var(--muted); margin-bottom: 1.5rem; }
   a { color: var(--accent); }
   pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }

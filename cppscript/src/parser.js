@@ -21,6 +21,21 @@ export function parse(src) {
     return next();
   };
 
+  /** 关键字不可作变量名；若误用则明确报错 */
+  const expectIdentName = (what = 'identifier') => {
+    const t = peek();
+    if (t.type === 'IDENT') return next().value;
+    if (t.type === 'KEYWORD') {
+      err(
+        'E03',
+        `'${t.value}' is a reserved keyword and cannot be used as a ${what}; rename the variable`,
+        t.line,
+        t.col,
+      );
+    }
+    err('E03', `expected ${what}, got ${t.value ?? t.type}`, t.line, t.col);
+  };
+
   /* ---------- 类型 ---------- */
   const isTypeStart = () => {
     const t = peek();
@@ -85,7 +100,7 @@ export function parse(src) {
     const fields = [];
     while (!check('OP', '}')) {
       const type = parseType();
-      const fname = expect('IDENT').value;
+      const fname = expectIdentName('field name');
       expect('OP', ';');
       fields.push({ type, name: fname });
     }
@@ -102,7 +117,7 @@ export function parse(src) {
     // 引用声明：type& name = ...
     if (check('OP', '&')) {
       next();
-      const name = expect('IDENT').value;
+      const name = expectIdentName('variable name');
       expect('OP', '=');
       const init = expression();
       expect('OP', ';');
@@ -118,7 +133,7 @@ export function parse(src) {
         const ptype = parseType();
         let isRef = false;
         if (check('OP', '&')) { next(); isRef = true; }
-        const pname = expect('IDENT').value;
+        const pname = expectIdentName('parameter name');
         params.push({ type: ptype, name: pname, isRef });
         if (!check('OP', ')')) expect('OP', ',');
       }
@@ -137,7 +152,7 @@ export function parse(src) {
   // 从类型开始解析变量声明（全局或局部）
   const varDeclFromType = (type, scope = 'local') => {
     // 容器组 / 普通声明 都需要先看 name
-    const name = expect('IDENT').value;
+    const name = expectIdentName('variable name');
 
     // 原生数组：number a[5];  或者 number m[3][4];
     // 但容器组：deque<number> a[5];
@@ -205,23 +220,34 @@ export function parse(src) {
         if (check('OP', '&')) {
           // 引用声明
           next();
-          const name = expect('IDENT').value;
+          const name = expectIdentName('variable name');
           expect('OP', '=');
           const init = expression();
           expect('OP', ';');
           return { type: 'RefDecl', varType: type, name, init, scope: 'local' };
         }
         if (check('IDENT')) {
-          const name = next().value;
           // 各种声明形式
-          if (check('OP', '[') || check('OP', '(') || check('OP', '=') || check('OP', ';')) {
-            // 回退 name 重新通过 varDeclFromType
-            pos--;
+          if (peek(1).type === 'OP' && ['[', '(', '=', ';'].includes(peek(1).value)) {
             return varDeclFromType(type, 'local');
+          }
+        } else if (peek().type === 'KEYWORD') {
+          // string UA = ... → 关键字当变量名
+          const t = peek();
+          // 仅当后面像声明时再报，避免误伤
+          if (peek(1).type === 'OP' && ['[', '(', '=', ';'].includes(peek(1).value)) {
+            err(
+              'E03',
+              `'${t.value}' is a reserved keyword and cannot be used as a variable name; rename the variable`,
+              t.line,
+              t.col,
+            );
           }
         }
         pos = save;
       } catch (e) {
+        // 关键字当变量名等明确语法错误：不要吞掉
+        if (e && (e.code === 'E03' || e.status === 400)) throw e;
         pos = save;
       }
     }
@@ -645,7 +671,7 @@ export function parse(src) {
       return { type: 'Ident', name: t.value };
     }
 
-    // 内置函数关键字作为标识符
+    // 内置函数关键字作为标识符（不可作变量名，但可作调用）
     if (t.type === 'KEYWORD' && ['getchar', 'out'].includes(t.value)) {
       next();
       return { type: 'Ident', name: t.value };

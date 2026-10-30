@@ -348,10 +348,17 @@ export function parse(src) {
 
     let value = null;
     if (!check('OP', ';') && !check('KEYWORD', 'with')) {
+      // expression() 的 postfix 可能把 "url" with 301 收成 WithExpr
       value = expression();
     }
 
     const mods = [];
+    // 把被 expression 吞掉的 with 拆回 return 的 mods
+    if (value && value.type === 'WithExpr') {
+      for (const m of value.mods) mods.push(m);
+      value = value.base;
+    }
+
     while (check('KEYWORD', 'with')) {
       next();
       if (check('KEYWORD', 'header')) {
@@ -368,8 +375,15 @@ export function parse(src) {
       } else if (check('OP', '{')) {
         err('E52', 'with { ... } not allowed in return; use with param', peek().line, peek().col);
       } else {
-        // 状态码
+        // 状态码：with 301
         mods.push({ kind: 'status', value: unary() });
+      }
+    }
+
+    // return 只允许 status / header / proxy
+    for (const m of mods) {
+      if (m.kind !== 'status' && m.kind !== 'header' && m.kind !== 'proxy') {
+        err('E52', `with ${m.kind} is not defined for return; allowed: status, header, proxy`);
       }
     }
 

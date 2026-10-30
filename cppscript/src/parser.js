@@ -412,7 +412,10 @@ export function parse(src) {
   const expression = () => assignment();
 
   const assignment = () => {
-    const left = logicalOr();
+    // with 优先级低于二元运算，高于赋值：
+    //   "a" + b with 302  →  (a+b) with 302
+    //   get(url) with UA "x"  →  WithExpr(Call, ua)
+    const left = withExpr();
 
     const assignOps = ['=', '+=', '-=', '*=', '/=', '%=', '<<=', '>>=', '&=', '|=', '^='];
     for (const op of assignOps) {
@@ -423,6 +426,43 @@ export function parse(src) {
       }
     }
     return left;
+  };
+
+  /** with 修饰层：绑定到完整左侧表达式，而不是 postfix 原子 */
+  const withExpr = () => {
+    let expr = logicalOr();
+    const mods = [];
+    while (check('KEYWORD', 'with')) {
+      next();
+      if (check('KEYWORD', 'param')) {
+        next();
+        expect('OP', '{');
+        const params = headerLiteral();
+        mods.push({ kind: 'param', value: params });
+      } else if (check('KEYWORD', 'header')) {
+        next();
+        expect('OP', '{');
+        const headers = headerLiteral();
+        mods.push({ kind: 'header', value: headers });
+      } else if (check('KEYWORD', 'UA')) {
+        next();
+        mods.push({ kind: 'ua', value: unary() });
+      } else if (check('KEYWORD', 'proxy')) {
+        next();
+        mods.push({ kind: 'proxy', value: unary() });
+      } else if (check('OP', '{')) {
+        next();
+        const params = headerLiteral();
+        mods.push({ kind: 'param', value: params });
+      } else {
+        // 状态码 with 302
+        mods.push({ kind: 'status', value: unary() });
+      }
+    }
+    if (mods.length > 0) {
+      return { type: 'WithExpr', base: expr, mods };
+    }
+    return expr;
   };
 
   const logicalOr = () => {
@@ -528,9 +568,8 @@ export function parse(src) {
   };
 
   const postfix = () => {
+    // 仅 () [] . ++ --；with 在 withExpr 层处理（更低优先级）
     let expr = primary();
-    const mods = [];
-
     while (true) {
       if (check('OP', '(')) {
         next();
@@ -553,39 +592,9 @@ export function parse(src) {
       } else if (check('OP', '++') || check('OP', '--')) {
         const op = next().value;
         expr = { type: 'PostfixInc', op, target: expr };
-      } else if (check('KEYWORD', 'with')) {
-        next();
-        if (check('KEYWORD', 'param')) {
-          next();
-          expect('OP', '{');
-          const params = headerLiteral();
-          mods.push({ kind: 'param', value: params });
-        } else if (check('KEYWORD', 'header')) {
-          next();
-          expect('OP', '{');
-          const headers = headerLiteral();
-          mods.push({ kind: 'header', value: headers });
-        } else if (check('KEYWORD', 'UA')) {
-          next();
-          mods.push({ kind: 'ua', value: unary() });
-        } else if (check('KEYWORD', 'proxy')) {
-          next();
-          mods.push({ kind: 'proxy', value: unary() });
-        } else if (check('OP', '{')) {
-          next();
-          const params = headerLiteral();
-          mods.push({ kind: 'param', value: params });
-        } else {
-          // 状态码
-          mods.push({ kind: 'status', value: unary() });
-        }
       } else {
         break;
       }
-    }
-
-    if (mods.length > 0) {
-      return { type: 'WithExpr', base: expr, mods };
     }
     return expr;
   };

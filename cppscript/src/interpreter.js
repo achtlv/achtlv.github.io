@@ -315,8 +315,15 @@ export class Interpreter {
       case 'Break': throw new BreakSignal();
       case 'Continue': throw new ContinueSignal();
       case 'Return': {
-        const value = node.value ? await this.evalExpr(node.value) : null;
-        throw new ReturnSignal(value, node.mods);
+        // 防御：若 value 仍是 WithExpr（旧 AST / 边界情况），拆到 mods
+        let valueNode = node.value;
+        let mods = node.mods ? [...node.mods] : [];
+        while (valueNode && valueNode.type === 'WithExpr') {
+          mods = [...valueNode.mods, ...mods];
+          valueNode = valueNode.base;
+        }
+        const value = valueNode ? await this.evalExpr(valueNode) : null;
+        throw new ReturnSignal(value, mods);
       }
       case 'Delete': return await this.execDelete(node);
       case 'In': return await this.execIn(node);
@@ -945,19 +952,32 @@ export class Interpreter {
   }
 
   async evalWithExpr(node) {
-    // with 的含义由前面的函数定义
-    if (node.base.type === 'Call' && node.base.callee.type === 'Ident') {
-      const fnName = node.base.callee.name;
+    // with 的含义由「紧邻的函数调用」定义（get/post）；
+    // return ... with N 在 returnStmt / execStmt 里处理，不应走到这里。
+    let base = node.base;
+    // 兼容异常嵌套
+    while (base && base.type === 'WithExpr') {
+      node = { type: 'WithExpr', base: base.base, mods: [...base.mods, ...node.mods] };
+      base = node.base;
+    }
+
+    if (base && base.type === 'Call' && base.callee && base.callee.type === 'Ident') {
+      const fnName = base.callee.name;
       this.assertWithMods(fnName, node.mods);
 
       if (fnName === 'get' || fnName === 'post') {
-        return await this.evalRequestWithMods(node.base, node.mods);
+        return await this.evalRequestWithMods(base, node.mods);
       }
-      // 其它已注册但未实现专用逻辑的函数
       err('E52', `with modifiers for ${fnName}() are declared but not implemented`);
     }
-    // 非函数调用后的 with（例如 表达式 with ...）
-    err('E52', 'with modifiers must follow a supported function call (get/post) or return');
+
+    // 常见误用：字符串/变量 with 302 却不在 return 里
+    const hint = base && base.type ? ` (got ${base.type})` : '';
+    err(
+      'E52',
+      `with modifiers must follow get()/post() or return${hint}; ` +
+        `for redirects use: return <url> with 302;`,
+    );
   }
 
   async evalRequestWithMods(call, mods) {

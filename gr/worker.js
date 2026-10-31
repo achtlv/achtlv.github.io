@@ -19,7 +19,11 @@ export default {
 
     const parts = url.pathname.split('/').filter(p => p.length > 0);
 
-    // ★ 新增：如果最后一段以 '*' 结尾，则启用预发行版，并去掉该 '*'
+    // ★ 新增：without URL 参数
+    // 所有段数下均只作用于 assets 文件名：先过滤掉文件名包含该值的 assets，再应用选择器
+    const without = url.searchParams.get('without') || null;
+
+    // ★ 新增：预发行版开关（最后一段以 '*' 结尾）
     let includePrerelease = false;
     if (parts.length > 0) {
       const last = parts[parts.length - 1];
@@ -44,9 +48,8 @@ export default {
     try {
       let owner, repo, releaseTag, selector;
 
-      // 根据不同路径段数解析
       if (parts.length === 1) {
-        // 1段：关键词搜索仓库，取第一个仓库的 latest release 的第一个 asset
+        // 1段：关键词搜索仓库，取第 1 个仓库的 latest release 的第 1 个 asset
         const keyword = parts[0];
         const repoInfo = await searchRepo(keyword, GITHUB_TOKEN);
         owner = repoInfo.owner;
@@ -54,7 +57,7 @@ export default {
         releaseTag = 'latest';
         selector = '1'; // 默认第一个
       } else if (parts.length === 2) {
-        // 2段：关键词搜索仓库，取第一个仓库的 latest release，第二段作为选择器
+        // 2段：关键词搜索仓库，取第 1 个仓库的 latest release，第二段作为选择器
         const keyword = parts[0];
         const repoInfo = await searchRepo(keyword, GITHUB_TOKEN);
         owner = repoInfo.owner;
@@ -62,7 +65,7 @@ export default {
         releaseTag = 'latest';
         selector = parts[1];
       } else if (parts.length === 3) {
-        // 3段：原功能 /作者/仓库/选择器
+        // 3段：/作者/仓库/选择器
         owner = parts[0];
         repo = parts[1];
         releaseTag = 'latest';
@@ -75,14 +78,13 @@ export default {
         selector = parts[3];
       }
 
-      // 获取 assets 列表
       const assets = await getReleaseAssets(owner, repo, releaseTag, GITHUB_TOKEN, includePrerelease);
       if (assets.length === 0) {
         return new Response('该 release 没有 assets', { status: 404 });
       }
 
-      // 根据选择器匹配
-      const targetUrl = selectAsset(assets, selector);
+      // ★ without 统一作用于 assets
+      const targetUrl = selectAsset(assets, selector, without);
       const proxyUrl = `https://v6.gh-proxy.org/${targetUrl}`;
       return Response.redirect(proxyUrl, 302);
 
@@ -130,7 +132,6 @@ async function getReleaseAssets(owner, repo, releaseTag, token, includePrereleas
 
   if (releaseTag === 'latest') {
     if (includePrerelease) {
-      // 列出全部 releases，取第一个（按创建时间倒序，即最新，含预发布版）
       apiUrl = `https://api.github.com/repos/${owner}/${repo}/releases`;
       isListMode = true;
     } else {
@@ -175,19 +176,33 @@ async function getReleaseAssets(owner, repo, releaseTag, token, includePrereleas
 }
 
 // 根据选择器（数字或关键词）从 assets 中匹配一个 URL
-function selectAsset(assets, selector) {
-  const isNumeric = /^\d+$/.test(selector);
-  if (isNumeric) {
-    const index = parseInt(selector, 10) - 1;
-    if (index < 0 || index >= assets.length) {
-      const err = new Error(`索引 ${selector} 超出范围，共 ${assets.length} 个assets`);
+// ★ 新增：先按 without 过滤文件名，再应用选择器
+function selectAsset(assets, selector, without = null) {
+  let filtered = assets;
+
+  if (without) {
+    filtered = assets.filter(url => {
+      const fileName = url.split('/').pop();
+      return !fileName.includes(without);
+    });
+    if (filtered.length === 0) {
+      const err = new Error(`过滤后无可用 assets（所有文件名都包含 "${without}"）`);
       err.status = 404;
       throw err;
     }
-    return assets[index];
+  }
+
+  const isNumeric = /^\d+$/.test(selector);
+  if (isNumeric) {
+    const index = parseInt(selector, 10) - 1;
+    if (index < 0 || index >= filtered.length) {
+      const err = new Error(`索引 ${selector} 超出范围，共 ${filtered.length} 个assets`);
+      err.status = 404;
+      throw err;
+    }
+    return filtered[index];
   } else {
-    // 关键词匹配（区分大小写）
-    const matched = assets.find(url => {
+    const matched = filtered.find(url => {
       const fileName = url.split('/').pop();
       return fileName.includes(selector);
     });

@@ -48,6 +48,11 @@
  - 提取GitHub上对应作者对应仓库对应release的assets列表
  - 选择器功能同上
 
+**启用列表过滤**
+
+ - 可以在URL中加上without参数
+ - 提取assets列表之后，如果存在without参数，则会先过滤文件名包含without参数的值的assets，然后在过滤后的列表中提取assets
+
 **启用预发布**
 
  - 在最后1段路径的末尾直接加上“\*”（无需使用“/”隔开），则改为提取对应仓库的最新release（包括预发布）的assets列表

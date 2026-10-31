@@ -1093,8 +1093,8 @@ get(url) with UA userAgent;         // ✓</code></pre>
 <p>v13 输入流、getchar、in 改为 cin 风格</p>
 <p>v13.2 ?txtin= 输入流来源（URL 或文本）</p>
 <p>v14 key 只读变量、with 通用修饰符（param/header/UA/proxy/status）</p>
-<p>v14.1 ?txturl= → ?url=（不要求 .txt）；?txtin= → ?in=；out 流式渲染</p>
-<p>v14.2 修复 AST type 字段冲突；main 改为 auto main；key 支持花括号混合数组下标访问；with 整式绑定；关键字禁作变量名；Worker 按需 in/key 表单与换行说明</p>
+<p>v14.1 ?txturl= → ?url=（不要求 .txt）；?txtin= → ?in=；out 输出缓冲后整页返回（避免流式空 body）</p>
+<p>v14.2 修复 AST type 字段冲突；main 改为 auto main；key 花括号下标；with 整式绑定；关键字禁作变量名；按需 in/key 表单；out 结果整页缓冲返回（修复点运行白屏）</p>
 <hr />
 <p>CppScript v14.2 · 2026-10</p>
 <hr />

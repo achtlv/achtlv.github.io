@@ -119,12 +119,25 @@ function analyzeNeeds(ast) {
   let needsIn = false;
   const walk = (n) => {
     if (!n || typeof n !== 'object') return;
+    // 内置变量 key
     if (n.type === 'Ident' && n.name === 'key') needsKey = true;
+    // q_get("key") / q_get('key')
+    if (
+      n.type === 'Call' &&
+      n.callee &&
+      n.callee.type === 'Ident' &&
+      n.callee.name === 'q_get' &&
+      n.args &&
+      n.args[0] &&
+      n.args[0].type === 'String' &&
+      n.args[0].value === 'key'
+    ) {
+      needsKey = true;
+    }
     if (n.type === 'In') needsIn = true;
     if (n.type === 'Call' && n.callee && n.callee.type === 'Ident') {
       if (n.callee.name === 'getchar') needsIn = true;
     }
-    // cin 风格：>> 读入（若 AST 有 InputRead / Extract）
     if (n.type === 'InputRead' || n.type === 'Extract' || n.type === 'StreamExtract') needsIn = true;
     for (const v of Object.values(n)) {
       if (Array.isArray(v)) v.forEach(walk);

@@ -225,6 +225,51 @@ ${boot}
 </html>`;
 }
 
+function runPageShell({ title, statusLabel, statusClass, ruleUrl, inputPreview, bodyHtml, redirectUrl }) {
+  const redirectScript = redirectUrl
+    ? `<script>setTimeout(function(){ location.replace(${JSON.stringify(String(redirectUrl))}); }, 800);</script>`
+    : '';
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<title>${escapeHtml(title || 'CppScript')}</title>
+<style>${THEME_CSS}</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>CppScript</h1>
+    <span class="badge ${statusClass || ''}">${escapeHtml(statusLabel || '')}</span>
+    <span class="meta">主题随系统自动切换（prefers-color-scheme）</span>
+  </header>
+  <div class="card">
+    <h2>规则 ?url=</h2>
+    <pre>${escapeHtml(ruleUrl || '')}</pre>
+  </div>
+  ${
+    inputPreview != null && String(inputPreview) !== ''
+      ? `<div class="card"><h2>输入</h2><pre>${escapeHtml(inputPreview)}</pre></div>`
+      : ''
+  }
+  <div class="card">
+    <h2>输出</h2>
+    <pre class="out" id="out">${bodyHtml || ''}</pre>
+  </div>
+  ${
+    redirectUrl
+      ? `<div class="card"><h2>即将跳转</h2><pre><a href="${escapeHtml(String(redirectUrl))}">${escapeHtml(String(redirectUrl))}</a></pre></div>`
+      : ''
+  }
+  <p class="foot"><a href="/">文档</a> · CppScript v14.2</p>
+</div>
+${redirectScript}
+</body>
+</html>`;
+}
+
 async function serveDocs(env) {
   const docsUrl = (env && env.DOCS_URL) || DEFAULT_DOCS_URL;
   try {
@@ -366,79 +411,92 @@ export default {
         inputPreview: inputText.length > 4000 ? inputText.slice(0, 4000) + '\n…' : inputText,
       });
     } catch (e) {
-      if (e instanceof HttpError) {
+      const msg = (e && e.message) ? String(e.message) : String(e);
+      const code = (e && e.code) ? String(e.code) : '';
+      const status = (e && e.status) ? Number(e.status) : 500;
+      try {
         const page = runPageShell({
-          title: `CppScript · ${e.code || e.status}`,
-          statusLabel: `错误 ${e.code || e.status}`,
+          title: `CppScript · ${code || status}`,
+          statusLabel: code ? `错误 ${code}` : '内部错误',
           statusClass: 'err',
           ruleUrl: ruleUrl || '',
-          bodyHtml: escapeHtml(e.message),
+          bodyHtml: escapeHtml(msg),
         });
         return new Response(page, {
-          status: e.status || 400,
+          status: Number.isFinite(status) && status >= 400 && status < 600 ? status : 500,
           headers: { 'Content-Type': 'text/html; charset=utf-8' },
         });
+      } catch (_) {
+        return new Response('CppScript error: ' + msg, {
+          status: 500,
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        });
       }
-      const page = runPageShell({
-        title: 'CppScript · error',
-        statusLabel: '内部错误',
-        statusClass: 'err',
-        ruleUrl: ruleUrl || '',
-        bodyHtml: escapeHtml(e.message || String(e)),
-      });
-      return new Response(page, {
-        status: 500,
-        headers: { 'Content-Type': 'text/html; charset=utf-8' },
-      });
     }
   },
 };
 
 /**
- * 执行规则并返回完整 HTML（先跑完再响应，避免流式竞态导致空 body 白屏）
+ * 执行规则 → 完整 HTML（禁止流式，避免空 body / 1101）
  */
 async function executeAndRespond(ast, ctx) {
-  const chunks = [];
-  const interp = new Interpreter(ast, {
-    ...ctx,
-    onChunk: (delta) => {
-      chunks.push(String(delta ?? ''));
-    },
-  });
+  try {
+    const interp = new Interpreter(ast, {
+      url: ctx.url,
+      env: ctx.env,
+      inputStream: ctx.inputStream,
+      onChunk: null,
+    });
 
-  const result = await interp.run();
-  const output = interp.output || chunks.join('');
+    const result = await interp.run();
+    const output = interp.output != null ? String(interp.output) : '';
 
-  // return URL → 展示后跳转
-  if (result && result.redirect) {
+    if (result && result.redirect && result.url) {
+      const page = runPageShell({
+        title: 'CppScript · redirect',
+        statusLabel: '跳转 ' + String(result.status || 302),
+        statusClass: 'ok',
+        ruleUrl: ctx.ruleUrl,
+        inputPreview: ctx.inputPreview,
+        bodyHtml: escapeHtml(output || '(无 body 输出)'),
+        redirectUrl: String(result.url),
+      });
+      return new Response(page, {
+        status: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      });
+    }
+
+    let st = 200;
+    if (result && result.status != null) {
+      const n = Number(result.status);
+      if (Number.isFinite(n) && n >= 200 && n <= 599) st = n;
+    }
+
     const page = runPageShell({
-      title: 'CppScript · redirect',
-      statusLabel: `跳转 ${result.status || 302}`,
+      title: 'CppScript · result',
+      statusLabel: '完成 ' + String(st),
       statusClass: 'ok',
       ruleUrl: ctx.ruleUrl,
       inputPreview: ctx.inputPreview,
-      bodyHtml: escapeHtml(output || '(无 body 输出)'),
-      redirectUrl: result.url,
+      bodyHtml: escapeHtml(output),
     });
     return new Response(page, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        Location: result.url,
-      },
+      status: st,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    });
+  } catch (e) {
+    const msg = (e && e.message) ? String(e.message) : String(e);
+    const page = runPageShell({
+      title: 'CppScript · error',
+      statusLabel: '执行错误',
+      statusClass: 'err',
+      ruleUrl: ctx.ruleUrl || '',
+      bodyHtml: escapeHtml(msg),
+    });
+    return new Response(page, {
+      status: 500,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
   }
-
-  const page = runPageShell({
-    title: 'CppScript · result',
-    statusLabel: `完成 ${(result && result.status) || 200}`,
-    statusClass: 'ok',
-    ruleUrl: ctx.ruleUrl,
-    inputPreview: ctx.inputPreview,
-    bodyHtml: escapeHtml(output || ''),
-  });
-  return new Response(page, {
-    status: (result && result.status) || 200,
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
-  });
 }

@@ -151,17 +151,17 @@ function analyzeNeeds(ast) {
 function formPageShell({ ruleUrl, needsIn, needsKey, prefillIn, prefillKey }) {
   const inField = needsIn
     ? `<label for="fld-in">输入 in（可多行，可留空）</label>
-<textarea id="fld-in" name="in">${escapeHtml(prefillIn || '')}</textarea>
-<p class="hint">可留空后点运行；换行直接回车即可</p>`
+<textarea id="fld-in" name="in" rows="6">${escapeHtml(prefillIn || '')}</textarea>
+<p class="hint">可留空；换行直接回车</p>`
     : '';
   const keyField = needsKey
     ? `<label for="fld-key">参数 key（可留空）</label>
-<input type="text" id="fld-key" name="key" value="${escapeHtml(prefillKey || '')}" placeholder="例如 2^3" />
-<p class="hint">可留空后点运行；脚本通过 key 或 q_get(&quot;key&quot;) 读取</p>`
+<input type="text" id="fld-key" name="key" value="${escapeHtml(prefillKey || '')}" placeholder="例如 2^3" autocomplete="off" />
+<p class="hint">可留空后点运行</p>`
     : '';
 
-  // 无 JS 时：GET 提交会整页跳转但仍能跑
-  // 有 JS 时：preventDefault → replaceState + fetch → 替换页面（失败则 location.replace）
+  // 点击运行：用 JS 拼好 query（空值也带上），再 location.assign 整页打开结果
+  // 不用 fetch/document.write，避免点运行后白屏
   const boot =
     '<script>(function(){' +
     'var ruleUrl=' + JSON.stringify(ruleUrl || '') + ';' +
@@ -173,24 +173,18 @@ function formPageShell({ ruleUrl, needsIn, needsKey, prefillIn, prefillKey }) {
     'e.preventDefault();' +
     'var btn=document.getElementById("run-btn");' +
     'if(btn){btn.disabled=true;btn.textContent="\\u8fd0\\u884c\\u4e2d...";}' +
-    'var u=new URL(window.location.href);' +
-    'u.search="";' +
+    'var u=new URL(window.location.origin+window.location.pathname);' +
     'u.searchParams.set("url",ruleUrl);' +
     'u.searchParams.set("run","1");' +
-    'if(needsKey){var k=document.getElementById("fld-key");u.searchParams.set("key",k?String(k.value):"");}' +
-    'if(needsIn){var n=document.getElementById("fld-in");u.searchParams.set("in",n?String(n.value):"");}' +
-    'var target=u.toString();' +
-    'try{history.replaceState(null,"",target);}catch(ex){}' +
-    'var go=function(html){' +
-    'try{document.open();document.write(html);document.close();}' +
-    'catch(ex){window.location.replace(target);}' +
-    '};' +
-    'if(window.fetch){' +
-    'fetch(target,{method:"GET",credentials:"same-origin",cache:"no-store"})' +
-    '.then(function(r){return r.text();})' +
-    '.then(go)' +
-    '.catch(function(){window.location.replace(target);});' +
-    '}else{window.location.replace(target);}' +
+    'if(needsKey){' +
+    'var k=document.getElementById("fld-key");' +
+    'u.searchParams.set("key",k?String(k.value):"");' +
+    '}' +
+    'if(needsIn){' +
+    'var n=document.getElementById("fld-in");' +
+    'u.searchParams.set("in",n?String(n.value):"");' +
+    '}' +
+    'window.location.assign(u.toString());' +
     '});' +
     '})();</scr' + 'ipt>';
 
@@ -200,7 +194,7 @@ function formPageShell({ ruleUrl, needsIn, needsKey, prefillIn, prefillKey }) {
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="light dark" />
-<title>CppScript · 运行</title>
+<title>CppScript · 填写参数</title>
 <style>${THEME_CSS}</style>
 </head>
 <body>
@@ -208,15 +202,15 @@ function formPageShell({ ruleUrl, needsIn, needsKey, prefillIn, prefillKey }) {
   <header>
     <h1>CppScript</h1>
     <span class="badge">填写参数</span>
-    <span class="meta">主题随系统自动切换（prefers-color-scheme）</span>
+    <span class="meta">主题随系统自动切换</span>
   </header>
   <div class="card">
-    <h2>规则 ?url=</h2>
+    <h2>规则</h2>
     <pre>${escapeHtml(ruleUrl || '')}</pre>
   </div>
   <div class="card">
     <h2>运行参数</h2>
-    <form id="run-form" method="get" action="">
+    <form id="run-form" method="get" action="/">
       <input type="hidden" name="url" value="${escapeHtml(ruleUrl || '')}" />
       <input type="hidden" name="run" value="1" />
       ${keyField}

@@ -126,13 +126,22 @@ with  param  header  proxy  UA</code></pre>
 <li><code>?key=</code> 映射到只读内置变量 <code>key</code>（可选；支持 <code>{1,&quot;abc&quot;,false}</code>）</li>
 <li><code>?run=1</code> 强制跳过表单、立即执行</li>
 </ul>
-<p>1.6 Worker 交互页（按需输入）</p>
+<p>1.6 Worker 交互页（按需输入、无缝运行）</p>
 <ul>
-<li>打开仅带 <code>?url=</code> 时，Worker 会解析规则：若脚本用到 <code>key</code> 或标准输入（<code>in()</code> / <code>getchar</code>），则<strong>只显示需要的输入框</strong>；都不用则直接执行。</li>
-<li>表单用 POST 提交：<code>in</code> 为多行文本框（可直接敲回车换行），无需手写 <code>%0A</code>。</li>
-<li>查询串已带齐所需 <code>in</code>/<code>key</code>，或带 <code>&amp;run=1</code>，则跳过表单直接跑。</li>
-<li>无 <code>?url=</code> 访问根路径 → 显示本语法文档（跟随系统浅色/深色主题）。</li>
+<li>打开 <code>?url=</code> 时先解析规则：检测是否使用 <code>key</code>（含标识符 <code>key</code> 与 <code>q_get(&quot;key&quot;)</code>）以及标准输入（<code>in()</code> / <code>getchar</code>）。</li>
+<li><strong>都未使用</strong> → 直接执行，不显示输入框。</li>
+<li><strong>使用了且 URL 中还缺少对应参数</strong> → 只显示需要的框（一个或两个）+ <strong>一个「运行」按钮</strong>。</li>
+<li>可以<strong>留空</strong>再点运行：仍会补上 <code>key=</code> / <code>in=</code>（值为空）并执行。</li>
+<li>点「运行」后：用 <code>history.replaceState</code> 把参数写进地址栏，再请求结果并替换页面（尽量不整页刷新；失败时回退为跳转）。</li>
+<li>已带齐参数或带 <code>&amp;run=1</code> → 跳过表单直接跑。</li>
+<li>无 <code>?url=</code> 访问根路径 → 本语法文档（跟随系统浅色/深色主题）。</li>
 </ul>
+<p>示例（幂运算规则，需 key）：</p>
+<pre><code>https://cpps.example/?url=https://example.com/cpps.txt
+→ 显示 key 输入框 → 填 2^3 → 运行 → 输出 2^3=8
+
+https://cpps.example/?url=https://example.com/cpps.txt&amp;key=2%5E3
+→ 已有 key，直接运行</code></pre>
 <p>1.7 在 URL 里给 <code>in</code> 换行</p>
 <ul>
 <li>查询参数中换行请写成 <code>%0A</code>（CRLF 可用 <code>%0D%0A</code>）</li>
@@ -1089,7 +1098,7 @@ get(url) with UA userAgent;         // ✓</code></pre>
 <hr />
 <p>CppScript v14.2 · 2026-10</p>
 <hr />
-<p class="meta">CppScript v14.2 · 2026-10 · 文档已同步：访问参数、in 换行、按需表单、关键字限制、with 优先级</p>
+<p class="meta">CppScript v14.2 · 2026-10 · 文档已同步：按需 key/in 表单、无缝运行、q_get(&quot;key&quot;) 检测</p>
 </div>
 </body>
 </html>

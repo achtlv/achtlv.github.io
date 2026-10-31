@@ -68,7 +68,7 @@
 <p>语言：CppScript　｜　版本：v14.2　｜　规则文件：任意文本（≤ 100 KB）</p>
 <p>面向 C++ 用户，无编译期、无指针、无头文件、无宏。</p>
 <p>核心：main 的 return 只返回 URL，body 输出统一用 out 且实时流式推送。</p>
-<p>v14.2 变更：修复声明节点 type 字段冲突；main 改为 auto main；key 支持 {1,&quot;abc&quot;,false} 下标访问。</p>
+<p>v14.2 变更：修复声明节点 type 字段冲突；main 改为 auto main；key 支持 {1,&quot;abc&quot;,false} 下标访问；with 绑定整段表达式；关键字不可作变量名；Worker 按需表单输入 in/key。</p>
 <hr />
 <p>目录</p>
 <p>1. 基础</p>
@@ -112,16 +112,34 @@ for  while  break  continue
 return  delete  in  out  getchar
 true  false
 with  param  header  proxy  UA</code></pre>
+<p><strong>关键字不能作变量名 / 参数名 / 字段名。</strong>例如 <code>string UA = &quot;...&quot;</code> 会报 E03，应改成 <code>string userAgent = &quot;...&quot;</code>，再用 <code>with UA userAgent</code>。</p>
 <p>1.4 最小示例</p>
 <pre><code>auto main() {
     return &quot;https://example.com/latest.zip&quot;;
 }</code></pre>
 <p>1.5 访问方式</p>
-<pre><code>https://cppscript.&lt;你的子域&gt;.workers.dev/?url=&lt;规则文件URL&gt;&amp;key=&lt;密钥&gt;</code></pre>
-<p>参数 说明</p>
-<p>?url= 规则文件 URL（必填，任意文本）</p>
-<p>?in= 输入流（可选，URL 或文本）</p>
-<p>?key= 敏感参数（可选，映射到内置变量 key）</p>
+<pre><code>https://cpps.&lt;你的子域&gt;/?url=&lt;规则文件URL&gt;</code></pre>
+<p>参数说明：</p>
+<ul>
+<li><code>?url=</code> 规则文件 URL（必填）</li>
+<li><code>?in=</code> 输入流（可选：纯文本、或 <code>http(s)://</code> 远程文本）</li>
+<li><code>?key=</code> 映射到只读内置变量 <code>key</code>（可选；支持 <code>{1,&quot;abc&quot;,false}</code>）</li>
+<li><code>?run=1</code> 强制跳过表单、立即执行</li>
+</ul>
+<p>1.6 Worker 交互页（按需输入）</p>
+<ul>
+<li>打开仅带 <code>?url=</code> 时，Worker 会解析规则：若脚本用到 <code>key</code> 或标准输入（<code>in()</code> / <code>getchar</code>），则<strong>只显示需要的输入框</strong>；都不用则直接执行。</li>
+<li>表单用 POST 提交：<code>in</code> 为多行文本框（可直接敲回车换行），无需手写 <code>%0A</code>。</li>
+<li>查询串已带齐所需 <code>in</code>/<code>key</code>，或带 <code>&amp;run=1</code>，则跳过表单直接跑。</li>
+<li>无 <code>?url=</code> 访问根路径 → 显示本语法文档（跟随系统浅色/深色主题）。</li>
+</ul>
+<p>1.7 在 URL 里给 <code>in</code> 换行</p>
+<ul>
+<li>查询参数中换行请写成 <code>%0A</code>（CRLF 可用 <code>%0D%0A</code>）</li>
+<li>示例：<code>?in=hello%0Aworld</code> → 两行 <code>hello</code> / <code>world</code></li>
+<li>更推荐：页面文本框直接换行，或 <code>?in=https://...</code> 拉远程文件</li>
+<li>注意：<code>&amp;</code> 仍是参数分隔符，正文里的 <code>&amp;</code> 需写成 <code>%26</code></li>
+</ul>
 <hr />
 <p>2. 类型系统</p>
 <p>2.1 类型一览</p>
@@ -535,26 +553,28 @@ void bump(map&lt;string, number&gt;&amp; m, string k) { m[k] = m[k] + 1; }</code
 <hr />
 <p>11. 输入流</p>
 <p>11.1 输入流来源优先级</p>
-<p>1. ?in=（最高优先）</p>
-<p>2. 否则 POST / PUT / PATCH 的 body</p>
-<p>3. 否则空（GET 无 ?in=）</p>
+<ol>
+<li>表单字段 <code>in</code>（运行页 POST，可含真实换行）</li>
+<li><code>?in=</code> 查询参数</li>
+<li>否则 POST / PUT / PATCH 的原始 body（非表单时）</li>
+<li>否则空</li>
+</ol>
 <p>11.2 ?in= 规则</p>
 <pre><code>1. 读取 ?in= 的值（URL 解码后）
 2. 若值匹配 ^https?://（大小写不敏感）
    → 远程 GET 拉取，响应体原文作为输入流
-   → 4xx/5xx → E50
-   → 大小超 1 MB → E51
-   → 过 SSRF 检查（E27）
+   → 4xx/5xx → E50；大小超 1 MB → E51；SSRF → E27
 3. 否则
-   → 值本身直接作为文本输入流
-   → 大小超 1 MB → E51</code></pre>
-<p>URL 输入流内容</p>
-<p>?in=https://example.com/data data 全文</p>
-<p>?in=hello%20world &quot;hello world&quot;</p>
-<p>?in=%E4%B8%AD%E6%96%87 &quot;中文&quot;</p>
-<p>?in= &quot;&quot;（空文本）</p>
-<p>无 ?in= + POST body body 全文</p>
-<p>注意：&amp; 是 URL 参数分隔符，文本里不要有 &amp;。</p>
+   → 值本身直接作为文本输入流（大小超 1 MB → E51）</code></pre>
+<p>示例：</p>
+<ul>
+<li><code>?in=https://example.com/data</code> → 远程全文</li>
+<li><code>?in=hello%20world</code> → <code>hello world</code></li>
+<li><code>?in=hello%0Aworld</code> → 两行（换行）</li>
+<li><code>?in=%E4%B8%AD%E6%96%87</code> → <code>中文</code></li>
+<li>运行页文本框多行 / 表单 POST → 直接保留换行</li>
+</ul>
+<p>注意：查询串里 <code>&amp;</code> 是参数分隔符，正文中的 <code>&amp;</code> 请用 <code>%26</code>。</p>
 <p>11.3 游标</p>
 <p>输入流有一个读取游标，初始在位置 0。getchar() 和 in() 共享同一个游标。</p>
 <p>11.4 getchar()</p>
@@ -625,7 +645,9 @@ return &quot;https://github.com/a/b/releases/download/v1.0/x.zip&quot;
 <p>规则：</p>
 <ul>
 <li>多次 with 合并，同名后者覆盖</li>
-<li>with param/header 的 value 可以是表达式（key 仍是字面量）</li>
+<li>with param/header 的 value 可以是表达式（header/param 的键名仍是字面量）</li>
+<li><strong>with 优先级</strong>低于 <code>+</code> 等二元运算：<code>return &quot;a&quot; + b with 302;</code> = <code>return (&quot;a&quot; + b) with 302;</code></li>
+<li>with 含义由前面的函数决定：get/post → param/header/UA/proxy；return → status/header/proxy；否则 E52</li>
 <li>with proxy 拼接规则：最终 URL = proxy 前缀 + 原 URL，SSRF 检查的是最终 URL</li>
 <li>响应头不允许 Location / Content-Length / Transfer-Encoding → E53</li>
 <li>多个 with proxy 后者覆盖前者</li>
@@ -1028,9 +1050,19 @@ out(to_str(x &gt;&gt; 1));       // -6</code></pre>
 <p>坑 21：bool 的 ++ / -- 是取反</p>
 <pre><code>bool b = true;
 b++;                       // b = false</code></pre>
-<p>坑 22：key 不可修改</p>
+<p>坑 22：key 不可修改；花括号形式为 deque</p>
 <pre><code>// key = &quot;new&quot;;            // ✗ E49
-if (key == &quot;&quot;) { ... }     // ✓ 读取</code></pre>
+if (key == &quot;&quot;) { ... }     // ✓ 读取（字符串形式）
+// ?key={1,&quot;abc&quot;,false}
+// 直接写 key 等价于 key[0]；下标用 key[1]、key[2]
+// 关键字 UA/with/string 等不能当变量名 → E03</code></pre>
+<p>坑 26：不要用关键字当变量名</p>
+<pre><code>// string UA = &quot;Mozilla&quot;;           // ✗ E03
+string userAgent = &quot;Mozilla&quot;;       // ✓
+get(url) with UA userAgent;         // ✓</code></pre>
+<p>坑 27：in 换行要用编码或表单</p>
+<pre><code>// URL:  ?in=line1%0Aline2
+// 页面：文本框直接回车，再点「运行」</code></pre>
 <p>坑 23：with proxy 不叠加</p>
 <pre><code>get(url) with proxy &quot;https://a.com/&quot; with proxy &quot;https://b.com/&quot;
 // 最终用 b.com</code></pre>
@@ -1053,11 +1085,11 @@ if (key == &quot;&quot;) { ... }     // ✓ 读取</code></pre>
 <p>v13.2 ?txtin= 输入流来源（URL 或文本）</p>
 <p>v14 key 只读变量、with 通用修饰符（param/header/UA/proxy/status）</p>
 <p>v14.1 ?txturl= → ?url=（不要求 .txt）；?txtin= → ?in=；out 流式渲染</p>
-<p>v14.2 修复 AST type 字段冲突；main 改为 auto main；key 支持花括号混合数组下标访问</p>
+<p>v14.2 修复 AST type 字段冲突；main 改为 auto main；key 支持花括号混合数组下标访问；with 整式绑定；关键字禁作变量名；Worker 按需 in/key 表单与换行说明</p>
 <hr />
 <p>CppScript v14.2 · 2026-10</p>
 <hr />
-<p class="meta">CppScript v14.2 · 2026-10 · 本页由 README 同步生成（含 bug 修复、auto main、key 下标访问）</p>
+<p class="meta">CppScript v14.2 · 2026-10 · 文档已同步：访问参数、in 换行、按需表单、关键字限制、with 优先级</p>
 </div>
 </body>
 </html>

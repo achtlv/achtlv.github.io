@@ -132,7 +132,7 @@ with  param  header  proxy  UA</code></pre>
 <li><strong>都未使用</strong> → 直接执行，不显示输入框。</li>
 <li><strong>使用了且 URL 中还缺少对应参数</strong> → 只显示需要的框（一个或两个）+ <strong>一个「运行」按钮</strong>。</li>
 <li>可以<strong>留空</strong>再点运行：仍会补上 <code>key=</code> / <code>in=</code>（值为空）并执行。</li>
-<li>点「运行」后：用 <code>history.replaceState</code> 把参数写进地址栏，再请求结果并替换页面（尽量不整页刷新；失败时回退为跳转）。</li>
+<li>点「运行」后：页面脚本把 <code>url</code>、<code>run=1</code> 以及用到的 <code>key</code>/<code>in</code>（可为空）写入地址并 <code>location.assign</code> 打开结果页（整页跳转，避免 fetch 写回导致白屏）。</li>
 <li>已带齐参数或带 <code>&amp;run=1</code> → 跳过表单直接跑。</li>
 <li>无 <code>?url=</code> 访问根路径 → 本语法文档（跟随系统浅色/深色主题）。</li>
 </ul>

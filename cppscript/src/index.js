@@ -150,15 +150,46 @@ function analyzeNeeds(ast) {
 
 function formPageShell({ ruleUrl, needsIn, needsKey, prefillIn, prefillKey }) {
   const inField = needsIn
-    ? `<label for="in">输入 in（多行直接换行即可）</label>
-<textarea id="in" name="in" placeholder="程序标准输入。换行可直接敲回车；若用 URL 查询参数则换行写成 %0A">${escapeHtml(prefillIn || '')}</textarea>
-<p class="hint">也可用 ?in=文本 或 ?in=https://...；查询串里换行请用 %0A</p>`
+    ? `<label for="fld-in">输入 in（可多行，可留空）</label>
+<textarea id="fld-in" placeholder="标准输入；可留空后直接点运行">${escapeHtml(prefillIn || '')}</textarea>
+<p class="hint">换行可直接回车。查询串方式请用 %0A</p>`
     : '';
   const keyField = needsKey
-    ? `<label for="key">参数 key</label>
-<input type="text" id="key" name="key" value="${escapeHtml(prefillKey || '')}" placeholder='例如 abc 或 {1,"abc",false}' />
-<p class="hint">脚本里用 key / key[i] 读取；多值用花括号形式</p>`
+    ? `<label for="fld-key">参数 key（可留空）</label>
+<input type="text" id="fld-key" value="${escapeHtml(prefillKey || '')}" placeholder='例如 2^3 或 {1,"abc",false}' />
+<p class="hint">脚本用 key / q_get("key") 读取；可留空后直接点运行</p>`
     : '';
+
+  // 无刷新运行：replaceState 补全 query，再 fetch 替换整页
+  const boot =
+    '<script>(function(){' +
+    'var ruleUrl=' + JSON.stringify(ruleUrl || '') + ';' +
+    'var needsKey=' + (needsKey ? 'true' : 'false') + ';' +
+    'var needsIn=' + (needsIn ? 'true' : 'false') + ';' +
+    'var form=document.getElementById("run-form");' +
+    'var btn=document.getElementById("run-btn");' +
+    'if(!form||!btn)return;' +
+    'form.addEventListener("submit",function(e){' +
+    'e.preventDefault();' +
+    'btn.disabled=true;btn.textContent="运行中…";' +
+    'try{' +
+    'var u=new URL(location.href);u.search="";' +
+    'u.searchParams.set("url",ruleUrl);' +
+    'u.searchParams.set("run","1");' +
+    'if(needsKey){var k=document.getElementById("fld-key");u.searchParams.set("key",k?k.value:"");}' +
+    'if(needsIn){var inn=document.getElementById("fld-in");u.searchParams.set("in",inn?inn.value:"");}' +
+    'history.replaceState(null,"",u.toString());' +
+    'fetch(u.toString(),{method:"GET",headers:{"Accept":"text/html"},credentials:"same-origin"})' +
+    '.then(function(res){return res.text().then(function(html){' +
+    'document.open();document.write(html);document.close();' +
+    '});})' +
+    '.catch(function(err){btn.disabled=false;btn.textContent="运行";' +
+    'alert("请求失败: "+(err&&err.message?err.message:err));});' +
+    '}catch(err){btn.disabled=false;btn.textContent="运行";' +
+    'alert("错误: "+(err&&err.message?err.message:err));}' +
+    '});' +
+    '})();</scr' + 'ipt>';
+
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -181,16 +212,15 @@ function formPageShell({ ruleUrl, needsIn, needsKey, prefillIn, prefillKey }) {
   </div>
   <div class="card">
     <h2>运行参数</h2>
-    <form method="POST" action="">
-      <input type="hidden" name="url" value="${escapeHtml(ruleUrl || '')}" />
-      <input type="hidden" name="run" value="1" />
+    <form id="run-form" action="#" method="get">
       ${keyField}
       ${inField}
-      <button class="run" type="submit">运行</button>
+      <button class="run" id="run-btn" type="submit">运行</button>
     </form>
   </div>
   <p class="foot"><a href="/">文档</a> · CppScript v14.2</p>
 </div>
+${boot}
 </body>
 </html>`;
 }
@@ -283,26 +313,28 @@ export default {
     const url = new URL(request.url);
     let ruleUrl = url.searchParams.get('url');
 
-    // POST 表单可能把 url/in/key 放在 body
+    // POST 表单可能把 url/in/key 放在 body（只能读一次）
     let formIn = null;
     let formKey = null;
     let formRun = false;
+    let bodyConsumed = false; // formData() 后禁止再 request.text()
     const method = request.method.toUpperCase();
     if (method === 'POST') {
       const ctype = (request.headers.get('content-type') || '').toLowerCase();
       if (ctype.includes('application/x-www-form-urlencoded') || ctype.includes('multipart/form-data')) {
         try {
           const fd = await request.formData();
+          bodyConsumed = true;
           if (!ruleUrl && fd.get('url')) ruleUrl = String(fd.get('url'));
+          // 表单字段：有 name 就读（即使空字符串）
           if (fd.has('in')) formIn = String(fd.get('in') ?? '');
           if (fd.has('key')) formKey = String(fd.get('key') ?? '');
           if (String(fd.get('run') || '') === '1') formRun = true;
-          // 把 form 的 key 合进 URL，供解释器 q('key') 使用
           if (formKey !== null) url.searchParams.set('key', formKey);
           if (formIn !== null) url.searchParams.set('in', formIn);
           url.searchParams.set('run', '1');
         } catch {
-          // 非表单 POST：仍可走 resolveInput 读 raw body
+          // 读失败则不标记 consumed，留给 resolveInput
         }
       }
     }
@@ -329,20 +361,26 @@ export default {
       const ast = parse(ruleText);
       const { needsKey, needsIn } = analyzeNeeds(ast);
 
+      // 是否已在 URL/表单中出现该参数（允许值为空）
       const hasInParam = url.searchParams.has('in') || formIn !== null;
       const hasKeyParam = url.searchParams.has('key') || formKey !== null;
+
+      // 脚本未用到 → 直接跑
+      // 用到且缺对应参数 → 出表单
+      // ?run=1 或表单提交 → 强制跑（空 key/in 也照跑）
+      const missingKey = needsKey && !hasKeyParam;
+      const missingIn = needsIn && !hasInParam;
       const wantRun =
         formRun ||
         url.searchParams.get('run') === '1' ||
         (!needsIn && !needsKey) ||
-        // 查询串已带齐脚本需要的参数 → 直接跑
-        (( !needsIn || hasInParam) && (!needsKey || hasKeyParam));
+        (!missingKey && !missingIn);
 
       if (!wantRun) {
         const page = formPageShell({
           ruleUrl,
-          needsIn,
-          needsKey,
+          needsIn: needsIn, // 用到才显示框
+          needsKey: needsKey,
           prefillIn: url.searchParams.get('in') ?? '',
           prefillKey: url.searchParams.get('key') ?? '',
         });
@@ -352,11 +390,15 @@ export default {
         });
       }
 
-      // 输入：优先表单 in，否则 ?in= / body
+      // 输入：优先表单 in；body 若已被 formData 消费则不可再读
       let inputText;
       if (formIn !== null) {
         if (formIn.length > 1024 * 1024) fail(502, 'in exceeds 1MB', 'E51');
         inputText = formIn;
+      } else if (bodyConsumed) {
+        // 表单提交但没有 in 字段：用查询串 ?in=（若有），否则空
+        const qin = url.searchParams.get('in');
+        inputText = qin !== null ? qin : '';
       } else {
         inputText = await resolveInput(request, url, env);
       }

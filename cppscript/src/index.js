@@ -395,134 +395,50 @@ export default {
 };
 
 /**
- * 双路响应：
- * - 从未 out → buffer：若 return URL 则 HTML 提示后自动跳转；否则 HTML 渲染输出
- * - 调用过 out → 流式：HTML 壳 + 实时推送（转义）
+ * 执行规则并返回完整 HTML（先跑完再响应，避免流式竞态导致空 body 白屏）
  */
-function executeAndRespond(ast, ctx) {
-  return new Promise((resolve, reject) => {
-    let streamActivated = false;
-    let streamController = null;
-    const enc = new TextEncoder();
+async function executeAndRespond(ast, ctx) {
+  const chunks = [];
+  const interp = new Interpreter(ast, {
+    ...ctx,
+    onChunk: (delta) => {
+      chunks.push(String(delta ?? ''));
+    },
+  });
 
-    const interp = new Interpreter(ast, {
-      ...ctx,
-      onChunk: (delta) => {
-        if (!streamActivated) {
-          streamActivated = true;
-          let ctrl;
-          const stream = new ReadableStream({
-            start(c) {
-              ctrl = c;
-              const head = runPageShell({
-                title: 'CppScript · running',
-                statusLabel: '流式输出',
-                statusClass: 'ok',
-                ruleUrl: ctx.ruleUrl,
-                inputPreview: ctx.inputPreview,
-                bodyHtml: '',
-              });
-              const marker = '<pre class="out" id="out">';
-              const idx = head.indexOf(marker);
-              const prefix = idx >= 0 ? head.slice(0, idx + marker.length) : head;
-              ctrl.enqueue(enc.encode(prefix));
-              streamController = ctrl;
-              streamController._suffix =
-                idx >= 0 ? head.slice(idx + marker.length) : '\n</body></html>';
-            },
-          });
-          streamController = ctrl;
-          resolve({ streamActivated: true, stream });
-        }
-        try {
-          streamController.enqueue(enc.encode(escapeHtml(delta)));
-        } catch {
-          // 客户端断开
-        }
-      },
-    });
+  const result = await interp.run();
+  const output = interp.output || chunks.join('');
 
-    (async () => {
-      try {
-        const result = await interp.run();
-
-        if (streamActivated) {
-          if (result.redirect) {
-            try {
-              streamController.enqueue(
-                enc.encode(escapeHtml(`\n[E47: cannot redirect after out()]\n`)),
-              );
-            } catch {}
-          }
-          try {
-            streamController.enqueue(enc.encode(streamController._suffix || ''));
-          } catch {}
-          try {
-            streamController.close();
-          } catch {}
-        } else {
-          resolve({
-            streamActivated: false,
-            result,
-            output: interp.output,
-          });
-        }
-      } catch (e) {
-        if (streamActivated) {
-          try {
-            streamController.enqueue(
-              enc.encode(escapeHtml(`\n[error: ${e.message || e}]\n`)),
-            );
-            streamController.enqueue(enc.encode(streamController._suffix || ''));
-          } catch {}
-          try {
-            streamController.close();
-          } catch {}
-        } else {
-          reject(e);
-        }
-      }
-    })();
-  }).then((r) => {
-    if (r.streamActivated) {
-      return new Response(r.stream, {
-        status: 200,
-        headers: { 'Content-Type': 'text/html; charset=utf-8' },
-      });
-    }
-
-    // buffer：返回 URL → HTML 展示后自动跳转
-    if (r.result.redirect) {
-      const page = runPageShell({
-        title: 'CppScript · redirect',
-        statusLabel: `跳转 ${r.result.status || 302}`,
-        statusClass: 'ok',
-        ruleUrl: ctx.ruleUrl,
-        inputPreview: ctx.inputPreview,
-        bodyHtml: escapeHtml(r.output || '(无 body 输出)'),
-        redirectUrl: r.result.url,
-      });
-      return new Response(page, {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/html; charset=utf-8',
-          Location: r.result.url,
-        },
-      });
-    }
-
-    // 纯输出：HTML 渲染
+  // return URL → 展示后跳转
+  if (result && result.redirect) {
     const page = runPageShell({
-      title: 'CppScript · result',
-      statusLabel: `完成 ${r.result.status || 200}`,
+      title: 'CppScript · redirect',
+      statusLabel: `跳转 ${result.status || 302}`,
       statusClass: 'ok',
       ruleUrl: ctx.ruleUrl,
       inputPreview: ctx.inputPreview,
-      bodyHtml: escapeHtml(r.output || ''),
+      bodyHtml: escapeHtml(output || '(无 body 输出)'),
+      redirectUrl: result.url,
     });
     return new Response(page, {
-      status: r.result.status || 200,
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        Location: result.url,
+      },
     });
+  }
+
+  const page = runPageShell({
+    title: 'CppScript · result',
+    statusLabel: `完成 ${(result && result.status) || 200}`,
+    statusClass: 'ok',
+    ruleUrl: ctx.ruleUrl,
+    inputPreview: ctx.inputPreview,
+    bodyHtml: escapeHtml(output || ''),
+  });
+  return new Response(page, {
+    status: (result && result.status) || 200,
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
   });
 }

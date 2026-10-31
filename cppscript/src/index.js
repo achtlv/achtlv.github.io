@@ -77,6 +77,32 @@ a { color: var(--accent); }
 .badge.ok { color: var(--ok); border-color: var(--ok); }
 .badge.err { color: var(--err); border-color: var(--err); }
 .foot { margin-top: 1rem; color: var(--muted); font-size: 0.8rem; }
+label { display: block; font-size: 0.8rem; color: var(--muted); margin: 0.6rem 0 0.3rem; font-weight: 600; }
+input[type=text], textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88rem;
+  background: var(--code-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.65rem 0.8rem;
+}
+textarea { min-height: 8rem; resize: vertical; line-height: 1.45; }
+button.run {
+  margin-top: 0.9rem;
+  cursor: pointer;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.55rem 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+button.run:hover { filter: brightness(1.08); }
+.hint { color: var(--muted); font-size: 0.78rem; margin-top: 0.35rem; }
 `.trim();
 
 function escapeHtml(s) {
@@ -86,6 +112,76 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+/** 扫描 AST：脚本是否用到 key / 标准输入 */
+function analyzeNeeds(ast) {
+  let needsKey = false;
+  let needsIn = false;
+  const walk = (n) => {
+    if (!n || typeof n !== 'object') return;
+    if (n.type === 'Ident' && n.name === 'key') needsKey = true;
+    if (n.type === 'In') needsIn = true;
+    if (n.type === 'Call' && n.callee && n.callee.type === 'Ident') {
+      if (n.callee.name === 'getchar') needsIn = true;
+    }
+    // cin 风格：>> 读入（若 AST 有 InputRead / Extract）
+    if (n.type === 'InputRead' || n.type === 'Extract' || n.type === 'StreamExtract') needsIn = true;
+    for (const v of Object.values(n)) {
+      if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === 'object') walk(v);
+    }
+  };
+  walk(ast);
+  return { needsKey, needsIn };
+}
+
+function formPageShell({ ruleUrl, needsIn, needsKey, prefillIn, prefillKey }) {
+  const inField = needsIn
+    ? `<label for="in">输入 in（多行直接换行即可）</label>
+<textarea id="in" name="in" placeholder="程序标准输入。换行可直接敲回车；若用 URL 查询参数则换行写成 %0A">${escapeHtml(prefillIn || '')}</textarea>
+<p class="hint">也可用 ?in=文本 或 ?in=https://...；查询串里换行请用 %0A</p>`
+    : '';
+  const keyField = needsKey
+    ? `<label for="key">参数 key</label>
+<input type="text" id="key" name="key" value="${escapeHtml(prefillKey || '')}" placeholder='例如 abc 或 {1,"abc",false}' />
+<p class="hint">脚本里用 key / key[i] 读取；多值用花括号形式</p>`
+    : '';
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<title>CppScript · 运行</title>
+<style>${THEME_CSS}</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>CppScript</h1>
+    <span class="badge">填写参数</span>
+    <span class="meta">主题随系统自动切换（prefers-color-scheme）</span>
+  </header>
+  <div class="card">
+    <h2>规则 ?url=</h2>
+    <pre>${escapeHtml(ruleUrl || '')}</pre>
+  </div>
+  <div class="card">
+    <h2>运行参数</h2>
+    <form method="POST" action="">
+      <input type="hidden" name="url" value="${escapeHtml(ruleUrl || '')}" />
+      <input type="hidden" name="run" value="1" />
+      ${keyField}
+      ${inField}
+      <button class="run" type="submit">运行</button>
+    </form>
+  </div>
+  <p class="foot"><a href="/">文档</a> · CppScript v14.2</p>
+</div>
+</body>
+</html>`;
+}
+
 
 function runPageShell({ title, statusLabel, statusClass, ruleUrl, inputPreview, bodyHtml, redirectUrl }) {
   const redirectScript = redirectUrl
@@ -172,9 +268,33 @@ async function serveDocs(env) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const ruleUrl = url.searchParams.get('url');
+    let ruleUrl = url.searchParams.get('url');
 
-    // 无 ?url=：直接显示文档 HTML（自动夜间模式）
+    // POST 表单可能把 url/in/key 放在 body
+    let formIn = null;
+    let formKey = null;
+    let formRun = false;
+    const method = request.method.toUpperCase();
+    if (method === 'POST') {
+      const ctype = (request.headers.get('content-type') || '').toLowerCase();
+      if (ctype.includes('application/x-www-form-urlencoded') || ctype.includes('multipart/form-data')) {
+        try {
+          const fd = await request.formData();
+          if (!ruleUrl && fd.get('url')) ruleUrl = String(fd.get('url'));
+          if (fd.has('in')) formIn = String(fd.get('in') ?? '');
+          if (fd.has('key')) formKey = String(fd.get('key') ?? '');
+          if (String(fd.get('run') || '') === '1') formRun = true;
+          // 把 form 的 key 合进 URL，供解释器 q('key') 使用
+          if (formKey !== null) url.searchParams.set('key', formKey);
+          if (formIn !== null) url.searchParams.set('in', formIn);
+          url.searchParams.set('run', '1');
+        } catch {
+          // 非表单 POST：仍可走 resolveInput 读 raw body
+        }
+      }
+    }
+
+    // 无 ?url=：文档
     if (!ruleUrl && (url.pathname === '/' || url.pathname === '/index.html')) {
       return serveDocs(env);
     }
@@ -194,7 +314,39 @@ export default {
       if (ruleText.length > 100 * 1024) fail(502, 'rule exceeds 100KB');
 
       const ast = parse(ruleText);
-      const inputText = await resolveInput(request, url, env);
+      const { needsKey, needsIn } = analyzeNeeds(ast);
+
+      const hasInParam = url.searchParams.has('in') || formIn !== null;
+      const hasKeyParam = url.searchParams.has('key') || formKey !== null;
+      const wantRun =
+        formRun ||
+        url.searchParams.get('run') === '1' ||
+        (!needsIn && !needsKey) ||
+        // 查询串已带齐脚本需要的参数 → 直接跑
+        (( !needsIn || hasInParam) && (!needsKey || hasKeyParam));
+
+      if (!wantRun) {
+        const page = formPageShell({
+          ruleUrl,
+          needsIn,
+          needsKey,
+          prefillIn: url.searchParams.get('in') ?? '',
+          prefillKey: url.searchParams.get('key') ?? '',
+        });
+        return new Response(page, {
+          status: 200,
+          headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        });
+      }
+
+      // 输入：优先表单 in，否则 ?in= / body
+      let inputText;
+      if (formIn !== null) {
+        if (formIn.length > 1024 * 1024) fail(502, 'in exceeds 1MB', 'E51');
+        inputText = formIn;
+      } else {
+        inputText = await resolveInput(request, url, env);
+      }
       const inputStream = new InputStream(inputText);
 
       return await executeAndRespond(ast, {

@@ -116,7 +116,7 @@ export default {
       if (action === 'cacheSet') return await handleCacheSet(body.key || '', body.value || '');
       if (action === 'officialResolve') return await handleOfficialResolve(body.id || '');
 
-      // 墨澜音源后端（不再走 toubiec）
+      // 墨澜音源后端
       if (action === 'getSongInfo') {
         return await handleGetSongInfo(body.id);
       }

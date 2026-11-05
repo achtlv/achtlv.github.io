@@ -12,10 +12,6 @@ function json(data, status = 200) {
 const UA =
   "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
 
-// ==================== 墨澜风格网易云多后端 ====================
-// 音质映射：前端 LEVELS = ['exhigh','standard']
-// exhigh → 优先 flac，再 320k；standard → 128k
-
 async function fetchJson(url, options = {}, timeoutMs = 10000) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -45,11 +41,19 @@ function pickUrl(obj) {
   );
 }
 
-/** 墨澜 + HelloWorld 网易云 URL 后端（按优先级） */
+/** 把网易 CDN 的 http 升级为 https，避免 HTTPS 页面混合内容被拦截导致一直加载 */
+function upgradeNeteaseUrl(url) {
+  if (!url || typeof url !== "string") return url;
+  return url.replace(
+    /^http:\/\/(([a-z0-9.-]+)\.music\.126\.net)\//i,
+    "https://$1/"
+  );
+}
+
+// ==================== 墨澜风格网易云多后端 ====================
 const WY_URL_BACKENDS = [
   {
     name: "ikun(c.wwwweb.top)",
-    // Molan 主后端
     fetch: async (id, quality) => {
       const r = await fetchJson("https://c.wwwweb.top/music/url", {
         method: "POST",
@@ -82,15 +86,23 @@ const WY_URL_BACKENDS = [
   },
 ];
 
-/** 根据前端 level 决定尝试的音质列表 */
+/**
+ * 严格按前端 level 映射音质：
+ * - lossless → flac（下载「无损」）
+ * - exhigh   → 320k（播放/下载「极高」）
+ * - standard → 128k（播放/下载「标准」）
+ */
 function qualitiesForLevel(level) {
-  if (level === "standard") return ["128k"];
-  // exhigh 及未知：优先无损，再高品质
-  return ["flac", "320k"];
+  const lv = String(level || "").toLowerCase();
+  if (lv === "lossless" || lv === "flac" || lv === "hires") return ["flac"];
+  if (lv === "exhigh" || lv === "320k" || lv === "higher") return ["320k"];
+  if (lv === "standard" || lv === "128k") return ["128k"];
+  // 未知 level：只给可播的 320k，避免误返回超大 flac
+  return ["320k"];
 }
 
 /**
- * 获取播放链接（墨澜多后端）
+ * 获取播放/下载链接
  * 返回结构兼容前端 extractUrl / extractExpi
  */
 export async function handleGetSongUrl(id, level = "exhigh") {
@@ -105,9 +117,9 @@ export async function handleGetSongUrl(id, level = "exhigh") {
   for (const q of qualities) {
     for (const backend of WY_URL_BACKENDS) {
       try {
-        const url = await backend.fetch(songId, q);
+        let url = await backend.fetch(songId, q);
+        url = upgradeNeteaseUrl(url);
         if (url && /^https?:\/\//i.test(url)) {
-          // NetEase CDN 链接通常约 20 分钟有效
           return json({
             code: 200,
             data: {
@@ -124,15 +136,18 @@ export async function handleGetSongUrl(id, level = "exhigh") {
     }
   }
 
-  return json({
-    code: 404,
-    msg: "暂无可用音源",
-    debug: errors.slice(0, 6),
-  }, 404);
+  return json(
+    {
+      code: 404,
+      msg: "暂无可用音源",
+      debug: errors.slice(0, 6),
+    },
+    404
+  );
 }
 
 /**
- * 歌曲信息：优先官方接口，失败时降级
+ * 歌曲信息：官方接口优先
  */
 export async function handleGetSongInfo(id) {
   const songId = String(id || "").trim();
@@ -140,16 +155,12 @@ export async function handleGetSongInfo(id) {
     return json({ code: 400, msg: "无效歌曲 ID" }, 400);
   }
 
-  // 1. 官方 song/detail
   try {
     const r = await fetchJson(
       "https://music.163.com/api/song/detail?ids=[" + songId + "]",
       {
         method: "GET",
-        headers: {
-          "User-Agent": UA,
-          Referer: "https://music.163.com/",
-        },
+        headers: { "User-Agent": UA, Referer: "https://music.163.com/" },
       }
     );
     const songs = r.data && r.data.songs;
@@ -158,16 +169,12 @@ export async function handleGetSongInfo(id) {
     }
   } catch (e) {}
 
-  // 2. interface 备用
   try {
     const r = await fetchJson(
       "https://interface.music.163.com/api/song/detail?ids=[" + songId + "]",
       {
         method: "GET",
-        headers: {
-          "User-Agent": UA,
-          Referer: "https://music.163.com/",
-        },
+        headers: { "User-Agent": UA, Referer: "https://music.163.com/" },
       }
     );
     const songs = r.data && r.data.songs;
@@ -176,7 +183,6 @@ export async function handleGetSongInfo(id) {
     }
   } catch (e) {}
 
-  // 3. 极简降级（至少返回 id，避免前端完全挂）
   return json({
     code: 200,
     data: {
@@ -202,7 +208,6 @@ export async function handleGetSongLyric(id) {
     return json({ code: 400, msg: "无效歌曲 ID" }, 400);
   }
 
-  // 1. 官方 lyric
   try {
     const r = await fetchJson(
       "https://music.163.com/api/song/lyric?id=" +
@@ -210,10 +215,7 @@ export async function handleGetSongLyric(id) {
         "&lv=1&tv=1&rv=1&yv=1",
       {
         method: "GET",
-        headers: {
-          "User-Agent": UA,
-          Referer: "https://music.163.com/",
-        },
+        headers: { "User-Agent": UA, Referer: "https://music.163.com/" },
       }
     );
     if (r.data && (r.data.lrc || r.data.tlyric || r.data.romalrc)) {
@@ -221,10 +223,10 @@ export async function handleGetSongLyric(id) {
     }
   } catch (e) {}
 
-  // 2. vkeys
   try {
     const r = await fetchJson(
-      "https://api.vkeys.cn/v2/music/netease/lyric?id=" + encodeURIComponent(songId),
+      "https://api.vkeys.cn/v2/music/netease/lyric?id=" +
+        encodeURIComponent(songId),
       { method: "GET", headers: { "User-Agent": UA } }
     );
     const d = r.data && r.data.data;
@@ -250,7 +252,7 @@ export async function handleGetSongLyric(id) {
   });
 }
 
-// 兼容旧 proxy 调用（已不再依赖 toubiec）
+// 兼容旧 proxy 调用
 export async function proxy(endpoint, body) {
   if (endpoint === "getSongUrl") {
     return handleGetSongUrl(body.id, body.level || "exhigh");
@@ -637,9 +639,7 @@ export async function handleDownload(targetUrl, name, req) {
   }
 
   const range = req && req.headers ? req.headers.get("Range") : null;
-  const headers = {
-    "User-Agent": UA,
-  };
+  const headers = { "User-Agent": UA };
   if (range) headers["Range"] = range;
 
   const urlLower = targetUrl.toLowerCase();
@@ -734,8 +734,8 @@ export async function handleOfficialResolve(id) {
     if (!audioUrl || !/^https?:\/\//i.test(audioUrl)) {
       audioUrl = resolveUrl;
     }
-    let expi = 1200;
-    return json({ ok: true, url: audioUrl, expi: expi, level: "official" });
+    audioUrl = upgradeNeteaseUrl(audioUrl);
+    return json({ ok: true, url: audioUrl, expi: 1200, level: "official" });
   } catch (e) {
     return json({ ok: false, msg: String(e.message || e) });
   }

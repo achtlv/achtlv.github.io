@@ -115,17 +115,9 @@ export default {
       if (action === 'cacheGet') return await handleCacheGet(body.key || '');
       if (action === 'cacheSet') return await handleCacheSet(body.key || '', body.value || '');
       if (action === 'officialResolve') return await handleOfficialResolve(body.id || '');
-
-      // 墨澜音源后端
-      if (action === 'getSongInfo') {
-        return await handleGetSongInfo(body.id);
-      }
-      if (action === 'getSongUrl') {
-        return await handleGetSongUrl(body.id, body.level || 'exhigh');
-      }
-      if (action === 'getSongLyric') {
-        return await handleGetSongLyric(body.id);
-      }
+      if (action === 'getSongInfo') return await handleGetSongInfo(body.id);
+      if (action === 'getSongUrl') return await handleGetSongUrl(body.id, body.level || 'exhigh');
+      if (action === 'getSongLyric') return await handleGetSongLyric(body.id);
     } catch (e) {
       return new Response(JSON.stringify({ code: 500, msg: e.message || 'Server Error' }), {
         status: 500,

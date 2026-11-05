@@ -32,7 +32,6 @@ export async function handleGetSongUrl(id, level = "exhigh") {
   const songId = String(id || "").trim();
   if (!songId || !/^\d+$/.test(songId)) return json({ code: 400, msg: "无效歌曲 ID" }, 400);
   const qualities = qualitiesForLevel(level);
-  const errors = [];
   for (const q of qualities) {
     for (const fn of [
       async () => {
@@ -50,13 +49,11 @@ export async function handleGetSongUrl(id, level = "exhigh") {
     ]) {
       try {
         let url = upgradeNeteaseUrl(await fn());
-        if (url && /^https?:\/\//i.test(url)) {
-          return json({ code: 200, data: { url, expi: 1200, level: q } });
-        }
-      } catch (e) { errors.push(String(e.message || e)); }
+        if (url && /^https?:\/\//i.test(url)) return json({ code: 200, data: { url, expi: 1200, level: q } });
+      } catch (e) {}
     }
   }
-  return json({ code: 404, msg: "暂无可用音源", debug: errors.slice(0, 4) }, 404);
+  return json({ code: 404, msg: "暂无可用音源" }, 404);
 }
 export async function handleGetSongInfo(id) {
   const songId = String(id || "").trim();
@@ -74,9 +71,16 @@ export async function handleGetSongLyric(id) {
   const songId = String(id || "").trim();
   if (!songId || !/^\d+$/.test(songId)) return json({ code: 400, msg: "无效歌曲 ID" }, 400);
   try {
+    const r = await fetchJson("https://api.vkeys.cn/v2/music/netease/lyric?id=" + encodeURIComponent(songId));
+    const d = r.data && r.data.data;
+    if (d && (d.lrc || d.trans || d.roma)) {
+      return json({ code: 200, data: { lrc: { lyric: d.lrc || "" }, tlyric: { lyric: d.trans || "" }, romalrc: { lyric: d.roma || "" } } });
+    }
+  } catch (e) {}
+  try {
     const r = await fetchJson("https://api.paugram.com/netease/?id=" + encodeURIComponent(songId));
-    if (r.data && r.data.lyric) {
-      return json({ code: 200, data: { lrc: { lyric: r.data.lyric }, tlyric: { lyric: r.data.tlyric || "" }, romalrc: { lyric: "" } } });
+    if (r.data && (r.data.lyric || r.data.sub_lyric)) {
+      return json({ code: 200, data: { lrc: { lyric: r.data.lyric || "" }, tlyric: { lyric: r.data.sub_lyric || "" }, romalrc: { lyric: "" } } });
     }
   } catch (e) {}
   return json({ code: 200, data: { lrc: { lyric: "" }, tlyric: { lyric: "" }, romalrc: { lyric: "" } } });
@@ -120,8 +124,7 @@ export async function handleSearch(word) {
   const name = item.name || item.song || item.title || word;
   let artist = item.singer || item.artist || "";
   if (Array.isArray(artist)) artist = artist.map((a) => (a && a.name ? a.name : a)).filter(Boolean).join(" / ");
-  const pic = item.cover || item.pic || item.picUrl || "";
-  return json({ code: 200, id: String(id), name, artist: String(artist), pic });
+  return json({ code: 200, id: String(id), name, artist: String(artist), pic: item.cover || item.pic || item.picUrl || "" });
 }
 function extractIdFromUrl(input) {
   const s = String(input || "");
@@ -138,8 +141,7 @@ export async function handleResolve(rawUrl) {
     const res = await fetch(String(rawUrl), { redirect: "follow", headers: { "User-Agent": UA } });
     id = extractIdFromUrl(res.url || "");
     if (id) return json({ code: 200, id });
-    const text = await res.text();
-    id = extractIdFromUrl(text);
+    id = extractIdFromUrl(await res.text());
     if (id) return json({ code: 200, id });
   } catch (e) { return json({ code: 500, msg: String(e.message || e) }, 500); }
   return json({ code: 404, msg: "无法提取歌曲 ID" }, 404);

@@ -375,7 +375,8 @@ render();
 }else if(state.lyricLoading||!state.lyric){
 var cachedLyric=null;
 try{cachedLyric=await getCachedLyric(song.id);}catch(e){}
-if(cachedLyric){
+if(cachedLyric&&cachedLyric.trans){
+// 缓存含翻译才直接用；否则继续请求，避免旧缓存缺翻译
 state.lyric=cachedLyric.main||'暂无歌词';
 state.lyricTrans=cachedLyric.trans||'';
 state.lyricRoma=cachedLyric.roma||'';
@@ -388,6 +389,30 @@ eC.lyricRoma=state.lyricRoma;
 eC.lyricDone=true;
 }
 render();
+}else if(cachedLyric&&!cachedLyric.trans){
+// 先显示原文，后台补翻译
+state.lyric=cachedLyric.main||'暂无歌词';
+state.lyricTrans='';
+state.lyricRoma=cachedLyric.roma||'';
+state.lyricLoading=false;
+render();
+try{
+var lrFix=await post('/api/getSongLyric',{id:song.id});
+if(token!==playToken)return;
+var mFix=extractLyricMulti(lrFix);
+if(mFix.main)state.lyric=mFix.main;
+state.lyricTrans=mFix.trans||'';
+state.lyricRoma=mFix.roma||state.lyricRoma||'';
+var eFix=getPreloadEntry(song.id);
+if(eFix){
+eFix.lyric=state.lyric;
+eFix.lyricTrans=state.lyricTrans;
+eFix.lyricRoma=state.lyricRoma;
+eFix.lyricDone=true;
+}
+await saveLyricToCache(song.id,state.lyric,state.lyricTrans,state.lyricRoma);
+render();
+}catch(e){}
 }else{
 try{
 var lr=await post('/api/getSongLyric',{id:song.id});

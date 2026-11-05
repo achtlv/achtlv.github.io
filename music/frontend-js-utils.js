@@ -257,9 +257,7 @@ var pic=d.cover||d.pic||d.picUrl||'';
 if(pic&&pic.indexOf('music.126.net')!==-1&&pic.indexOf('param=')===-1){
 pic=pic+(pic.indexOf('?')===-1?'?':'&')+'param=500y500';
 }
-var duration=0;
-if(typeof d.duration==='number'&&d.duration>0)duration=d.duration>10000?d.duration:d.duration*1000;
-var out={code:200,data:{songs:[{id:Number(songId)||songId,name:name,ar:[{name:artist}],al:{picUrl:pic},dt:duration}]}};
+var out={code:200,data:{songs:[{id:Number(songId)||songId,name:name,ar:[{name:artist}],al:{picUrl:pic},dt:0}]}};
 _songInfoMem[songId]=out;
 return out;
 }
@@ -281,19 +279,28 @@ return empty;
 async function localGetSongLyric(id){
 var songId=String(id||'').trim();
 if(!songId||!/^\d+$/.test(songId))return {code:400,msg:'无效歌曲 ID'};
-// 优先 paugram（一次请求常带歌词）
-try{
-var r0=await localFetchJson('https://api.paugram.com/netease/?id='+encodeURIComponent(songId),{method:'GET'},10000);
-var d0=r0.data;
-if(d0&&typeof d0.lyric==='string'&&d0.lyric.trim()){
-return {code:200,data:{lrc:{lyric:d0.lyric},tlyric:{lyric:d0.tlyric||d0.trans||''},romalrc:{lyric:''}}};
-}
-}catch(e){}
+// 优先 vkeys：同时有原文/翻译/音译
 try{
 var r=await localFetchJson('https://api.vkeys.cn/v2/music/netease/lyric?id='+encodeURIComponent(songId),{method:'GET'});
 var d=r.data&&r.data.data;
 if(d&&(d.lrc||d.trans||d.roma)){
-return {code:200,data:{lrc:{lyric:d.lrc||''},tlyric:{lyric:d.trans||''},romalrc:{lyric:d.roma||''}}};
+return {code:200,data:{
+lrc:{lyric:d.lrc||''},
+tlyric:{lyric:d.trans||''},
+romalrc:{lyric:d.roma||''}
+}};
+}
+}catch(e){}
+// 备用 paugram：翻译在 sub_lyric
+try{
+var r0=await localFetchJson('https://api.paugram.com/netease/?id='+encodeURIComponent(songId),{method:'GET'},10000);
+var d0=r0.data;
+if(d0&&(d0.lyric||d0.sub_lyric)){
+return {code:200,data:{
+lrc:{lyric:d0.lyric||''},
+tlyric:{lyric:d0.sub_lyric||d0.tlyric||d0.trans||''},
+romalrc:{lyric:''}
+}};
 }
 }catch(e){}
 return {code:200,data:{lrc:{lyric:''},tlyric:{lyric:''},romalrc:{lyric:''}}};
@@ -323,7 +330,6 @@ return {ok:true};
 function post(path,body){
 body=body||{};
 var p=String(path||'');
-// 全部常用接口浏览器直连，Worker 仅保留 resolve/checkAudio/download/officialResolve
 if(p==='/api/getSongUrl'||p==='getSongUrl')return localGetSongUrl(body.id,body.level||'exhigh');
 if(p==='/api/search'||p==='search')return localSearch(body.word||'');
 if(p==='/api/getSongLyric'||p==='getSongLyric')return localGetSongLyric(body.id);

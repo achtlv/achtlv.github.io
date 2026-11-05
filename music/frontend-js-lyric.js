@@ -175,7 +175,7 @@ for(var i=0;i<candidates.length;i++){
 var c=candidates[i];
 if(!c||typeof c!=='object')continue;
 if(!main)main=pickLyricField(c,['lrc','lyric','lyrics','lrcText']);
-if(!trans)trans=pickLyricField(c,['tlyric','translation','trans']);
+if(!trans)trans=pickLyricField(c,['tlyric','translation','trans','sub_lyric','subLyric']);
 if(!roma)roma=pickLyricField(c,['romalrc','roma','romaji','klyric']);
 }
 if(!main){

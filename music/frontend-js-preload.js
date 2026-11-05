@@ -92,7 +92,7 @@ return;
 
 try{
 var cached=await getCachedLyric(song.id);
-if(cached){
+if(cached&&cached.trans){
 entry.lyric=cached.main;
 entry.lyricTrans=cached.trans;
 entry.lyricRoma=cached.roma;

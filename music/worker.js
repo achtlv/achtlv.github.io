@@ -11,24 +11,12 @@ import { PLAYLISTS_SCRIPT } from './frontend-js-playlists.js';
 import { AUTH_SCRIPT } from './frontend-js-auth.js';
 import { APP_SCRIPT } from './frontend-js-app.js';
 import {
-  handleSearch,
-  handleResolve,
-  handleCheckAudio,
-  handleCacheGet,
-  handleCacheSet,
-  handleDownload,
-  handleOfficialResolve,
-  handleGetSongUrl,
-  handleGetSongInfo,
-  handleGetSongLyric,
-  proxy,
+  handleSearch, handleResolve, handleCheckAudio, handleCacheGet, handleCacheSet,
+  handleDownload, handleOfficialResolve, handleGetSongUrl, handleGetSongInfo,
+  handleGetSongLyric, proxy,
 } from './handlers.js';
 
-const JS_HEADERS = {
-  'Content-Type': 'application/javascript;charset=UTF-8',
-  'Cache-Control': 'no-cache',
-};
-
+const JS_HEADERS = { 'Content-Type': 'application/javascript;charset=UTF-8', 'Cache-Control': 'no-cache' };
 const JS_ROUTES = {
   '/frontend-js-state.js': STATE_SCRIPT,
   '/frontend-js-utils.js': UTILS_SCRIPT,
@@ -45,69 +33,35 @@ const JS_ROUTES = {
 export default {
   async fetch(request) {
     const url = new URL(request.url);
-
     if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Range',
-        },
-      });
+      return new Response(null, { headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Range',
+      }});
     }
-
     if (url.pathname === '/' || url.pathname === '/index.html') {
-      return new Response(HTML, {
-        headers: { 'Content-Type': 'text/html;charset=UTF-8' },
-      });
+      return new Response(HTML, { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
     }
-
     if (url.pathname === '/manifest.json') {
-      return new Response(JSON.stringify(MANIFEST_JSON), {
-        headers: {
-          'Content-Type': 'application/manifest+json;charset=UTF-8',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-        },
-      });
+      return new Response(JSON.stringify(MANIFEST_JSON), { headers: {
+        'Content-Type': 'application/manifest+json;charset=UTF-8', 'Cache-Control': 'no-cache, no-store, must-revalidate',
+      }});
     }
-
     if (url.pathname === '/sw.js') {
-      return new Response(SW_CODE, {
-        headers: {
-          'Content-Type': 'application/javascript;charset=UTF-8',
-          'Cache-Control': 'no-cache',
-          'Service-Worker-Allowed': '/',
-        },
-      });
+      return new Response(SW_CODE, { headers: {
+        'Content-Type': 'application/javascript;charset=UTF-8', 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/',
+      }});
     }
-
-    if (url.pathname === '/icon.png') {
-      return await handleIcon();
-    }
-
-    if (JS_ROUTES[url.pathname]) {
-      return new Response(JS_ROUTES[url.pathname], { headers: JS_HEADERS });
-    }
-
+    if (url.pathname === '/icon.png') return await handleIcon();
+    if (JS_ROUTES[url.pathname]) return new Response(JS_ROUTES[url.pathname], { headers: JS_HEADERS });
     if (url.pathname === '/api/download') {
-      return await handleDownload(
-        url.searchParams.get('u') || '',
-        url.searchParams.get('name') || '',
-        request
-      );
+      return await handleDownload(url.searchParams.get('u') || '', url.searchParams.get('name') || '', request);
     }
-
-    if (request.method !== 'POST') {
-      return new Response('Not Found', { status: 404 });
-    }
-
+    if (request.method !== 'POST') return new Response('Not Found', { status: 404 });
     let body = {};
-    try {
-      body = await request.json();
-    } catch (e) {}
-
+    try { body = await request.json(); } catch (e) {}
     const action = url.pathname.replace(/^\/api\//, '');
-
     try {
       if (action === 'search') return await handleSearch(body.word || '');
       if (action === 'resolve') return await handleResolve(body.url || '');
@@ -120,11 +74,9 @@ export default {
       if (action === 'getSongLyric') return await handleGetSongLyric(body.id);
     } catch (e) {
       return new Response(JSON.stringify({ code: 500, msg: e.message || 'Server Error' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       });
     }
-
     return new Response('Not Found', { status: 404 });
   },
 };

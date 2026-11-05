@@ -152,12 +152,11 @@ if(/^https?:\/\//i.test(s))return s;
 if(s.charAt(0)!=='/')s='/'+s;
 return getApiOrigin()+s;
 }
-// ==================== 浏览器直连 API（绕过 Cloudflare） ====================
+// ==================== 浏览器直连（尽量不走 Worker） ====================
 function upgradeNeteaseUrl(url){
 if(!url||typeof url!=='string')return url;
 return url.replace(/^http:\/\/(([a-z0-9.-]+)\.music\.126\.net)\//i,'https://$1/');
 }
-
 function qualitiesForLevel(level){
 var lv=String(level||'').toLowerCase();
 if(lv==='lossless'||lv==='flac'||lv==='hires')return ['flac'];
@@ -165,13 +164,13 @@ if(lv==='exhigh'||lv==='320k'||lv==='higher')return ['320k'];
 if(lv==='standard'||lv==='128k')return ['128k'];
 return ['320k'];
 }
-
 function localFetchJson(url,options,timeoutMs){
 options=options||{};
 timeoutMs=timeoutMs||12000;
 var ctrl=typeof AbortController!=='undefined'?new AbortController():null;
 var timer=null;
-var opts={method:options.method||'GET',headers:options.headers||{},signal:ctrl?ctrl.signal:undefined};
+var opts={method:options.method||'GET',headers:options.headers||{}};
+if(ctrl)opts.signal=ctrl.signal;
 if(options.body!==undefined)opts.body=options.body;
 return new Promise(function(resolve){
 if(ctrl)timer=setTimeout(function(){try{ctrl.abort();}catch(e){}},timeoutMs);
@@ -183,23 +182,18 @@ resolve({ok:r.ok,status:r.status,data:data,text:t});
 });
 }).catch(function(e){
 resolve({ok:false,status:0,data:null,error:String(e&&e.message||e)});
-}).then(function(v){
-if(timer)clearTimeout(timer);
-return v;
-});
+}).then(function(v){if(timer)clearTimeout(timer);return v;});
 });
 }
-
 async function localGetSongUrl(id,level){
 var songId=String(id||'').trim();
 if(!songId||!/^\d+$/.test(songId))return {code:400,msg:'无效歌曲 ID'};
 var qualities=qualitiesForLevel(level);
 var errors=[];
-// 优先星海（CORS *），再试 ikun
 var backends=[
 {name:'星海',run:async function(q){
 var url='https://yy.zddyr.top/lx/api/?source=wy&songmid='+encodeURIComponent(songId)+'&quality='+encodeURIComponent(q);
-var r=await localFetchJson(url,{method:'GET',headers:{'User-Agent':'lx-music-desktop/2.10.1'}});
+var r=await localFetchJson(url,{method:'GET'});
 var u=(r.data&&(r.data.url||(r.data.data&&r.data.data.url)))||'';
 if(u)return u;
 throw new Error((r.data&&(r.data.msg||r.data.message))||'星海无结果');
@@ -207,7 +201,7 @@ throw new Error((r.data&&(r.data.msg||r.data.message))||'星海无结果');
 {name:'ikun',run:async function(q){
 var r=await localFetchJson('https://c.wwwweb.top/music/url',{
 method:'POST',
-headers:{'Content-Type':'application/json','User-Agent':'lx-music-request/2.9.0'},
+headers:{'Content-Type':'application/json'},
 body:JSON.stringify({source:'wy',musicId:songId,quality:q})
 });
 if(r.data&&Number(r.data.code)===200&&r.data.url)return r.data.url;
@@ -223,14 +217,11 @@ url=upgradeNeteaseUrl(url);
 if(url&&/^https?:\/\//i.test(url)){
 return {code:200,data:{url:url,expi:1200,level:q,br:q==='flac'?999000:(q==='320k'?320000:128000)}};
 }
-}catch(e){
-errors.push(backends[bi].name+'/'+q+': '+(e.message||e));
-}
+}catch(e){errors.push(backends[bi].name+'/'+q+': '+(e.message||e));}
 }
 }
 return {code:404,msg:'暂无可用音源',debug:errors.slice(0,6)};
 }
-
 async function localSearch(word){
 if(!word)return {code:400,msg:'缺少搜索关键词'};
 var r=await localFetchJson('https://api.vkeys.cn/v2/music/netease?word='+encodeURIComponent(word),{method:'GET'});
@@ -251,18 +242,62 @@ else if(artist&&typeof artist==='object')artist=artist.name||'';
 var pic=item.cover||item.pic||item.picUrl||item.picture||item.coverUrl||(item.al&&item.al.picUrl)||(item.album&&item.album.picUrl)||'';
 return {code:200,id:String(id),name:name,artist:String(artist),pic:pic};
 }
-
+var _songInfoMem={};
+async function localGetSongInfo(id){
+var songId=String(id||'').trim();
+if(!songId||!/^\d+$/.test(songId))return {code:400,msg:'无效歌曲 ID'};
+if(_songInfoMem[songId])return _songInfoMem[songId];
+try{
+var r=await localFetchJson('https://api.paugram.com/netease/?id='+encodeURIComponent(songId),{method:'GET'},10000);
+var d=r.data;
+if(d&&(d.title||d.name||d.cover||d.artist)){
+var name=d.title||d.name||'';
+var artist=d.artist||d.singer||'';
+var pic=d.cover||d.pic||d.picUrl||'';
+if(pic&&pic.indexOf('music.126.net')!==-1&&pic.indexOf('param=')===-1){
+pic=pic+(pic.indexOf('?')===-1?'?':'&')+'param=500y500';
+}
+var duration=0;
+if(typeof d.duration==='number'&&d.duration>0)duration=d.duration>10000?d.duration:d.duration*1000;
+var out={code:200,data:{songs:[{id:Number(songId)||songId,name:name,ar:[{name:artist}],al:{picUrl:pic},dt:duration}]}};
+_songInfoMem[songId]=out;
+return out;
+}
+}catch(e){}
+try{
+var r2=await localFetchJson('https://api.injahow.cn/meting/?server=netease&type=song&id='+encodeURIComponent(songId),{method:'GET'},10000);
+var arr=r2.data;
+var item=Array.isArray(arr)?arr[0]:arr;
+if(item&&(item.name||item.pic||item.artist)){
+var out2={code:200,data:{songs:[{id:Number(songId)||songId,name:item.name||'',ar:[{name:item.artist||''}],al:{picUrl:item.pic||''},dt:0}]}};
+_songInfoMem[songId]=out2;
+return out2;
+}
+}catch(e){}
+var empty={code:200,data:{songs:[{id:Number(songId)||songId,name:'',ar:[{name:''}],al:{picUrl:''},dt:0}]}};
+_songInfoMem[songId]=empty;
+return empty;
+}
 async function localGetSongLyric(id){
 var songId=String(id||'').trim();
 if(!songId||!/^\d+$/.test(songId))return {code:400,msg:'无效歌曲 ID'};
+// 优先 paugram（一次请求常带歌词）
+try{
+var r0=await localFetchJson('https://api.paugram.com/netease/?id='+encodeURIComponent(songId),{method:'GET'},10000);
+var d0=r0.data;
+if(d0&&typeof d0.lyric==='string'&&d0.lyric.trim()){
+return {code:200,data:{lrc:{lyric:d0.lyric},tlyric:{lyric:d0.tlyric||d0.trans||''},romalrc:{lyric:''}}};
+}
+}catch(e){}
+try{
 var r=await localFetchJson('https://api.vkeys.cn/v2/music/netease/lyric?id='+encodeURIComponent(songId),{method:'GET'});
 var d=r.data&&r.data.data;
 if(d&&(d.lrc||d.trans||d.roma)){
 return {code:200,data:{lrc:{lyric:d.lrc||''},tlyric:{lyric:d.trans||''},romalrc:{lyric:d.roma||''}}};
 }
+}catch(e){}
 return {code:200,data:{lrc:{lyric:''},tlyric:{lyric:''},romalrc:{lyric:''}}};
 }
-
 async function localCacheGet(key){
 if(!key)return {ok:false,msg:'缺少 key'};
 var safeKey=String(key).replace(/[^a-zA-Z0-9_-]/g,'');
@@ -270,13 +305,9 @@ if(!safeKey)return {ok:false,msg:'无效 key'};
 try{
 var r=await localFetchJson('https://textdb.online/'+safeKey,{method:'GET'});
 if(!r.ok)return {ok:false,msg:'HTTP '+r.status};
-var text=(r.text||'').trim();
-return {ok:true,value:text};
-}catch(e){
-return {ok:false,msg:String(e.message||e)};
+return {ok:true,value:(r.text||'').trim()};
+}catch(e){return {ok:false,msg:String(e.message||e)};}
 }
-}
-
 async function localCacheSet(key,value){
 if(!key||value===undefined||value===null)return {ok:false,msg:'缺少参数'};
 var safeKey=String(key).replace(/[^a-zA-Z0-9_-]/g,'');
@@ -284,38 +315,21 @@ if(!safeKey)return {ok:false,msg:'无效 key'};
 var val=String(value);
 try{
 var url='https://textdb.online/update/?key='+encodeURIComponent(safeKey)+'&value='+encodeURIComponent(val);
-var r=await localFetchJson(url,{method:'GET'});
-// 回读校验
-var check=await localFetchJson('https://textdb.online/'+safeKey,{method:'GET'});
-var got=(check.text||'').trim();
-var ok=got===val.trim()||got.indexOf(val.trim().slice(0,Math.min(80,val.length)))===0;
-if(!ok)return {ok:false,msg:'写入校验失败'};
+var r=await localFetchJson(url,{method:'GET'},15000);
+if(r.status===0)return {ok:false,msg:r.error||'网络错误'};
 return {ok:true};
-}catch(e){
-return {ok:false,msg:String(e.message||e)};
+}catch(e){return {ok:false,msg:String(e.message||e)};}
 }
-}
-
 function post(path,body){
 body=body||{};
 var p=String(path||'');
-// 浏览器本地直连，不走 Cloudflare Worker
-if(p==='/api/getSongUrl'||p==='getSongUrl'){
-return localGetSongUrl(body.id,body.level||'exhigh');
-}
-if(p==='/api/search'||p==='search'){
-return localSearch(body.word||'');
-}
-if(p==='/api/getSongLyric'||p==='getSongLyric'){
-return localGetSongLyric(body.id);
-}
-if(p==='/api/cacheGet'||p==='cacheGet'){
-return localCacheGet(body.key||'');
-}
-if(p==='/api/cacheSet'||p==='cacheSet'){
-return localCacheSet(body.key||'',body.value);
-}
-// 其余仍走 Worker（resolve / checkAudio / getSongInfo / officialResolve / download）
+// 全部常用接口浏览器直连，Worker 仅保留 resolve/checkAudio/download/officialResolve
+if(p==='/api/getSongUrl'||p==='getSongUrl')return localGetSongUrl(body.id,body.level||'exhigh');
+if(p==='/api/search'||p==='search')return localSearch(body.word||'');
+if(p==='/api/getSongLyric'||p==='getSongLyric')return localGetSongLyric(body.id);
+if(p==='/api/getSongInfo'||p==='getSongInfo')return localGetSongInfo(body.id);
+if(p==='/api/cacheGet'||p==='cacheGet')return localCacheGet(body.key||'');
+if(p==='/api/cacheSet'||p==='cacheSet')return localCacheSet(body.key||'',body.value);
 var url=toAbsoluteApiUrl(path);
 return fetch(url,{
 method:'POST',

@@ -87,16 +87,7 @@ return await sha256Hex('achtlvmusicplayerpassword'+String(password||''));
 
 async function textdbGetRaw(key){
 if(!key)return '';
-// 优先走 Worker 代理（与缓存同源、避免 CORS/接口差异）
-try{
-var r=await post('/api/cacheGet',{key:String(key)});
-if(r&&r.ok&&typeof r.value==='string'){
-var v=r.value;
-if(!v||v==='404 Not Found'||v.indexOf('Not Found')===0)return '';
-return v;
-}
-}catch(e){}
-// 回退直连官方读接口
+// 浏览器直连 textdb，不走 Worker
 try{
 var r2=await fetch('https://textdb.online/'+encodeURIComponent(key),{method:'GET',cache:'no-store'});
 if(!r2.ok)return '';
@@ -109,11 +100,7 @@ return String(t).trim();
 async function textdbSetRaw(key,value){
 if(!key)return false;
 var val=String(value||'');
-// 优先走 Worker 代理（官方写入是 update/?key=&value=）
-try{
-var r=await post('/api/cacheSet',{key:String(key),value:val});
-if(r&&r.ok)return true;
-}catch(e){}
+// 浏览器直连 textdb，不走 Worker
 try{
 var url='https://textdb.online/update/?key='+encodeURIComponent(key)+'&value='+encodeURIComponent(val);
 var r2=await fetch(url,{method:'GET',cache:'no-store'});

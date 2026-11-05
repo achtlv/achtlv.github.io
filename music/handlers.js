@@ -1,5 +1,4 @@
-const UPSTREAM = "https://nextmusic.toubiec.cn";
-
+// ==================== 基础工具 ====================
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -10,16 +9,262 @@ function json(data, status = 200) {
   });
 }
 
-export async function proxy(endpoint, body) {
-  const res = await fetch(`${UPSTREAM}/api/${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  return json(data, res.status);
+const UA =
+  "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+
+// ==================== 墨澜风格网易云多后端 ====================
+// 音质映射：前端 LEVELS = ['exhigh','standard']
+// exhigh → 优先 flac，再 320k；standard → 128k
+
+async function fetchJson(url, options = {}, timeoutMs = 10000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: ctrl.signal });
+    const text = await res.text();
+    try {
+      return { ok: res.ok, status: res.status, data: JSON.parse(text) };
+    } catch {
+      return { ok: res.ok, status: res.status, data: null, text };
+    }
+  } catch (e) {
+    return { ok: false, status: 0, data: null, error: String(e.message || e) };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
+function pickUrl(obj) {
+  if (!obj) return "";
+  if (typeof obj === "string" && /^https?:\/\//i.test(obj)) return obj;
+  return (
+    obj.url ||
+    (obj.data && obj.data.url) ||
+    (Array.isArray(obj.data) && obj.data[0] && obj.data[0].url) ||
+    ""
+  );
+}
+
+/** 墨澜 + HelloWorld 网易云 URL 后端（按优先级） */
+const WY_URL_BACKENDS = [
+  {
+    name: "ikun(c.wwwweb.top)",
+    // Molan 主后端
+    fetch: async (id, quality) => {
+      const r = await fetchJson("https://c.wwwweb.top/music/url", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "User-Agent": "lx-music-request/2.9.0",
+        },
+        body: JSON.stringify({ source: "wy", musicId: String(id), quality }),
+      });
+      if (r.data && Number(r.data.code) === 200 && r.data.url) return r.data.url;
+      throw new Error((r.data && r.data.message) || "ikun 无结果");
+    },
+  },
+  {
+    name: "星海(yy.zddyr.top)",
+    fetch: async (id, quality) => {
+      const url =
+        "https://yy.zddyr.top/lx/api/?source=wy&songmid=" +
+        encodeURIComponent(id) +
+        "&quality=" +
+        encodeURIComponent(quality);
+      const r = await fetchJson(url, {
+        method: "GET",
+        headers: { "User-Agent": "lx-music-desktop/2.10.1" },
+      });
+      const u = pickUrl(r.data);
+      if (u) return u;
+      throw new Error((r.data && (r.data.msg || r.data.message)) || "星海 无结果");
+    },
+  },
+];
+
+/** 根据前端 level 决定尝试的音质列表 */
+function qualitiesForLevel(level) {
+  if (level === "standard") return ["128k"];
+  // exhigh 及未知：优先无损，再高品质
+  return ["flac", "320k"];
+}
+
+/**
+ * 获取播放链接（墨澜多后端）
+ * 返回结构兼容前端 extractUrl / extractExpi
+ */
+export async function handleGetSongUrl(id, level = "exhigh") {
+  const songId = String(id || "").trim();
+  if (!songId || !/^\d+$/.test(songId)) {
+    return json({ code: 400, msg: "无效歌曲 ID" }, 400);
+  }
+
+  const qualities = qualitiesForLevel(level);
+  const errors = [];
+
+  for (const q of qualities) {
+    for (const backend of WY_URL_BACKENDS) {
+      try {
+        const url = await backend.fetch(songId, q);
+        if (url && /^https?:\/\//i.test(url)) {
+          // NetEase CDN 链接通常约 20 分钟有效
+          return json({
+            code: 200,
+            data: {
+              url,
+              expi: 1200,
+              level: q,
+              br: q === "flac" ? 999000 : q === "320k" ? 320000 : 128000,
+            },
+          });
+        }
+      } catch (e) {
+        errors.push(backend.name + "/" + q + ": " + (e.message || e));
+      }
+    }
+  }
+
+  return json({
+    code: 404,
+    msg: "暂无可用音源",
+    debug: errors.slice(0, 6),
+  }, 404);
+}
+
+/**
+ * 歌曲信息：优先官方接口，失败时降级
+ */
+export async function handleGetSongInfo(id) {
+  const songId = String(id || "").trim();
+  if (!songId || !/^\d+$/.test(songId)) {
+    return json({ code: 400, msg: "无效歌曲 ID" }, 400);
+  }
+
+  // 1. 官方 song/detail
+  try {
+    const r = await fetchJson(
+      "https://music.163.com/api/song/detail?ids=[" + songId + "]",
+      {
+        method: "GET",
+        headers: {
+          "User-Agent": UA,
+          Referer: "https://music.163.com/",
+        },
+      }
+    );
+    const songs = r.data && r.data.songs;
+    if (Array.isArray(songs) && songs[0] && songs[0].name) {
+      return json({ code: 200, data: { songs: [songs[0]] } });
+    }
+  } catch (e) {}
+
+  // 2. interface 备用
+  try {
+    const r = await fetchJson(
+      "https://interface.music.163.com/api/song/detail?ids=[" + songId + "]",
+      {
+        method: "GET",
+        headers: {
+          "User-Agent": UA,
+          Referer: "https://music.163.com/",
+        },
+      }
+    );
+    const songs = r.data && r.data.songs;
+    if (Array.isArray(songs) && songs[0] && songs[0].name) {
+      return json({ code: 200, data: { songs: [songs[0]] } });
+    }
+  } catch (e) {}
+
+  // 3. 极简降级（至少返回 id，避免前端完全挂）
+  return json({
+    code: 200,
+    data: {
+      songs: [
+        {
+          id: Number(songId) || songId,
+          name: "",
+          ar: [{ name: "" }],
+          al: { picUrl: "" },
+          dt: 0,
+        },
+      ],
+    },
+  });
+}
+
+/**
+ * 歌词：官方优先，vkeys 备用
+ */
+export async function handleGetSongLyric(id) {
+  const songId = String(id || "").trim();
+  if (!songId || !/^\d+$/.test(songId)) {
+    return json({ code: 400, msg: "无效歌曲 ID" }, 400);
+  }
+
+  // 1. 官方 lyric
+  try {
+    const r = await fetchJson(
+      "https://music.163.com/api/song/lyric?id=" +
+        songId +
+        "&lv=1&tv=1&rv=1&yv=1",
+      {
+        method: "GET",
+        headers: {
+          "User-Agent": UA,
+          Referer: "https://music.163.com/",
+        },
+      }
+    );
+    if (r.data && (r.data.lrc || r.data.tlyric || r.data.romalrc)) {
+      return json({ code: 200, data: r.data });
+    }
+  } catch (e) {}
+
+  // 2. vkeys
+  try {
+    const r = await fetchJson(
+      "https://api.vkeys.cn/v2/music/netease/lyric?id=" + encodeURIComponent(songId),
+      { method: "GET", headers: { "User-Agent": UA } }
+    );
+    const d = r.data && r.data.data;
+    if (d && (d.lrc || d.trans || d.roma)) {
+      return json({
+        code: 200,
+        data: {
+          lrc: { lyric: d.lrc || "" },
+          tlyric: { lyric: d.trans || "" },
+          romalrc: { lyric: d.roma || "" },
+        },
+      });
+    }
+  } catch (e) {}
+
+  return json({
+    code: 200,
+    data: {
+      lrc: { lyric: "" },
+      tlyric: { lyric: "" },
+      romalrc: { lyric: "" },
+    },
+  });
+}
+
+// 兼容旧 proxy 调用（已不再依赖 toubiec）
+export async function proxy(endpoint, body) {
+  if (endpoint === "getSongUrl") {
+    return handleGetSongUrl(body.id, body.level || "exhigh");
+  }
+  if (endpoint === "getSongInfo") {
+    return handleGetSongInfo(body.id);
+  }
+  if (endpoint === "getSongLyric") {
+    return handleGetSongLyric(body.id);
+  }
+  return json({ code: 404, msg: "未知接口: " + endpoint }, 404);
+}
+
+// ==================== 缓存（textdb） ====================
 export async function handleCacheGet(key) {
   if (!key) return json({ ok: false, msg: "缺少 key" });
   const safeKey = String(key).replace(/[^a-zA-Z0-9_-]/g, "");
@@ -27,10 +272,7 @@ export async function handleCacheGet(key) {
   try {
     const res = await fetch("https://textdb.online/" + safeKey, {
       method: "GET",
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-      },
+      headers: { "User-Agent": UA },
       redirect: "follow",
     });
     if (!res.ok) return json({ ok: false, msg: "HTTP " + res.status });
@@ -42,7 +284,8 @@ export async function handleCacheGet(key) {
 }
 
 export async function handleCacheSet(key, value) {
-  if (!key || value === undefined || value === null) return json({ ok: false, msg: "缺少参数" });
+  if (!key || value === undefined || value === null)
+    return json({ ok: false, msg: "缺少参数" });
   const safeKey = String(key).replace(/[^a-zA-Z0-9_-]/g, "");
   if (!safeKey) return json({ ok: false, msg: "无效 key" });
   const val = String(value);
@@ -54,29 +297,28 @@ export async function handleCacheSet(key, value) {
       encodeURIComponent(val);
     const res = await fetch(url, {
       method: "GET",
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-      },
+      headers: { "User-Agent": UA },
       redirect: "follow",
     });
     let bodyText = "";
     try {
       bodyText = await res.text();
     } catch (e) {}
-    // 回读校验是否写入成功
     const check = await fetch("https://textdb.online/" + safeKey, {
       method: "GET",
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-      },
+      headers: { "User-Agent": UA },
       redirect: "follow",
     });
     const got = (await check.text()).trim();
-    const ok = got === val.trim() || got.indexOf(val.trim().slice(0, Math.min(80, val.length))) === 0;
+    const ok =
+      got === val.trim() ||
+      got.indexOf(val.trim().slice(0, Math.min(80, val.length))) === 0;
     if (!ok) {
-      return json({ ok: false, msg: "写入校验失败", debug: (bodyText || "").slice(0, 120) });
+      return json({
+        ok: false,
+        msg: "写入校验失败",
+        debug: (bodyText || "").slice(0, 120),
+      });
     }
     return json({ ok: true });
   } catch (e) {
@@ -84,108 +326,7 @@ export async function handleCacheSet(key, value) {
   }
 }
 
-function extractUrlFromText(text) {
-  if (!text) return null;
-  const t = String(text);
-  const idx1 = t.indexOf("http://");
-  const idx2 = t.indexOf("https://");
-  let start = -1;
-  if (idx1 === -1 && idx2 === -1) return null;
-  if (idx1 === -1) start = idx2;
-  else if (idx2 === -1) start = idx1;
-  else start = Math.min(idx1, idx2);
-  const s = t.substring(start);
-  let end = s.length;
-  for (let i = 0; i < s.length; i++) {
-    const c = s.charCodeAt(i);
-    if (c === 32 || c === 9 || c === 10 || c === 13) {
-      end = i;
-      break;
-    }
-  }
-  return s.substring(0, end);
-}
-
-function extractIdFromUrl(url) {
-  if (!url) return null;
-  const s = String(url);
-  const keys = ["?id=", "&id=", "song?id="];
-  for (let i = 0; i < keys.length; i++) {
-    const idx = s.indexOf(keys[i]);
-    if (idx === -1) continue;
-    const start = idx + keys[i].length;
-    let end = start;
-    while (end < s.length) {
-      const c = s.charCodeAt(end);
-      if (c < 48 || c > 57) break;
-      end++;
-    }
-    const num = s.substring(start, end);
-    if (num.length >= 5) return num;
-  }
-  const idx2 = s.indexOf("/song/");
-  if (idx2 !== -1) {
-    const start2 = idx2 + 6;
-    let end2 = start2;
-    while (end2 < s.length) {
-      const c = s.charCodeAt(end2);
-      if (c < 48 || c > 57) break;
-      end2++;
-    }
-    const num2 = s.substring(start2, end2);
-    if (num2.length >= 5) return num2;
-  }
-  return null;
-}
-
-function getFormatFromUrl(url) {
-  if (!url) return "";
-  let s = String(url).toLowerCase();
-  const qi = s.indexOf("?");
-  if (qi !== -1) s = s.substring(0, qi);
-  const hi = s.indexOf("#");
-  if (hi !== -1) s = s.substring(0, hi);
-  const exts = [
-    "mp3","m4a","aac","flac","wav","ogg","opus","wma","weba","oga","mka","aiff","aif","ape","alac","amr","3ga",
-    "m3u8","mp4","flv","wmv","mkv","webm","mov","avi","m4v","ts","3gp","3g2","ogv","mpg","mpeg","m2ts","f4v","rm","rmvb","asf"
-  ];
-  for (let i = 0; i < exts.length; i++) {
-    const ext = exts[i];
-    const needLen = ext.length + 1;
-    if (s.length >= needLen) {
-      const tail = s.substring(s.length - needLen);
-      if (tail === "." + ext) return ext;
-    }
-  }
-  return "";
-}
-
-function stripExtension(s) {
-  if (!s) return "";
-  const idx = s.lastIndexOf(".");
-  if (idx > 0) return s.substring(0, idx);
-  return s;
-}
-
-function replaceDashes(s) {
-  if (!s) return "";
-  let out = "";
-  let prevWasDash = false;
-  for (let i = 0; i < s.length; i++) {
-    const c = s.charAt(i);
-    if (c === "-" || c === "_") {
-      if (!prevWasDash) {
-        out += " ";
-        prevWasDash = true;
-      }
-    } else {
-      out += c;
-      prevWasDash = false;
-    }
-  }
-  return out.trim();
-}
-
+// ==================== 搜索（保持原逻辑，vkeys） ====================
 export async function handleSearch(word) {
   if (!word) return json({ code: 400, msg: "缺少搜索关键词" }, 400);
 
@@ -209,7 +350,10 @@ export async function handleSearch(word) {
 
   let artist = item.singer || item.artist || item.artists || item.ar || "";
   if (Array.isArray(artist)) {
-    artist = artist.map((a) => (a && a.name ? a.name : a)).filter(Boolean).join(" / ");
+    artist = artist
+      .map((a) => (a && a.name ? a.name : a))
+      .filter(Boolean)
+      .join(" / ");
   } else if (artist && typeof artist === "object") {
     artist = artist.name || "";
   }
@@ -224,7 +368,69 @@ export async function handleSearch(word) {
     (item.album && item.album.picUrl) ||
     "";
 
-  return json({ code: 200, id: String(id), name, artist: String(artist), pic });
+  return json({
+    code: 200,
+    id: String(id),
+    name,
+    artist: String(artist),
+    pic,
+  });
+}
+
+// ==================== 链接解析 / 音频检测 / 下载 / 官方解析 ====================
+function extractUrlFromText(text) {
+  const m = String(text || "").match(/https?:\/\/[^\s<>"']+/i);
+  return m ? m[0] : "";
+}
+
+function extractIdFromUrl(input) {
+  const s = String(input || "");
+  let m = s.match(/[?&]id=(\d+)/);
+  if (m) return m[1];
+  m = s.match(/song\/(\d+)/);
+  if (m) return m[1];
+  m = s.match(/music\.163\.com\/#\/song\?id=(\d+)/);
+  if (m) return m[1];
+  m = s.match(/y\.music\.163\.com\/m\/song\?id=(\d+)/);
+  if (m) return m[1];
+  m = s.match(/163cn\.tv\/[^\s]*?id=(\d+)/);
+  if (m) return m[1];
+  if (/^\d+$/.test(s.trim())) return s.trim();
+  return "";
+}
+
+function getFormatFromUrl(urlLower) {
+  const u = String(urlLower || "").split("?")[0];
+  const ext = u.split(".").pop() || "";
+  const map = {
+    mp3: "mp3",
+    m4a: "m4a",
+    aac: "aac",
+    flac: "flac",
+    wav: "wav",
+    ogg: "ogg",
+    opus: "opus",
+    wma: "wma",
+    weba: "weba",
+    mka: "mka",
+    aiff: "aiff",
+    mp4: "mp4",
+    m4v: "m4v",
+    flv: "flv",
+    wmv: "wmv",
+    mkv: "mkv",
+    webm: "webm",
+    mov: "mov",
+    avi: "avi",
+    ts: "ts",
+    "3gp": "3gp",
+    "3g2": "3g2",
+    ogv: "ogv",
+    mpg: "mpg",
+    vob: "vob",
+    m3u8: "m3u8",
+  };
+  return map[ext] || "";
 }
 
 export async function handleResolve(rawUrl) {
@@ -234,9 +440,6 @@ export async function handleResolve(rawUrl) {
 
   let id = extractIdFromUrl(link);
   if (id) return json({ code: 200, id });
-
-  const UA =
-    "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
 
   try {
     const res = await fetch(link, {
@@ -249,7 +452,9 @@ export async function handleResolve(rawUrl) {
       id = extractIdFromUrl(location);
       if (id) return json({ code: 200, id });
     }
-    try { if (res.body) await res.body.cancel(); } catch (e) {}
+    try {
+      if (res.body) await res.body.cancel();
+    } catch (e) {}
   } catch (e) {}
 
   try {
@@ -260,7 +465,9 @@ export async function handleResolve(rawUrl) {
     });
     id = extractIdFromUrl(res.url || "");
     if (id) {
-      try { if (res.body) await res.body.cancel(); } catch (e) {}
+      try {
+        if (res.body) await res.body.cancel();
+      } catch (e) {}
       return json({ code: 200, id });
     }
     const finalUrl = String(res.url || "").toLowerCase();
@@ -275,7 +482,9 @@ export async function handleResolve(rawUrl) {
         if (id) return json({ code: 200, id });
       } catch (e) {}
     } else {
-      try { if (res.body) await res.body.cancel(); } catch (e) {}
+      try {
+        if (res.body) await res.body.cancel();
+      } catch (e) {}
     }
   } catch (e) {
     return json({ code: 500, msg: "链接解析失败: " + e.message }, 500);
@@ -295,8 +504,7 @@ export async function handleCheckAudio(url) {
     const urlLower0 = String(url).toLowerCase();
     const reqHeaders = {
       Range: "bytes=0-2047",
-      "User-Agent":
-        "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+      "User-Agent": UA,
     };
     if (
       urlLower0.indexOf("bilivideo.com") !== -1 ||
@@ -316,7 +524,9 @@ export async function handleCheckAudio(url) {
       if (res.body) {
         const reader = res.body.getReader();
         await reader.read();
-        try { await reader.cancel(); } catch (e) {}
+        try {
+          await reader.cancel();
+        } catch (e) {}
       }
     } catch (e) {}
 
@@ -326,23 +536,44 @@ export async function handleCheckAudio(url) {
     const urlLower = finalUrl.toLowerCase();
 
     const CT_MAP = {
-      "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/x-mp3": "mp3",
-      "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/m4a": "m4a",
-      "audio/aac": "aac", "audio/x-aac": "aac", "audio/aacp": "aac",
-      "audio/flac": "flac", "audio/x-flac": "flac",
-      "audio/wav": "wav", "audio/x-wav": "wav", "audio/wave": "wav", "audio/vnd.wave": "wav",
-      "audio/ogg": "ogg", "application/ogg": "ogg", "application/x-ogg": "ogg",
-      "audio/opus": "opus", "audio/x-opus+ogg": "opus",
-      "audio/x-ms-wma": "wma", "audio/wma": "wma",
-      "audio/webm": "weba", "audio/x-matroska": "mka",
-      "audio/aiff": "aiff", "audio/x-aiff": "aiff",
-      "video/mp4": "mp4", "video/x-m4v": "m4v",
-      "video/x-flv": "flv", "video/flv": "flv",
-      "video/x-ms-wmv": "wmv", "video/wmv": "wmv", "video/x-ms-asf": "wmv",
+      "audio/mpeg": "mp3",
+      "audio/mp3": "mp3",
+      "audio/x-mp3": "mp3",
+      "audio/mp4": "m4a",
+      "audio/x-m4a": "m4a",
+      "audio/m4a": "m4a",
+      "audio/aac": "aac",
+      "audio/x-aac": "aac",
+      "audio/aacp": "aac",
+      "audio/flac": "flac",
+      "audio/x-flac": "flac",
+      "audio/wav": "wav",
+      "audio/x-wav": "wav",
+      "audio/wave": "wav",
+      "audio/vnd.wave": "wav",
+      "audio/ogg": "ogg",
+      "application/ogg": "ogg",
+      "application/x-ogg": "ogg",
+      "audio/opus": "opus",
+      "audio/x-opus+ogg": "opus",
+      "audio/x-ms-wma": "wma",
+      "audio/wma": "wma",
+      "audio/webm": "weba",
+      "audio/x-matroska": "mka",
+      "audio/aiff": "aiff",
+      "audio/x-aiff": "aiff",
+      "video/mp4": "mp4",
+      "video/x-m4v": "m4v",
+      "video/x-flv": "flv",
+      "video/flv": "flv",
+      "video/x-ms-wmv": "wmv",
+      "video/wmv": "wmv",
+      "video/x-ms-asf": "wmv",
       "video/x-matroska": "mkv",
       "video/webm": "webm",
       "video/quicktime": "mov",
-      "video/x-msvideo": "avi", "video/avi": "avi",
+      "video/x-msvideo": "avi",
+      "video/avi": "avi",
       "video/mp2t": "ts",
       "video/3gpp": "3gp",
       "video/3gpp2": "3g2",
@@ -370,101 +601,78 @@ export async function handleCheckAudio(url) {
         ct === "application/x-download";
       if (isGeneric && extFormat) format = extFormat;
     }
-    if (!format && (ct.indexOf("audio/") === 0 || ct.indexOf("video/") === 0) && extFormat) {
+    if (
+      !format &&
+      (ct.indexOf("audio/") === 0 || ct.indexOf("video/") === 0) &&
+      extFormat
+    ) {
       format = extFormat;
     }
-    if (!format && urlLower.indexOf(".m3u8") !== -1) format = "m3u8";
-    if (!format && urlLower.indexOf(".flv") !== -1) format = "flv";
-    if (!format && ct.indexOf("audio/") === 0) format = "audio";
-    if (!format && ct.indexOf("video/") === 0) format = "video";
-    if (!format && extFormat && ct.indexOf("text/html") === -1) {
-      format = extFormat;
-    }
+    if (!format && res.ok) format = extFormat || "unknown";
 
-    if (!format) {
-      return json({ ok: false, msg: "不是音频或视频文件 (" + (rawCt || "未知类型") + ")" });
-    }
-
+    const ok = res.ok || res.status === 206;
     let name = "";
     try {
-      const u2 = new URL(finalUrl);
-      const segments = u2.pathname.split("/");
-      const last = decodeURIComponent(segments[segments.length - 1] || "");
-      name = replaceDashes(stripExtension(last)).trim();
+      const cd = res.headers.get("Content-Disposition") || "";
+      const m = cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)/i);
+      if (m) name = decodeURIComponent(m[1].replace(/["']$/, ""));
     } catch (e) {}
-    if (!name) name = "外部音源";
-    if (name.length > 60) name = name.slice(0, 60);
 
-    return json({ ok: true, name, contentType: ct, url: finalUrl, format });
+    return json({
+      ok,
+      format: format || "",
+      url: finalUrl,
+      name,
+      status: res.status,
+      contentType: rawCt,
+    });
   } catch (e) {
-    return json({ ok: false, msg: "请求失败: " + e.message });
+    return json({ ok: false, msg: String(e.message || e) });
   }
 }
 
 export async function handleDownload(targetUrl, name, req) {
-  if (!targetUrl) return new Response("缺少 url", { status: 400 });
-  const u = String(targetUrl).toLowerCase();
-  if (u.indexOf("http://") !== 0 && u.indexOf("https://") !== 0) {
-    return new Response("无效 url", { status: 400 });
+  if (!targetUrl || !/^https?:\/\//i.test(targetUrl)) {
+    return json({ ok: false, msg: "无效下载链接" }, 400);
   }
 
-  const forwardHeaders = {
-    "User-Agent":
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "*/*",
+  const range = req && req.headers ? req.headers.get("Range") : null;
+  const headers = {
+    "User-Agent": UA,
   };
+  if (range) headers["Range"] = range;
 
-  const range = req.headers.get("Range");
-  if (range) forwardHeaders["Range"] = range;
-
+  const urlLower = targetUrl.toLowerCase();
   if (
-    u.indexOf("bilivideo.com") !== -1 ||
-    u.indexOf("bilibili.com") !== -1 ||
-    u.indexOf("hdslb.com") !== -1
+    urlLower.indexOf("bilivideo.com") !== -1 ||
+    urlLower.indexOf("bilibili.com") !== -1 ||
+    urlLower.indexOf("hdslb.com") !== -1
   ) {
-    forwardHeaders["Referer"] = "https://www.bilibili.com/";
-    forwardHeaders["Origin"] = "https://www.bilibili.com";
+    headers["Referer"] = "https://www.bilibili.com/";
+    headers["Origin"] = "https://www.bilibili.com";
   }
 
-  let res;
-  try {
-    res = await fetch(targetUrl, {
-      method: "GET",
-      headers: forwardHeaders,
-      redirect: "follow",
-    });
-  } catch (e) {
-    return new Response("下载失败: " + e.message, { status: 502 });
-  }
-
-  const rawCt = res.headers.get("Content-Type") || "";
-  const ct = rawCt.toLowerCase().split(";")[0].trim();
-  if (ct === "text/html" || ct.indexOf("application/json") === 0) {
-    try { if (res.body) await res.body.cancel(); } catch (e) {}
-    return new Response("目标不是音频/视频文件 (" + (rawCt || "未知类型") + ")", { status: 502 });
-  }
+  const res = await fetch(targetUrl, {
+    method: "GET",
+    headers,
+    redirect: "follow",
+  });
 
   const respHeaders = new Headers();
-  respHeaders.set("Access-Control-Allow-Origin", "*");
-  respHeaders.set("Access-Control-Allow-Methods", "GET, OPTIONS");
-  respHeaders.set(
-    "Access-Control-Expose-Headers",
-    "Content-Length, Content-Range, Accept-Ranges, Content-Type, Content-Disposition"
-  );
-
-  const passHeaders = [
-    "Content-Type",
-    "Content-Length",
-    "Content-Range",
-    "Accept-Ranges",
-    "Last-Modified",
-    "ETag",
+  const pass = [
+    "content-type",
+    "content-length",
+    "content-range",
+    "accept-ranges",
+    "etag",
+    "last-modified",
   ];
-  for (const h of passHeaders) {
+  for (const h of pass) {
     const v = res.headers.get(h);
     if (v) respHeaders.set(h, v);
   }
-  if (!respHeaders.get("Accept-Ranges")) respHeaders.set("Accept-Ranges", "bytes");
+  respHeaders.set("Access-Control-Allow-Origin", "*");
+  respHeaders.set("Access-Control-Expose-Headers", "*");
 
   let fname = String(name || "").trim();
   if (!fname) {
@@ -480,7 +688,10 @@ export async function handleDownload(targetUrl, name, req) {
   const asciiFallback = fname.replace(/[^\x20-\x7E]/g, "_");
   respHeaders.set(
     "Content-Disposition",
-    "attachment; filename=\"" + asciiFallback + "\"; filename*=UTF-8''" + encodeURIComponent(fname)
+    'attachment; filename="' +
+      asciiFallback +
+      "\"; filename*=UTF-8''" +
+      encodeURIComponent(fname)
   );
 
   return new Response(res.body, {
@@ -501,14 +712,12 @@ export async function handleOfficialResolve(id) {
     const res = await fetch(resolveUrl, {
       method: "GET",
       redirect: "manual",
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-      },
+      headers: { "User-Agent": UA },
     });
     let audioUrl = "";
     if (res.status >= 300 && res.status < 400) {
-      audioUrl = res.headers.get("Location") || res.headers.get("location") || "";
+      audioUrl =
+        res.headers.get("Location") || res.headers.get("location") || "";
     } else if (res.ok) {
       const ct = (res.headers.get("content-type") || "").toLowerCase();
       if (ct.indexOf("json") !== -1) {
@@ -519,23 +728,13 @@ export async function handleOfficialResolve(id) {
       } else if (ct.indexOf("audio") !== -1 || ct.indexOf("mpeg") !== -1) {
         audioUrl = resolveUrl;
       } else {
-        // may still be redirect body empty
         audioUrl = res.headers.get("Location") || "";
       }
     }
     if (!audioUrl || !/^https?:\/\//i.test(audioUrl)) {
-      // fallback: use resolve proxy URL itself
       audioUrl = resolveUrl;
     }
-    // NetEase CDN links typically ~20min; default 1200s
     let expi = 1200;
-    try {
-      const m = audioUrl.match(/\/(20\d{12})\//);
-      if (m) {
-        // timestamp in path is generation time; assume ~2h validity remaining unknown → keep default
-        expi = 1200;
-      }
-    } catch (e) {}
     return json({ ok: true, url: audioUrl, expi: expi, level: "official" });
   } catch (e) {
     return json({ ok: false, msg: String(e.message || e) });

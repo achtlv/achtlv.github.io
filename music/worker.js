@@ -18,6 +18,9 @@ import {
   handleCacheSet,
   handleDownload,
   handleOfficialResolve,
+  handleGetSongUrl,
+  handleGetSongInfo,
+  handleGetSongLyric,
   proxy,
 } from './handlers.js';
 
@@ -104,7 +107,6 @@ export default {
     } catch (e) {}
 
     const action = url.pathname.replace(/^\/api\//, '');
-    const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
 
     try {
       if (action === 'search') return await handleSearch(body.word || '');
@@ -114,19 +116,15 @@ export default {
       if (action === 'cacheSet') return await handleCacheSet(body.key || '', body.value || '');
       if (action === 'officialResolve') return await handleOfficialResolve(body.id || '');
 
+      // 墨澜音源后端（不再走 toubiec）
       if (action === 'getSongInfo') {
-        return await proxy('getSongInfo', { id: body.id, timestamp: Date.now(), ip });
+        return await handleGetSongInfo(body.id);
       }
       if (action === 'getSongUrl') {
-        return await proxy('getSongUrl', {
-          id: body.id,
-          level: body.level || 'exhigh',
-          timestamp: Date.now(),
-          ip,
-        });
+        return await handleGetSongUrl(body.id, body.level || 'exhigh');
       }
       if (action === 'getSongLyric') {
-        return await proxy('getSongLyric', { id: body.id, timestamp: Date.now(), ip });
+        return await handleGetSongLyric(body.id);
       }
     } catch (e) {
       return new Response(JSON.stringify({ code: 500, msg: e.message || 'Server Error' }), {

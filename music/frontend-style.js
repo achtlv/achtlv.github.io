@@ -537,8 +537,8 @@ max-width:100%;
 .controls .icon-btn{width:36px;height:36px}
 .play-btn{width:48px;height:48px}
 }
-</style>
 .add-source-tabs{display:flex;gap:8px;margin:0 0 10px}
 .add-src{flex:1;padding:8px 0;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:inherit;font-size:13px;cursor:pointer}
 .add-src.active{background:rgba(99,140,255,.35);border-color:rgba(99,140,255,.55)}
+</style>
 `;

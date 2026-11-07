@@ -57,6 +57,7 @@ audio.style.opacity='0';
 audio.style.pointerEvents='none';
 audio.setAttribute('playsinline','');
 audio.setAttribute('webkit-playsinline','');
+try{audio.setAttribute('referrerpolicy','no-referrer');audio.referrerPolicy='no-referrer';}catch(e){}
 audio.preload='metadata';
 if(document.body)document.body.appendChild(audio);
 else document.addEventListener('DOMContentLoaded',function(){document.body.appendChild(audio)});

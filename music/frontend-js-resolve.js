@@ -121,11 +121,11 @@ var url=extractUrl(r);
 if(url&&isHttpUrl(url)){
 var expi=extractExpi(r)||DEFAULT_EXPI;
 var rq='';
-try{rq=String((r.data&&r.data.respQuality)||(r.data&&r.data.level)||(r.quality)||'');}catch(e){}
-// 冲极高时若源返回标准，侧写标准缓存
-if(level==='exhigh'&&(/128k|standard/i.test(rq))){
+try{rq=String((r.data&&r.data.respQuality)||'');}catch(e){}
+// 仅当接口明确表示落成 128k 时不当作极高
+if(level==='exhigh'&&(/^(128k|128|lq)$/i.test(rq))){
 try{await maybeCacheSideStandard(id,url,expi);}catch(e){}
-return null; // 不当作极高成功
+return null;
 }
 return {url:url,expi:expi};
 }

@@ -206,32 +206,21 @@ function extractIdFromUrl(input) {
 
 export async function handleSearchKg(word) {
   if (!word) return json({ code: 400, msg: "缺少搜索关键词" }, 400);
-  try {
-    const url =
-      "https://songsearch.kugou.com/song_search_v2?keyword=" +
-      encodeURIComponent(String(word)) +
-      "&page=1&pagesize=5&userid=-1&clientver=&platform=WebFilter";
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-      },
-      redirect: "follow",
-    });
-    const data = await res.json();
-    const lists = (data && data.data && data.data.lists) || [];
-    if (!lists.length) return json({ code: 404, msg: "未找到酷狗歌曲" }, 404);
+  const UA2 =
+    "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+  function pick(lists) {
+    if (!lists || !lists[0]) return null;
     const it = lists[0];
-    const hash = String(it.FileHash || it.fileHash || "").toLowerCase();
-    if (!/^[a-f0-9]{32}$/.test(hash)) return json({ code: 404, msg: "未找到酷狗歌曲" }, 404);
+    const hash = String(it.FileHash || it.fileHash || it.hash || "").toLowerCase().replace(/[^a-f0-9]/g, "");
+    if (!/^[a-f0-9]{32}$/.test(hash)) return null;
     let pic = "";
     if (it.Image) pic = String(it.Image).replace("{size}", "240");
-    else if (it.TransParam && it.TransParam.union_cover)
-      pic = String(it.TransParam.union_cover).replace("{size}", "240");
-    return json({
+    else if (it.TransParam && it.TransParam.union_cover) pic = String(it.TransParam.union_cover).replace("{size}", "240");
+    else if (it.trans_param && it.trans_param.union_cover) pic = String(it.trans_param.union_cover).replace("{size}", "240");
+    return {
       code: 200,
       id: "kg" + hash,
-      name: it.SongName || it.songname || word,
+      name: it.SongName || it.songname || it.filename || word,
       artist: it.SingerName || it.singername || "未知歌手",
       pic,
       duration: it.Duration || it.duration || 0,
@@ -239,10 +228,41 @@ export async function handleSearchKg(word) {
       hash,
       hqHash: String(it.HQFileHash || "").toLowerCase(),
       sqHash: String(it.SQFileHash || "").toLowerCase(),
-    });
-  } catch (e) {
-    return json({ code: 500, msg: String(e.message || e) }, 500);
+    };
   }
+  try {
+    const url1 =
+      "https://songsearch.kugou.com/song_search_v2?keyword=" +
+      encodeURIComponent(String(word)) +
+      "&page=1&pagesize=5&userid=-1&clientver=&platform=WebFilter";
+    const res1 = await fetch(url1, { headers: { "User-Agent": UA2 }, redirect: "follow" });
+    const data1 = await res1.json();
+    const got1 = pick((data1 && data1.data && data1.data.lists) || []);
+    if (got1) return json(got1);
+  } catch (e) {}
+  try {
+    const url2 =
+      "http://mobilecdn.kugou.com/api/v3/search/song?format=json&keyword=" +
+      encodeURIComponent(String(word)) +
+      "&page=1&pagesize=3";
+    const res2 = await fetch(url2, { headers: { "User-Agent": UA2 }, redirect: "follow" });
+    const data2 = await res2.json();
+    const info = (data2 && data2.data && data2.data.info) || [];
+    if (info[0] && info[0].hash) {
+      const hash = String(info[0].hash).toLowerCase();
+      return json({
+        code: 200,
+        id: "kg" + hash,
+        name: info[0].songname || word,
+        artist: info[0].singername || "未知歌手",
+        pic: "",
+        duration: info[0].duration || 0,
+        source: "kg",
+        hash,
+      });
+    }
+  } catch (e) {}
+  return json({ code: 404, msg: "未找到酷狗歌曲" }, 404);
 }
 
 export async function handleResolve(rawUrl) {

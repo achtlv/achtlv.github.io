@@ -154,7 +154,11 @@ return out;
 }
 
 function getApiOrigin(){
-// Web-to-App / Gecko 等环境 location 可能不是 https，统一走线上域名
+try{
+if(typeof location!=='undefined'&&location.origin&&/^https?:/i.test(location.origin)&&location.protocol!=='file:'){
+return location.origin;
+}
+}catch(e){}
 return 'https://music.achtlv.kdns.fr';
 }
 function toAbsoluteApiUrl(path){
@@ -171,10 +175,13 @@ return url.replace(/^http:\/\/(([a-z0-9.-]+)\.music\.126\.net)\//i,'https://$1/'
 }
 function upgradeMediaUrl(url){
 if(!url||typeof url!=='string')return url;
-var u=upgradeNeteaseUrl(url);
-// 酷狗部分 CDN 也有 http
-if(/^http:\/\//i.test(u)&&(/kugou\.com/i.test(u)||/kuwo\.cn/i.test(u))){
+var u=String(url).trim();
+u=upgradeNeteaseUrl(u);
+// HTTPS 页面禁止 http 媒体：常见音频 CDN 一律升 https
+if(/^http:\/\//i.test(u)){
+if(/music\.126\.net|music\.163\.|netease|kugou\.com|qqmusic|gtimg|myqcloud|kuwo|tencentmusic|vod\./i.test(u)){
 u=u.replace(/^http:\/\//i,'https://');
+}
 }
 return u;
 }
@@ -297,13 +304,18 @@ if(url&&/^https?:\/\//i.test(url)){
 var ttl=DEFAULT_EXPI||1200;
 // 请求极高过程中若实际拿到标准，写入标准缓存（比本地更晚才覆盖）
 var gq=gotQ.toLowerCase();
-if((q==='320k'||q==='flac')&&(gq==='128k'||gq==='standard')){
+// 仅当明确返回 128k 时侧写标准缓存，并继续冲更高；不要因字段名含糊就丢弃可用链接
+if((q==='320k'||q==='flac')&&(gq==='128k'||gq==='128'||gq==='lq')){
 try{await maybeCacheSideStandard(songId,url,ttl);}catch(e){}
-// 继续尝试其它源以拿真·极高
-errors.push(backends[bi].name+'/'+q+': got standard, continue');
+errors.push(backends[bi].name+'/'+q+': got 128k, continue');
 continue;
 }
-return {code:200,data:{url:url,expi:ttl,level:q,br:q==='flac'?999000:(q==='320k'?320000:128000),respQuality:gotQ}};
+// 内部统一用 exhigh/standard，避免和 LEVELS 对不上
+var outLevel=q;
+if(q==='320k'||q==='higher')outLevel='exhigh';
+else if(q==='128k'||q==='l')outLevel='standard';
+else if(q==='flac'||q==='hires')outLevel='lossless';
+return {code:200,data:{url:url,expi:ttl,level:outLevel,br:q==='flac'?999000:(q==='320k'?320000:128000),respQuality:gotQ}};
 }
 }catch(e){errors.push(backends[bi].name+'/'+q+': '+(e.message||e));}
 }
@@ -325,7 +337,8 @@ var url='https://yy.zddyr.top/lx/api/?source=kg&quality='+encodeURIComponent(q)+
 var r=await localFetchJson(url,{method:'GET'});
 var u=(r.data&&r.data.url)||'';
 if(u&&/^https?:\/\//i.test(u)){
-return {code:200,data:{url:u,expi:DEFAULT_EXPI||1200,level:q,br:q==='flac'?999000:(q==='320k'?320000:128000)}};
+var outL=q;if(q==='320k')outL='exhigh';else if(q==='128k')outL='standard';
+return {code:200,data:{url:u,expi:DEFAULT_EXPI||1200,level:outL,br:q==='flac'?999000:(q==='320k'?320000:128000)}};
 }
 errors.push('星海kg/'+q+':'+(r.data&&(r.data.msg||r.data.message)||'无结果'));
 }catch(e){errors.push('星海kg/'+q+':'+(e.message||e));}
@@ -356,7 +369,18 @@ hqHash:String(it.HQFileHash||'').toLowerCase(),
 sqHash:String(it.SQFileHash||'').toLowerCase()
 };
 }
-// 1) 浏览器直连（可能被 CORS 拦截）
+// 优先 Worker 代理（避免浏览器 CORS）
+try{
+var url=toAbsoluteApiUrl('/api/searchKg');
+var res=await fetch(url,{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({word:String(word)})
+});
+var data=await res.json();
+if(data&&Number(data.code)===200&&data.id)return data;
+}catch(e){}
+// 直连兜底
 try{
 var r=await localFetchJson('https://songsearch.kugou.com/song_search_v2?keyword='+encodeURIComponent(word)+'&page=1&pagesize=5&userid=-1&clientver=&platform=WebFilter',{
 method:'GET',
@@ -365,18 +389,6 @@ headers:{'User-Agent':'Mozilla/5.0'}
 var lists=(r.data&&r.data.data&&r.data.data.lists)||[];
 var got=pickFromLists(lists);
 if(got)return got;
-}catch(e){}
-// 2) Worker 代理（无 CORS 问题）
-try{
-var url=toAbsoluteApiUrl('/api/searchKg');
-var res=await fetch(url,{
-method:'POST',
-headers:{'Content-Type':'application/json'},
-body:JSON.stringify({word:word})
-});
-var data=await res.json();
-if(data&&data.code===200&&data.id)return data;
-if(data&&data.msg)return {code:data.code||404,msg:data.msg};
 }catch(e){}
 return {code:404,msg:'未找到酷狗歌曲'};
 }

@@ -18,6 +18,7 @@ export const HTML = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#F7FBF1" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#11140F" media="(prefers-color-scheme: dark)">

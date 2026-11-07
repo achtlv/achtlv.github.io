@@ -351,7 +351,25 @@ e2.urlExpireAt=Date.now()+((result.expi||DEFAULT_EXPI)*1000);
 }
 }
 render();
+try{
 await setAudioSource(result.url,song.format);
+}catch(e1){
+// 失败再强刷一次链接（避免偶发过期/拦截）
+if(token!==playToken)return;
+if(!song.external){
+try{
+var fresh=await fetchPlayUrlFresh(song.id);
+if(token!==playToken)return;
+if(fresh&&fresh.url){
+result=fresh;
+state.audioUrl=result.url;
+state.quality=result.level;
+render();
+await setAudioSource(result.url,song.format);
+}else{throw e1;}
+}catch(e2){throw e1;}
+}else{throw e1;}
+}
 if(startPos&&startPos>0){
 try{audio.currentTime=startPos;}catch(e){}
 }

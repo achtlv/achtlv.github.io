@@ -26,8 +26,9 @@ try{audio.pause()}catch(e){}
 if(hlsInstance){try{hlsInstance.destroy()}catch(e){}hlsInstance=null}
 if(flvInstance){try{flvInstance.destroy()}catch(e){}flvInstance=null}
 try{
+// 不要在清空 src 后 load()：会触发 error，和后续设新地址产生竞态
 audio.removeAttribute('src');
-audio.load();
+audio.removeAttribute('srcObject');
 }catch(e){}
 }
 
@@ -139,11 +140,18 @@ function loadPlainMedia(url){
 return new Promise(function(resolve,reject){
 var settled=false;
 var timer=null;
+if(typeof upgradeMediaUrl==='function')url=upgradeMediaUrl(url);
+else if(typeof upgradeNeteaseUrl==='function')url=upgradeNeteaseUrl(url);
+if(!url||!/^https?:\/\//i.test(url)){
+reject(new Error('无效音源地址'));
+return;
+}
 function onLoaded(){
 if(settled)return;
 settled=true;
 cleanup();
-audio.play().catch(function(){});
+var p=audio.play();
+if(p&&p.catch)p.catch(function(){});
 resolve();
 }
 function onError(){
@@ -153,8 +161,8 @@ var err=audio.error;
 cleanup();
 var msg='无法播放该音源';
 if(err){
-if(err.code===4)msg='浏览器不支持该视频/音频编码';
-else if(err.code===3)msg='解码失败（编码不支持）';
+if(err.code===4)msg='音源无法加载（链接失效或被拦截）';
+else if(err.code===3)msg='解码失败';
 else if(err.code===2)msg='网络错误，无法加载';
 else if(err.code===1)msg='播放被中止';
 }
@@ -162,20 +170,23 @@ reject(new Error(msg));
 }
 function cleanup(){
 if(timer)clearTimeout(timer);
-audio.removeEventListener('loadedmetadata',onLoaded);
-audio.removeEventListener('error',onError);
+try{audio.removeEventListener('loadedmetadata',onLoaded);}catch(e){}
+try{audio.removeEventListener('canplay',onLoaded);}catch(e){}
+try{audio.removeEventListener('error',onError);}catch(e){}
 }
+try{audio.pause();}catch(e){}
+if(hlsInstance){try{hlsInstance.destroy()}catch(e){}hlsInstance=null}
+if(flvInstance){try{flvInstance.destroy()}catch(e){}flvInstance=null}
+try{audio.referrerPolicy='no-referrer';}catch(e){}
 audio.addEventListener('loadedmetadata',onLoaded);
+audio.addEventListener('canplay',onLoaded);
 audio.addEventListener('error',onError);
 timer=setTimeout(function(){
 if(settled)return;
 settled=true;
 cleanup();
 reject(new Error('加载超时'));
-},15000);
-
-if(hlsInstance){try{hlsInstance.destroy()}catch(e){}hlsInstance=null}
-if(flvInstance){try{flvInstance.destroy()}catch(e){}flvInstance=null}
+},20000);
 try{
 audio.src=url;
 audio.load();

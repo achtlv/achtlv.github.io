@@ -332,8 +332,9 @@ result={url:song.url,level:'external',expi:0};
 var u=await fetchPlayUrlLevel(song.id,forcedQuality,(song.duration||360)+URL_SAFETY_BUFFER);
 if(!u)throw new Error('音源加载失败');
 result={url:u,level:forcedQuality,expi:0};
-}else if(pe&&pe.url&&isHttpUrl(pe.url)&&pe.quality){
-result={url:pe.url,level:pe.quality,expi:0};
+}else if(pe&&pe.url&&isHttpUrl(pe.url)&&pe.quality==='exhigh'){
+// 预加载已是极高才直接用；否则走完整取链以优先冲极高
+result={url:(typeof upgradeMediaUrl==='function'?upgradeMediaUrl(pe.url):pe.url),level:pe.quality,expi:0};
 }else{
 result=await fetchPlayUrl(song.id,song.duration);
 }

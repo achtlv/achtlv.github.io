@@ -132,13 +132,15 @@ export const BODY_INNER = `<div class="app">
 <div class="scrim" id="addScrim">
 <div class="dialog">
 <div id="addStage1">
+<div class="add-head-row">
 <h2>添加歌曲</h2>
-<div class="input-row">
 <div class="add-source-tabs" id="addSourceTabs">
 <button type="button" class="add-src active" data-src="wy">网易云</button>
 <button type="button" class="add-src" data-src="kg">酷狗</button>
 <button type="button" class="add-src" data-src="ext">第三方</button>
 </div>
+</div>
+<div class="input-row">
 <input id="addInput" placeholder="歌曲 ID / 链接 / 歌名" autocomplete="off" enterkeyhint="go">
 <button class="filled-icon" id="addGo" aria-label="确认"></button>
 </div>

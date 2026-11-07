@@ -41,21 +41,21 @@ async function tryGetLevelWithCache(id,level,minRemainSec){
 var local=await getLocalAudioUrlOnly(id,level,minRemainSec);
 if(local){
 var expiL=Math.max(1,Math.floor((local.expireAt-Date.now())/1000));
-return {url:local.url,level:level,expi:expiL,fromCache:true,fromLocal:true};
+return {url:upgradeMediaUrl(local.url),level:level,expi:expiL,fromCache:true,fromLocal:true};
 }
 // 2) 各 API 各请求一次（DETECT_TIMES=1）
 try{
 var r=await fetchPlayUrlLevelOnce(id,level);
 if(r&&r.url){
 await saveAudioUrlToCache(id,level,r.url,r.expi||DEFAULT_EXPI);
-return {url:r.url,level:level,expi:r.expi||DEFAULT_EXPI};
+return {url:upgradeMediaUrl(r.url),level:level,expi:r.expi||DEFAULT_EXPI};
 }
 }catch(e){}
 // 3) textdb 兜底
 var remote=await getTextdbAudioUrlOnly(id,level,minRemainSec);
 if(remote){
 var expiR=Math.max(1,Math.floor((remote.expireAt-Date.now())/1000));
-return {url:remote.url,level:level,expi:expiR,fromCache:true};
+return {url:upgradeMediaUrl(remote.url),level:level,expi:expiR,fromCache:true};
 }
 return null;
 }
@@ -64,15 +64,44 @@ async function fetchPlayUrl(id,durationHint){
 var durSec=(durationHint&&durationHint>0)?durationHint:360;
 var needRemain=durSec+URL_SAFETY_BUFFER;
 
-var r1=await tryGetLevelWithCache(id,'exhigh',needRemain);
-if(r1)return r1;
+// 播放只考虑：极高 > 标准 > 官方（不含无损）
+// 1) 优先整条链路冲极高：本地 → API(各源一次) → TextDB；任一步拿到极高立即返回
+var hi=await tryGetLevelWithCache(id,'exhigh',needRemain);
+if(hi&&hi.url){
+hi.url=upgradeMediaUrl(hi.url);
+return hi;
+}
 
-var r2=await tryGetLevelWithCache(id,'standard',needRemain);
-if(r2)return r2;
+// 2) 没有极高：用已有音质里最高的（先本地/TextDB 标准，再 API 标准，最后官方）
+var stdLocal=await getLocalAudioUrlOnly(id,'standard',needRemain);
+if(stdLocal&&stdLocal.url){
+return {
+url:upgradeMediaUrl(stdLocal.url),
+level:'standard',
+expi:Math.max(1,Math.floor((stdLocal.expireAt-Date.now())/1000)),
+fromCache:true,
+fromLocal:true
+};
+}
+var stdDb=await getTextdbAudioUrlOnly(id,'standard',needRemain);
+if(stdDb&&stdDb.url){
+return {
+url:upgradeMediaUrl(stdDb.url),
+level:'standard',
+expi:Math.max(1,Math.floor((stdDb.expireAt-Date.now())/1000)),
+fromCache:true
+};
+}
+// 标准：API 一次（tryGet 内会再扫本地/API/TextDB，本地与 TextDB 已空则主要打 API）
+var std=await tryGetLevelWithCache(id,'standard',needRemain);
+if(std&&std.url){
+std.url=upgradeMediaUrl(std.url);
+return std;
+}
 
 var off=await probeOfficialLocal(id);
 if(off&&off.url){
-return {url:off.url,level:'official',expi:off.expi||0,fromCache:!!off.fromCache};
+return {url:upgradeMediaUrl(off.url),level:'official',expi:off.expi||0,fromCache:!!off.fromCache};
 }
 
 throw new Error('暂无可用音源');
@@ -90,7 +119,15 @@ try{
 var r=await post('/api/getSongUrl',{id:id,level:level});
 var url=extractUrl(r);
 if(url&&isHttpUrl(url)){
-return {url:url,expi:extractExpi(r)};
+var expi=extractExpi(r)||DEFAULT_EXPI;
+var rq='';
+try{rq=String((r.data&&r.data.respQuality)||(r.data&&r.data.level)||(r.quality)||'');}catch(e){}
+// 冲极高时若源返回标准，侧写标准缓存
+if(level==='exhigh'&&(/128k|standard/i.test(rq))){
+try{await maybeCacheSideStandard(id,url,expi);}catch(e){}
+return null; // 不当作极高成功
+}
+return {url:url,expi:expi};
 }
 }catch(e){}
 return null;
@@ -184,19 +221,18 @@ var hasDuration=(durationHint&&durationHint>0);
 var durSec=hasDuration?durationHint:0;
 var needRemain=hasDuration?(durSec+URL_SAFETY_BUFFER):300;
 
-for(var i=0;i<LEVELS.length;i++){
-var lv=LEVELS[i];
-var cached=await getCachedAudioUrl(id,lv,needRemain);
-if(cached)return lv;
-}
-
-var best='';
-for(var attempt=0;attempt<DETECT_TIMES;attempt++){
-var q=await detectNeteaseQualityOnce(id,durSec);
-if(q&&qualityRank(q)>qualityRank(best))best=q;
-if(best&&qualityRank(best)>=MAX_PLAY_RANK)break;
-}
-return best;
+// 与播放一致：优先确认极高（本地→API→TextDB），没有再退标准/官方
+var hi=await tryGetLevelWithCache(id,'exhigh',needRemain);
+if(hi&&hi.url)return 'exhigh';
+var std=await getLocalAudioUrlOnly(id,'standard',needRemain);
+if(std&&std.url)return 'standard';
+var std2=await getTextdbAudioUrlOnly(id,'standard',needRemain);
+if(std2&&std2.url)return 'standard';
+var std3=await tryGetLevelWithCache(id,'standard',needRemain);
+if(std3&&std3.url)return 'standard';
+var off=await probeOfficialLocal(id,needRemain);
+if(off&&off.url)return 'official';
+return '';
 }
 
 async function tryNeteaseLink(url){

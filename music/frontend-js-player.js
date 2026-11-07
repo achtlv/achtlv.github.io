@@ -323,6 +323,8 @@ fail('FLV 初始化失败：'+e.message);
 
 // ==================== 设置音频源（带编码检测） ====================
 async function setAudioSource(url,format){
+if(typeof upgradeMediaUrl==='function')url=upgradeMediaUrl(url);
+else if(typeof upgradeNeteaseUrl==='function')url=upgradeNeteaseUrl(url);
 if(isFlvFormat(url,format)){
 if(audio.canPlayType('video/x-flv')){
 return loadPlainMedia(url);

@@ -537,8 +537,10 @@ max-width:100%;
 .controls .icon-btn{width:36px;height:36px}
 .play-btn{width:48px;height:48px}
 }
-.add-source-tabs{display:flex;gap:8px;margin:0 0 10px}
-.add-src{flex:1;padding:8px 0;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:inherit;font-size:13px;cursor:pointer}
-.add-src.active{background:rgba(99,140,255,.35);border-color:rgba(99,140,255,.55)}
+.add-source-tabs{display:flex;gap:6px;flex-shrink:0;align-items:center}
+.add-src{padding:6px 10px;border-radius:999px;border:1px solid var(--outline-variant,rgba(0,0,0,.12));background:var(--surface-container-high,rgba(0,0,0,.04));color:inherit;font-size:12px;line-height:1.2;white-space:nowrap;cursor:pointer}
+.add-src.active{background:color-mix(in srgb,var(--primary) 22%,transparent);border-color:color-mix(in srgb,var(--primary) 45%,transparent);color:var(--primary);font-weight:600}
+.add-head-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.add-head-row h2{margin:0;flex-shrink:0}
 </style>
 `;

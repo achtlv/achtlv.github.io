@@ -203,6 +203,48 @@ function extractIdFromUrl(input) {
   if (/^\d+$/.test(s.trim())) return s.trim();
   return "";
 }
+
+export async function handleSearchKg(word) {
+  if (!word) return json({ code: 400, msg: "缺少搜索关键词" }, 400);
+  try {
+    const url =
+      "https://songsearch.kugou.com/song_search_v2?keyword=" +
+      encodeURIComponent(String(word)) +
+      "&page=1&pagesize=5&userid=-1&clientver=&platform=WebFilter";
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+      },
+      redirect: "follow",
+    });
+    const data = await res.json();
+    const lists = (data && data.data && data.data.lists) || [];
+    if (!lists.length) return json({ code: 404, msg: "未找到酷狗歌曲" }, 404);
+    const it = lists[0];
+    const hash = String(it.FileHash || it.fileHash || "").toLowerCase();
+    if (!/^[a-f0-9]{32}$/.test(hash)) return json({ code: 404, msg: "未找到酷狗歌曲" }, 404);
+    let pic = "";
+    if (it.Image) pic = String(it.Image).replace("{size}", "240");
+    else if (it.TransParam && it.TransParam.union_cover)
+      pic = String(it.TransParam.union_cover).replace("{size}", "240");
+    return json({
+      code: 200,
+      id: "kg" + hash,
+      name: it.SongName || it.songname || word,
+      artist: it.SingerName || it.singername || "未知歌手",
+      pic,
+      duration: it.Duration || it.duration || 0,
+      source: "kg",
+      hash,
+      hqHash: String(it.HQFileHash || "").toLowerCase(),
+      sqHash: String(it.SQFileHash || "").toLowerCase(),
+    });
+  } catch (e) {
+    return json({ code: 500, msg: String(e.message || e) }, 500);
+  }
+}
+
 export async function handleResolve(rawUrl) {
   if (!rawUrl) return json({ code: 400, msg: "缺少链接" }, 400);
   let id = extractIdFromUrl(rawUrl);

@@ -288,6 +288,7 @@ stopAudio();
 resetProgressUI();
 
 state.current=i;
+try{savePlaylist();}catch(e){}
 if(typeof updateFavBtn==='function')updateFavBtn();
 state.showLyric=false;
 state.audioUrl='';state.quality='';
@@ -562,6 +563,18 @@ return;
 if(state.playing){audio.pause();return;}
 
 var song=state.playlist[state.current];
+// 打开网站后列表已恢复但尚未取链：必须走 playIndex，不能只 audio.play()
+var needLoad=false;
+try{
+if(!state.audioUrl)needLoad=true;
+else if(!audio||!audio.src)needLoad=true;
+else if(String(audio.src).indexOf('blob:')!==0&&String(audio.src).indexOf('http')!==0)needLoad=true;
+}catch(e){needLoad=true;}
+if(needLoad){
+await playIndex(state.current);
+return;
+}
+
 var pe=song&&preloadCache[song.id];
 if(song&&!song.external&&pe&&pe.urlExpireAt){
 var dur=audio.duration||0;
@@ -868,17 +881,18 @@ return true;
 }
 
 async function checkAllLevels(id){
-var levels=['lossless','exhigh','standard'];
-var tasks=levels.map(function(lv){
-return tryGetLevelWithCache(id,lv,300).then(function(r){
-return {key:lv,ok:!!(r&&r.url)};
-});
-});
-var rs=await Promise.all(tasks);
-
+// 下载探测：每个音质只走一遍 本地→API→TextDB；minRemain 放宽以便用上本地缓存
+var levels=['exhigh','standard','lossless'];
 var result={lossless:false,exhigh:false,standard:false,official:false};
-for(var i=0;i<rs.length;i++){
-if(rs[i].ok)result[rs[i].key]=true;
+for(var i=0;i<levels.length;i++){
+var lv=levels[i];
+try{
+// 先看本地（几乎不耗时）
+var loc=await getLocalAudioUrlOnly(id,lv,30);
+if(loc&&loc.url){result[lv]=true;continue;}
+var r=await tryGetLevelWithCache(id,lv,30);
+if(r&&r.url)result[lv]=true;
+}catch(e){}
 }
 
 try{
@@ -975,7 +989,7 @@ if(!song)return;
 toast('获取下载链接...');
 var url='';
 try{
-url=await fetchPlayUrlLevel(song.id,level,300);
+url=await fetchPlayUrlLevel(song.id,level,30);
 }catch(e){}
 if(!url){
 if(level==='official'){

@@ -334,45 +334,51 @@ return {code:404,msg:'酷狗暂无可用音源',debug:errors.slice(0,6)};
 }
 async function localSearchKg(word){
 if(!word)return {code:400,msg:'缺少搜索关键词'};
-// HTTPS 页不能请求 http://mobilecdn，改用 https 搜索
-var info=null;
+function pickFromLists(lists){
+if(!lists||!lists[0])return null;
+var it=lists[0];
+var hash=String(it.FileHash||it.fileHash||it.hash||'').toLowerCase().replace(/[^a-f0-9]/g,'');
+if(hash.length!==32)return null;
+var pic='';
+if(it.Image)pic=String(it.Image).replace('{size}','240');
+else if(it.TransParam&&it.TransParam.union_cover)pic=String(it.TransParam.union_cover).replace('{size}','240');
+else if(it.trans_param&&it.trans_param.union_cover)pic=String(it.trans_param.union_cover).replace('{size}','240');
+return {
+code:200,
+id:'kg'+hash,
+name:it.SongName||it.songname||it.filename||word,
+artist:it.SingerName||it.singername||'未知歌手',
+pic:pic,
+duration:it.Duration||it.duration||0,
+source:'kg',
+hash:hash,
+hqHash:String(it.HQFileHash||'').toLowerCase(),
+sqHash:String(it.SQFileHash||'').toLowerCase()
+};
+}
+// 1) 浏览器直连（可能被 CORS 拦截）
 try{
 var r=await localFetchJson('https://songsearch.kugou.com/song_search_v2?keyword='+encodeURIComponent(word)+'&page=1&pagesize=5&userid=-1&clientver=&platform=WebFilter',{
 method:'GET',
 headers:{'User-Agent':'Mozilla/5.0'}
 });
 var lists=(r.data&&r.data.data&&r.data.data.lists)||[];
-if(lists[0]){
-info={
-hash:lists[0].FileHash||lists[0].fileHash||'',
-HQFileHash:lists[0].HQFileHash||'',
-SQFileHash:lists[0].SQFileHash||'',
-songname:lists[0].SongName||lists[0].songname||word,
-singername:lists[0].SingerName||lists[0].singername||'未知歌手',
-duration:lists[0].Duration||lists[0].duration||0,
-album_id:lists[0].AlbumID||lists[0].album_id||'',
-pic:''
-};
-if(lists[0].Image)info.pic=String(lists[0].Image).replace('{size}','240');
-else if(lists[0].TransParam&&lists[0].TransParam.union_cover)info.pic=String(lists[0].TransParam.union_cover).replace('{size}','240');
-}
+var got=pickFromLists(lists);
+if(got)return got;
 }catch(e){}
-if((!info||!info.hash)){
+// 2) Worker 代理（无 CORS 问题）
 try{
-// 备用：星海若提供搜索则不依赖；再试 complexsearch
-var r2=await localFetchJson('https://complexsearch.kugou.com/v2/search/song?keyword='+encodeURIComponent(word)+'&page=1&pagesize=3',{method:'GET',headers:{'User-Agent':'Mozilla/5.0'}});
-}catch(e2){}
-}
-if(!info||!info.hash)return {code:404,msg:'未找到酷狗歌曲'};
-var hash=String(info.hash).toLowerCase().replace(/[^a-f0-9]/g,'');
-if(hash.length!==32)return {code:404,msg:'未找到酷狗歌曲'};
-var name=info.songname||word;
-var artist=info.singername||'未知歌手';
-var pic=info.pic||'';
-var duration=info.duration||0;
-return {code:200,id:'kg'+hash,name:name,artist:artist,pic:pic,duration:duration,source:'kg',hash:hash,
-hqHash:info.HQFileHash?String(info.HQFileHash).toLowerCase():'',
-sqHash:info.SQFileHash?String(info.SQFileHash).toLowerCase():''};
+var url=toAbsoluteApiUrl('/api/searchKg');
+var res=await fetch(url,{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({word:word})
+});
+var data=await res.json();
+if(data&&data.code===200&&data.id)return data;
+if(data&&data.msg)return {code:data.code||404,msg:data.msg};
+}catch(e){}
+return {code:404,msg:'未找到酷狗歌曲'};
 }
 async function localSearch(word){
 if(!word)return {code:400,msg:'缺少搜索关键词'};
@@ -760,7 +766,11 @@ if(s.external){obj.ext=true;obj.url=s.url||'';obj.srcUrl=s.srcUrl||'';obj.format
 if(s.pic)obj.pic=s.pic;
 return obj;
 });
-localStorage.setItem(COOKIE_NAME,JSON.stringify({v:1,list:data,current:state.current}));
+var lastId='';
+try{
+if(state.current>=0&&state.playlist[state.current])lastId=String(state.playlist[state.current].id||'');
+}catch(e){}
+localStorage.setItem(COOKIE_NAME,JSON.stringify({v:1,list:data,current:state.current,lastId:lastId}));
 try{
 var encoded=encodeURIComponent(JSON.stringify(data));
 if(encoded.length<=COOKIE_MAX)setCookieRaw(COOKIE_NAME,encoded);
@@ -780,12 +790,19 @@ var o={id:String(s.id||''),name:s.name||'未知歌曲',artist:s.artist||'未知�
 if(s.ext){o.external=true;o.url=String(s.url||'');o.srcUrl=String(s.srcUrl||'');o.format=String(s.format||'');}
 return o;
 }).filter(function(s){return !!s.id&&(!s.external||!!s.url);});
-// 恢复上次歌曲索引，但不自动播放、进度清零
-if(obj&&typeof obj.current==='number'&&obj.current>=0&&obj.current<state.playlist.length){
-state.current=obj.current;
-}else{
-state.current=state.playlist.length?0:-1;
+// 恢复上次播放的歌曲（优先 lastId，其次 current 索引），不自动播放
+var restored=-1;
+if(obj&&obj.lastId){
+var lid=String(obj.lastId);
+for(var ri=0;ri<state.playlist.length;ri++){
+if(String(state.playlist[ri].id)===lid){restored=ri;break;}
 }
+}
+if(restored<0&&obj&&typeof obj.current==='number'&&obj.current>=0&&obj.current<state.playlist.length){
+restored=obj.current;
+}
+if(restored>=0)state.current=restored;
+else state.current=state.playlist.length?0:-1;
 state.playing=false;
 state.audioUrl='';
 state.quality='';
@@ -804,6 +821,8 @@ var o={id:String(s.id||''),name:s.name||'未知歌曲',artist:s.artist||'未知�
 if(s.ext){o.external=true;o.url=String(s.url||'');o.srcUrl=String(s.srcUrl||'');o.format=String(s.format||'');}
 return o;
 }).filter(function(s){return !!s.id&&(!s.external||!!s.url);});
+// cookie 无 current：默认第 0 首
+state.current=state.playlist.length?0:-1;
 }catch(e2){}
 }catch(e){console.error('restorePlaylist',e);}
 }

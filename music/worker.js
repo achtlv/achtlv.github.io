@@ -11,7 +11,7 @@ import { PLAYLISTS_SCRIPT } from './frontend-js-playlists.js';
 import { AUTH_SCRIPT } from './frontend-js-auth.js';
 import { APP_SCRIPT } from './frontend-js-app.js';
 import {
-  handleSearch, handleResolve, handleCheckAudio, handleCacheGet, handleCacheSet,
+  handleSearch, handleSearchKg, handleResolve, handleCheckAudio, handleCacheGet, handleCacheSet,
   handleDownload, handleOfficialResolve, handleGetSongUrl, handleGetSongInfo,
   handleGetSongLyric, proxy,
 } from './handlers.js';
@@ -64,6 +64,7 @@ export default {
     const action = url.pathname.replace(/^\/api\//, '');
     try {
       if (action === 'search') return await handleSearch(body.word || '');
+      if (action === 'searchKg') return await handleSearchKg(body.word || '');
       if (action === 'resolve') return await handleResolve(body.url || '');
       if (action === 'checkAudio') return await handleCheckAudio(body.url || '');
       if (action === 'cacheGet') return await handleCacheGet(body.key || '');

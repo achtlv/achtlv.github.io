@@ -37,12 +37,13 @@ return null;
 }
 
 async function tryGetLevelWithCache(id,level,minRemainSec){
-var cached=await getCachedAudioUrl(id,level,minRemainSec);
-if(cached){
-var expi=Math.max(1,Math.floor((cached.expireAt-Date.now())/1000));
-return {url:cached.url,level:level,expi:expi,fromCache:true};
+// 1) 仅本地缓存
+var local=await getLocalAudioUrlOnly(id,level,minRemainSec);
+if(local){
+var expiL=Math.max(1,Math.floor((local.expireAt-Date.now())/1000));
+return {url:local.url,level:level,expi:expiL,fromCache:true,fromLocal:true};
 }
-for(var i=0;i<DETECT_TIMES;i++){
+// 2) 各 API 各请求一次（DETECT_TIMES=1）
 try{
 var r=await fetchPlayUrlLevelOnce(id,level);
 if(r&&r.url){
@@ -50,6 +51,11 @@ await saveAudioUrlToCache(id,level,r.url,r.expi||DEFAULT_EXPI);
 return {url:r.url,level:level,expi:r.expi||DEFAULT_EXPI};
 }
 }catch(e){}
+// 3) textdb 兜底
+var remote=await getTextdbAudioUrlOnly(id,level,minRemainSec);
+if(remote){
+var expiR=Math.max(1,Math.floor((remote.expireAt-Date.now())/1000));
+return {url:remote.url,level:level,expi:expiR,fromCache:true};
 }
 return null;
 }
@@ -93,18 +99,8 @@ return null;
 async function fetchPlayUrlLevel(id,level,minRemainSec){
 if(level==='official')return '';
 if(typeof minRemainSec!=='number')minRemainSec=300;
-
-var cached=await getCachedAudioUrl(id,level,minRemainSec);
-if(cached)return cached.url;
-
-for(var attempt=0;attempt<DETECT_TIMES;attempt++){
-var r=await fetchPlayUrlLevelOnce(id,level);
-if(r&&r.url){
-await saveAudioUrlToCache(id,level,r.url,r.expi);
-return r.url;
-}
-}
-return '';
+var got=await tryGetLevelWithCache(id,level,minRemainSec);
+return got&&got.url?got.url:'';
 }
 
 // ==================== 解析输入 ====================
@@ -130,7 +126,7 @@ if(cachedPic)pic=cachedPic;
 }catch(e){}
 }
 
-if(!name||!artist||!pic){
+if((!name||!artist||!pic)&&!/^kg/i.test(idStr)){
 try{
 var info=await post('/api/getSongInfo',{id:idStr});
 var m=extractInfo(info);
@@ -242,7 +238,44 @@ return null;
 async function resolveInput(text){
 text=(text||'').trim();
 if(!text)throw new Error('请输入内容');
+var src=(typeof ADD_SOURCE!=='undefined'?ADD_SOURCE:'wy');
 
+// 第三方源模式：只解析直链
+if(src==='ext'){
+var urlsE=extractAllUrlsFromText(text);
+if(!urlsE.length)throw new Error('请输入音频/视频直链');
+for(var je=0;je<urlsE.length;je++){
+try{
+var eme=await tryThirdPartyLink(urlsE[je]);
+if(eme)return eme;
+}catch(e){}
+}
+throw new Error('直链不可用');
+}
+
+// 酷狗模式
+if(src==='kg'){
+if(isKgId(text)){
+var kid=normalizeKgId(text);
+var metaK={id:kid,name:'酷狗歌曲',artist:'',pic:'',duration:0,source:'kg'};
+var qk=await detectNeteaseQuality(kid,0);
+if(!qk)throw new Error('该酷狗歌曲暂无可用音源');
+metaK.quality=qk;
+return metaK;
+}
+var rsk=await localSearchKg(text);
+if(rsk&&rsk.id){
+var meta4={id:String(rsk.id),name:rsk.name||text,artist:rsk.artist||'未知歌手',pic:rsk.pic||'',duration:rsk.duration||0,source:'kg'};
+if(meta4.pic){try{await saveCoverToCache(meta4.id,meta4.pic);}catch(e){}}
+var q4=await detectNeteaseQuality(meta4.id,meta4.duration);
+if(!q4)throw new Error('该酷狗歌曲暂无可用音源');
+meta4.quality=q4;
+return meta4;
+}
+throw new Error((rsk&&rsk.msg)||'未找到酷狗歌曲');
+}
+
+// 默认网易云
 if(isSongId(text)){
 var meta=await fetchMetaById(text);
 var q=await detectNeteaseQuality(text,meta.duration);
@@ -260,13 +293,7 @@ var nm=await tryNeteaseLink(urls[i]);
 if(nm)return nm;
 }catch(e){}
 }
-for(var j=0;j<urls.length;j++){
-if(isNeteaseUrl(urls[j]))continue;
-try{
-var em=await tryThirdPartyLink(urls[j]);
-if(em)return em;
-}catch(e){}
-}
+// 网易模式下不再自动匹配第三方直链
 }
 
 var rs=await post('/api/search',{word:text});
@@ -277,7 +304,7 @@ if(!q3)throw new Error('该歌曲暂无可用音源');
 meta3.quality=q3;
 return meta3;
 }
-throw new Error((rs&&rs.msg)||(urls.length?'所有链接均不可用，且未搜索到歌曲':'未找到歌曲'));
+throw new Error((rs&&rs.msg)||(urls.length?'网易云链接不可用，且未搜索到歌曲':'未找到歌曲'));
 }
 
 `;

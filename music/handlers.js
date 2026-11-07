@@ -30,26 +30,96 @@ function qualitiesForLevel(level) {
 }
 export async function handleGetSongUrl(id, level = "exhigh") {
   const songId = String(id || "").trim();
-  if (!songId || !/^\d+$/.test(songId)) return json({ code: 400, msg: "无效歌曲 ID" }, 400);
-  const qualities = qualitiesForLevel(level);
-  for (const q of qualities) {
-    for (const fn of [
-      async () => {
-        const r = await fetchJson("https://yy.zddyr.top/lx/api/?source=wy&songmid=" + encodeURIComponent(songId) + "&quality=" + encodeURIComponent(q));
-        return (r.data && (r.data.url || (r.data.data && r.data.data.url))) || "";
-      },
-      async () => {
-        const r = await fetchJson("https://c.wwwweb.top/music/url", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ source: "wy", musicId: songId, quality: q }),
-        });
-        return r.data && Number(r.data.code) === 200 ? r.data.url : "";
-      },
-    ]) {
+  if (!songId) return json({ code: 400, msg: "无效歌曲 ID" }, 400);
+  if (/^kg[a-fA-F0-9]{32}$/i.test(songId) || (songId.startsWith("kg") && songId.length > 10)) {
+    const hash = songId.slice(2).toLowerCase().replace(/[^a-f0-9]/g, "");
+    if (hash.length !== 32) return json({ code: 400, msg: "无效酷狗 hash" }, 400);
+    const qualities = qualitiesForLevel(level);
+    for (const q of qualities) {
       try {
-        let url = upgradeNeteaseUrl(await fn());
-        if (url && /^https?:\/\//i.test(url)) return json({ code: 200, data: { url, expi: 1200, level: q } });
+        const r = await fetchJson(
+          "https://yy.zddyr.top/lx/api/?source=kg&quality=" +
+            encodeURIComponent(q) +
+            "&songmid=" +
+            encodeURIComponent(hash) +
+            "&mainHash=" +
+            encodeURIComponent(hash) +
+            "&hash=" +
+            encodeURIComponent(hash)
+        );
+        const u = (r.data && r.data.url) || "";
+        if (u) return json({ code: 200, data: { url: u, expi: 1200, level: q } });
+      } catch (e) {}
+    }
+    return json({ code: 404, msg: "酷狗暂无可用音源" }, 404);
+  }
+  if (!/^\d+$/.test(songId)) return json({ code: 400, msg: "无效歌曲 ID" }, 400);
+  const qualities = qualitiesForLevel(level);
+  const backends = [
+    async (q) => {
+      const r = await fetchJson(
+        "https://yy.zddyr.top/lx/api/?source=wy&songmid=" +
+          encodeURIComponent(songId) +
+          "&quality=" +
+          encodeURIComponent(q)
+      );
+      return (r.data && (r.data.url || (r.data.data && r.data.data.url))) || "";
+    },
+    async (q) => {
+      const br = q === "flac" ? "740" : q === "320k" ? "320" : "128";
+      const r = await fetchJson(
+        "https://music-api.gdstudio.xyz/api.php?types=url&source=netease&id=" +
+          encodeURIComponent(songId) +
+          "&br=" +
+          br
+      );
+      return (r.data && r.data.url) || "";
+    },
+    async (q) => {
+      const r = await fetchJson("https://c.wwwweb.top/music/url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: "wy", musicId: songId, quality: q }),
+      });
+      return r.data && Number(r.data.code) === 200 ? r.data.url || "" : "";
+    },
+    async (q) => {
+      const qq = q === "flac" ? "320k" : q;
+      const r = await fetchJson(
+        "https://lxmusicapi.onrender.com/url/wy/" + encodeURIComponent(songId) + "/" + encodeURIComponent(qq),
+        {
+          headers: {
+            "X-Request-Key": "share-v3",
+            "User-Agent": "lx-music-desktop/2.10.0",
+          },
+        }
+      );
+      return r.data && Number(r.data.code) === 0 ? r.data.url || "" : "";
+    },
+    async (q) => {
+      const r = await fetchJson("https://oiapi.net/api/Music_163?id=" + encodeURIComponent(songId));
+      const u = r.data && r.data.data && r.data.data[0] ? r.data.data[0].url : "";
+      return u || "";
+    },
+  ];
+  for (const q of qualities) {
+    for (const fn of backends) {
+      try {
+        let u = await fn(q);
+        if (u) {
+          u = String(u).replace(/^http:\/\/(([a-z0-9.-]+)\.music\.126\.net)\//i, "https://$1/");
+          if (/^https?:\/\//i.test(u)) {
+            return json({
+              code: 200,
+              data: {
+                url: u,
+                expi: 1200,
+                level: q,
+                br: q === "flac" ? 999000 : q === "320k" ? 320000 : 128000,
+              },
+            });
+          }
+        }
       } catch (e) {}
     }
   }

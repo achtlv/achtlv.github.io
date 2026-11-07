@@ -1063,6 +1063,39 @@ return;
 openDownloadDialog(song);
 });
 
+
+// ==================== 添加源切换 ====================
+function setAddSource(src){
+ADD_SOURCE=src||'wy';
+var tabs=document.querySelectorAll('#addSourceTabs .add-src');
+for(var i=0;i<tabs.length;i++){
+if(tabs[i].getAttribute('data-src')===ADD_SOURCE)tabs[i].classList.add('active');
+else tabs[i].classList.remove('active');
+}
+var hint=$('addSourceHint');
+var input=$('addInput');
+if(ADD_SOURCE==='kg'){
+if(hint)hint.textContent='酷狗：输入歌名搜索（取第一条），或输入 32 位 hash / kg+hash。';
+if(input)input.placeholder='酷狗歌名或 hash';
+}else if(ADD_SOURCE==='ext'){
+if(hint)hint.textContent='第三方：粘贴音频/视频直链（MP3 / FLAC / M3U8 / MP4 等）。';
+if(input)input.placeholder='https://... 直链';
+}else{
+if(hint)hint.textContent='网易云：支持歌曲 ID、链接或歌名搜索（取第一条）。';
+if(input)input.placeholder='歌曲 ID / 链接 / 歌名';
+}
+}
+(function(){
+var box=$('addSourceTabs');
+if(!box)return;
+box.addEventListener('click',function(e){
+var t=e.target;
+if(!t||!t.getAttribute)return;
+if(t.getAttribute('data-src'))setAddSource(t.getAttribute('data-src'));
+});
+setAddSource('wy');
+})();
+
 // ==================== 添加歌曲弹窗 ====================
 function openAdd(){
 try{blurControl(document.activeElement);}catch(e){}
@@ -1131,7 +1164,7 @@ metaHtml+='<span class="meta-tag q">'+f+'</span>';
 var q=song.quality||'official';
 var qlabel=QUALITY_LABEL[q]||'官方';
 var cls=q==='official'?'meta-tag ext':'meta-tag q';
-metaHtml+='<span class="'+cls+'">网易云</span>';
+metaHtml+='<span class="'+cls+'">'+(song.source==='kg'?'酷狗':'网易云')+'</span>';
 metaHtml+='<span class="meta-tag q">'+qlabel+'</span>';
 }
 $('foundMeta').innerHTML=metaHtml;

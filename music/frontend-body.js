@@ -134,10 +134,15 @@ export const BODY_INNER = `<div class="app">
 <div id="addStage1">
 <h2>添加歌曲</h2>
 <div class="input-row">
+<div class="add-source-tabs" id="addSourceTabs">
+<button type="button" class="add-src active" data-src="wy">网易云</button>
+<button type="button" class="add-src" data-src="kg">酷狗</button>
+<button type="button" class="add-src" data-src="ext">第三方</button>
+</div>
 <input id="addInput" placeholder="歌曲 ID / 链接 / 歌名" autocomplete="off" enterkeyhint="go">
 <button class="filled-icon" id="addGo" aria-label="确认"></button>
 </div>
-<p class="hint">支持歌曲 ID、网易云链接（含短链）、第三方音频/视频直链（MP3 / M4A / FLAC / M3U8 / MP4 / FLV / WMV 等）或歌名搜索。多个链接会优先取网易云，其次按顺序取第一个可用音源。</p>
+<p class="hint" id="addSourceHint">网易云：支持歌曲 ID、链接或歌名搜索（取第一条）。切换上方标签可搜索酷狗，或粘贴第三方直链。</p>
 </div>
 <div id="addStage2" style="display:none">
 <h2>已找到歌曲</h2>

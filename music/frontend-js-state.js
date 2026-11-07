@@ -66,6 +66,9 @@ var refreshToken=0;
 var refreshingUrl=false;
 
 var LEVELS=['exhigh','standard'];
+var ADD_SOURCE='wy'; // wy | kg | ext
+var MEDIA_CACHE_MAX=500;
+var MEDIA_CACHE_KEY='m3_media_cache';
 var OFFICIAL_PREFIX='https://ebnr.xiyang6666.top/resolve/https://music.163.com/song?id=';
 var COOKIE_NAME='m3_playlist';
 var COOKIE_PLAYLISTS='m3_playlists';
@@ -80,7 +83,7 @@ var FLV_CDN='https://fastly.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js';
 var QUALITY_LABEL={exhigh:'极高',standard:'标准',official:'官方',lossless:'无损'};
 var QUALITY_RANK={lossless:4,exhigh:3,standard:2,official:1};
 var MAX_PLAY_RANK=3;
-var DETECT_TIMES=3;
+var DETECT_TIMES=1;
 var PRELOAD_DELAY=5000;
 var PRELOAD_RETRY=10000;
 var URL_SAFETY_BUFFER=60;

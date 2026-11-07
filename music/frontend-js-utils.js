@@ -12,6 +12,18 @@ if(!s)return false;
 var str=String(s);
 return str.length>=5&&isAllDigits(str);
 }
+function isKgId(s){
+if(!s)return false;
+var str=String(s);
+if(str.indexOf('kg')===0&&str.length>=34)return true;
+return /^[a-fA-F0-9]{32}$/.test(str);
+}
+function normalizeKgId(s){
+var str=String(s||'');
+if(str.indexOf('kg')===0)return str;
+if(/^[a-fA-F0-9]{32}$/.test(str))return 'kg'+str.toLowerCase();
+return str;
+}
 function isHttpUrl(u){
 if(!u)return false;
 var s=String(u).toLowerCase();
@@ -187,7 +199,12 @@ resolve({ok:false,status:0,data:null,error:String(e&&e.message||e)});
 }
 async function localGetSongUrl(id,level){
 var songId=String(id||'').trim();
-if(!songId||!/^\d+$/.test(songId))return {code:400,msg:'无效歌曲 ID'};
+if(!songId)return {code:400,msg:'无效歌曲 ID'};
+// 酷狗：id 形如 kg + hash
+if(/^kg[a-fA-F0-9]{32}$/i.test(songId)||(songId.indexOf('kg')===0&&songId.length>10)){
+return localGetKgSongUrl(songId,level);
+}
+if(!/^\d+$/.test(songId))return {code:400,msg:'无效歌曲 ID'};
 var qualities=qualitiesForLevel(level);
 var errors=[];
 var backends=[
@@ -198,6 +215,14 @@ var u=(r.data&&(r.data.url||(r.data.data&&r.data.data.url)))||'';
 if(u)return u;
 throw new Error((r.data&&(r.data.msg||r.data.message))||'星海无结果');
 }},
+{name:'GD',run:async function(q){
+var br=q==='flac'?'740':(q==='320k'?'320':'128');
+var url='https://music-api.gdstudio.xyz/api.php?types=url&source=netease&id='+encodeURIComponent(songId)+'&br='+br;
+var r=await localFetchJson(url,{method:'GET'});
+var u=(r.data&&r.data.url)||'';
+if(u)return u;
+throw new Error('GD无结果');
+}},
 {name:'ikun',run:async function(q){
 var r=await localFetchJson('https://c.wwwweb.top/music/url',{
 method:'POST',
@@ -206,6 +231,20 @@ body:JSON.stringify({source:'wy',musicId:songId,quality:q})
 });
 if(r.data&&Number(r.data.code)===200&&r.data.url)return r.data.url;
 throw new Error((r.data&&r.data.message)||'ikun无结果');
+}},
+{name:'Huibq',run:async function(q){
+if(q==='flac')q='320k';
+var url='https://lxmusicapi.onrender.com/url/wy/'+encodeURIComponent(songId)+'/'+encodeURIComponent(q);
+var r=await localFetchJson(url,{method:'GET',headers:{'X-Request-Key':'share-v3','User-Agent':'lx-music-desktop/2.10.0'}});
+if(r.data&&Number(r.data.code)===0&&r.data.url)return r.data.url;
+throw new Error((r.data&&r.data.msg)||'Huibq无结果');
+}},
+{name:'oiapi',run:async function(q){
+var r=await localFetchJson('https://oiapi.net/api/Music_163?id='+encodeURIComponent(songId),{method:'GET'});
+var u='';
+if(r.data&&r.data.data&&r.data.data[0])u=r.data.data[0].url||'';
+if(u)return u;
+throw new Error('oiapi无结果');
 }}
 ];
 for(var qi=0;qi<qualities.length;qi++){
@@ -215,12 +254,54 @@ try{
 var url=await backends[bi].run(q);
 url=upgradeNeteaseUrl(url);
 if(url&&/^https?:\/\//i.test(url)){
-return {code:200,data:{url:url,expi:1200,level:q,br:q==='flac'?999000:(q==='320k'?320000:128000)}};
+return {code:200,data:{url:url,expi:DEFAULT_EXPI||1200,level:q,br:q==='flac'?999000:(q==='320k'?320000:128000)}};
 }
 }catch(e){errors.push(backends[bi].name+'/'+q+': '+(e.message||e));}
 }
 }
-return {code:404,msg:'暂无可用音源',debug:errors.slice(0,6)};
+return {code:404,msg:'暂无可用音源',debug:errors.slice(0,8)};
+}
+async function localGetKgSongUrl(id,level){
+var raw=String(id||'');
+var hash=raw.indexOf('kg')===0?raw.substring(2):raw;
+hash=String(hash).toLowerCase().replace(/[^a-f0-9]/g,'');
+if(hash.length!==32)return {code:400,msg:'无效酷狗 hash'};
+var qualities=qualitiesForLevel(level);
+var errors=[];
+for(var qi=0;qi<qualities.length;qi++){
+var q=qualities[qi];
+try{
+var url='https://yy.zddyr.top/lx/api/?source=kg&quality='+encodeURIComponent(q)+
+'&songmid='+encodeURIComponent(hash)+'&mainHash='+encodeURIComponent(hash)+'&hash='+encodeURIComponent(hash);
+var r=await localFetchJson(url,{method:'GET'});
+var u=(r.data&&r.data.url)||'';
+if(u&&/^https?:\/\//i.test(u)){
+return {code:200,data:{url:u,expi:DEFAULT_EXPI||1200,level:q,br:q==='flac'?999000:(q==='320k'?320000:128000)}};
+}
+errors.push('星海kg/'+q+':'+(r.data&&(r.data.msg||r.data.message)||'无结果'));
+}catch(e){errors.push('星海kg/'+q+':'+(e.message||e));}
+}
+return {code:404,msg:'酷狗暂无可用音源',debug:errors.slice(0,6)};
+}
+async function localSearchKg(word){
+if(!word)return {code:400,msg:'缺少搜索关键词'};
+var r=await localFetchJson('http://mobilecdn.kugou.com/api/v3/search/song?format=json&keyword='+encodeURIComponent(word)+'&page=1&pagesize=1',{method:'GET'});
+var info=null;
+try{
+if(r.data&&r.data.data&&r.data.data.info&&r.data.data.info[0])info=r.data.data.info[0];
+}catch(e){}
+if(!info||!info.hash)return {code:404,msg:'未找到酷狗歌曲'};
+var hash=String(info.hash).toLowerCase();
+var name=info.songname||info.songname_original||word;
+var artist=info.singername||'未知歌手';
+var pic='';
+try{
+if(info.trans_param&&info.trans_param.union_cover){
+pic=String(info.trans_param.union_cover).replace('{size}','240');
+}
+}catch(e){}
+var duration=info.duration||0;
+return {code:200,id:'kg'+hash,name:name,artist:artist,pic:pic,duration:duration,source:'kg',hash:hash};
 }
 async function localSearch(word){
 if(!word)return {code:400,msg:'缺少搜索关键词'};

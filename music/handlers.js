@@ -139,18 +139,74 @@ export async function handleGetSongInfo(id) {
 }
 export async function handleGetSongLyric(id) {
   const songId = String(id || "").trim();
-  if (!songId || !/^\d+$/.test(songId)) return json({ code: 400, msg: "无效歌曲 ID" }, 400);
+  if (!songId) return json({ code: 400, msg: "无效歌曲 ID" }, 400);
+
+  // 酷狗歌词
+  if (/^kg/i.test(songId) || /^[a-fA-F0-9]{32}$/.test(songId)) {
+    let hash = /^kg/i.test(songId) ? songId.slice(2) : songId;
+    hash = String(hash).toLowerCase().replace(/[^a-f0-9]/g, "");
+    if (hash.length !== 32) return json({ code: 200, data: { lrc: { lyric: "" }, tlyric: { lyric: "" }, romalrc: { lyric: "" } } });
+    try {
+      const searchRes = await fetch(
+        "https://krcs.kugou.com/search?ver=1&man=yes&client=mobi&hash=" + encodeURIComponent(hash),
+        { headers: { "User-Agent": "Mozilla/5.0" }, redirect: "follow" }
+      );
+      const searchData = await searchRes.json();
+      const cand = searchData && searchData.candidates && searchData.candidates[0];
+      if (!cand || !cand.id || !cand.accesskey) {
+        return json({ code: 200, data: { lrc: { lyric: "" }, tlyric: { lyric: "" }, romalrc: { lyric: "" } } });
+      }
+      const dl = await fetch(
+        "https://krcs.kugou.com/download?ver=1&client=pc&id=" +
+          encodeURIComponent(cand.id) +
+          "&accesskey=" +
+          encodeURIComponent(cand.accesskey) +
+          "&fmt=lrc&charset=utf8",
+        { headers: { "User-Agent": "Mozilla/5.0" }, redirect: "follow" }
+      );
+      const dlData = await dl.json();
+      let lyric = "";
+      if (dlData && dlData.content) {
+        try {
+          lyric = Buffer.from(String(dlData.content), "base64").toString("utf8");
+        } catch (e) {
+          lyric = String(dlData.content);
+        }
+      }
+      return json({ code: 200, data: { lrc: { lyric: lyric || "" }, tlyric: { lyric: "" }, romalrc: { lyric: "" } } });
+    } catch (e) {
+      return json({ code: 200, data: { lrc: { lyric: "" }, tlyric: { lyric: "" }, romalrc: { lyric: "" } } });
+    }
+  }
+
+  if (!/^\d+$/.test(songId)) return json({ code: 400, msg: "无效歌曲 ID" }, 400);
   try {
     const r = await fetchJson("https://api.vkeys.cn/v2/music/netease/lyric?id=" + encodeURIComponent(songId));
     const d = r.data && r.data.data;
     if (d && (d.lrc || d.trans || d.roma)) {
-      return json({ code: 200, data: { lrc: { lyric: d.lrc || "" }, tlyric: { lyric: d.trans || "" }, romalrc: { lyric: d.roma || "" } } });
+      return json({
+        code: 200,
+        data: {
+          lrc: { lyric: d.lrc || "" },
+          tlyric: { lyric: d.trans || "" },
+          romalrc: { lyric: d.roma || "" },
+        },
+      });
     }
   } catch (e) {}
   try {
-    const r = await fetchJson("https://api.paugram.com/netease/?id=" + encodeURIComponent(songId));
-    if (r.data && (r.data.lyric || r.data.sub_lyric)) {
-      return json({ code: 200, data: { lrc: { lyric: r.data.lyric || "" }, tlyric: { lyric: r.data.sub_lyric || "" }, romalrc: { lyric: "" } } });
+    const r = await fetchJson(
+      "https://music-api.gdstudio.xyz/api.php?types=lyric&source=netease&id=" + encodeURIComponent(songId)
+    );
+    if (r.data && r.data.lyric) {
+      return json({
+        code: 200,
+        data: {
+          lrc: { lyric: r.data.lyric || "" },
+          tlyric: { lyric: r.data.tlyric || r.data.trans || "" },
+          romalrc: { lyric: "" },
+        },
+      });
     }
   } catch (e) {}
   return json({ code: 200, data: { lrc: { lyric: "" }, tlyric: { lyric: "" }, romalrc: { lyric: "" } } });
@@ -214,9 +270,9 @@ export async function handleSearchKg(word) {
     const hash = String(it.FileHash || it.fileHash || it.hash || "").toLowerCase().replace(/[^a-f0-9]/g, "");
     if (!/^[a-f0-9]{32}$/.test(hash)) return null;
     let pic = "";
-    if (it.Image) pic = String(it.Image).replace("{size}", "240");
-    else if (it.TransParam && it.TransParam.union_cover) pic = String(it.TransParam.union_cover).replace("{size}", "240");
-    else if (it.trans_param && it.trans_param.union_cover) pic = String(it.trans_param.union_cover).replace("{size}", "240");
+    if (it.Image) pic = String(it.Image).replace("{size}", "480");
+    else if (it.TransParam && it.TransParam.union_cover) pic = String(it.TransParam.union_cover).replace("{size}", "480");
+    else if (it.trans_param && it.trans_param.union_cover) pic = String(it.trans_param.union_cover).replace("{size}", "480");
     return {
       code: 200,
       id: "kg" + hash,

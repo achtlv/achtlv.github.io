@@ -92,6 +92,25 @@ return {expireAt:exp,url:url};
 }
 
 
+async function invalidateAudioCache(id,level){
+try{
+var store=mediaCacheLoad();
+var keys=[];
+if(level){keys=[String(level)+String(id)];}
+else{
+keys=['exhigh'+String(id),'standard'+String(id),'lossless'+String(id),'official'+String(id)];
+}
+for(var i=0;i<keys.length;i++){
+var k=keys[i];
+delete store.items[k];
+var idx=store.order.indexOf(k);
+if(idx!==-1)store.order.splice(idx,1);
+try{await cacheSetRaw(k,'');}catch(e){}
+}
+mediaCacheSave(store);
+}catch(e){}
+}
+
 async function getLocalAudioUrlOnly(id,level,minRemainSec){
 if(level==='external')return null;
 var key=level+String(id);

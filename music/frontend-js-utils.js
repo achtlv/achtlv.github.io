@@ -353,9 +353,9 @@ var it=lists[0];
 var hash=String(it.FileHash||it.fileHash||it.hash||'').toLowerCase().replace(/[^a-f0-9]/g,'');
 if(hash.length!==32)return null;
 var pic='';
-if(it.Image)pic=String(it.Image).replace('{size}','240');
-else if(it.TransParam&&it.TransParam.union_cover)pic=String(it.TransParam.union_cover).replace('{size}','240');
-else if(it.trans_param&&it.trans_param.union_cover)pic=String(it.trans_param.union_cover).replace('{size}','240');
+if(it.Image)pic=String(it.Image).replace('{size}','480');
+else if(it.TransParam&&it.TransParam.union_cover)pic=String(it.TransParam.union_cover).replace('{size}','480');
+else if(it.trans_param&&it.trans_param.union_cover)pic=String(it.trans_param.union_cover).replace('{size}','480');
 return {
 code:200,
 id:'kg'+hash,
@@ -448,7 +448,22 @@ return empty;
 }
 async function localGetSongLyric(id){
 var songId=String(id||'').trim();
-if(!songId||!/^\d+$/.test(songId))return {code:400,msg:'无效歌曲 ID'};
+if(!songId)return {code:400,msg:'无效歌曲 ID'};
+// 酷狗歌词：走 Worker 代理（krcs 有 CORS）
+if(/^kg/i.test(songId)||/^[a-fA-F0-9]{32}$/.test(songId)){
+var hash=songId.indexOf('kg')===0?songId.substring(2):songId;
+hash=String(hash).toLowerCase().replace(/[^a-f0-9]/g,'');
+if(hash.length===32){
+try{
+var url=toAbsoluteApiUrl('/api/getSongLyric');
+var res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:'kg'+hash})});
+var data=await res.json();
+if(data&&data.code===200)return data;
+}catch(e){}
+}
+return {code:200,data:{lrc:{lyric:''},tlyric:{lyric:''},romalrc:{lyric:''}}};
+}
+if(!/^\d+$/.test(songId))return {code:400,msg:'无效歌曲 ID'};
 // 优先 vkeys：同时有原文/翻译/音译
 try{
 var r=await localFetchJson('https://api.vkeys.cn/v2/music/netease/lyric?id='+encodeURIComponent(songId),{method:'GET'});
@@ -458,6 +473,17 @@ return {code:200,data:{
 lrc:{lyric:d.lrc||''},
 tlyric:{lyric:d.trans||''},
 romalrc:{lyric:d.roma||''}
+}};
+}
+}catch(e){}
+// 备用 GD Studio 歌词
+try{
+var rg=await localFetchJson('https://music-api.gdstudio.xyz/api.php?types=lyric&source=netease&id='+encodeURIComponent(songId),{method:'GET'});
+if(rg.data&&rg.data.lyric){
+return {code:200,data:{
+lrc:{lyric:rg.data.lyric||''},
+tlyric:{lyric:rg.data.tlyric||rg.data.trans||''},
+romalrc:{lyric:''}
 }};
 }
 }catch(e){}

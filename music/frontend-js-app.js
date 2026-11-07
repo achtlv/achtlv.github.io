@@ -358,6 +358,9 @@ await setAudioSource(result.url,song.format);
 if(token!==playToken)return;
 if(!song.external){
 try{
+if(typeof invalidateAudioCache==='function'){
+try{await invalidateAudioCache(song.id);}catch(e){}
+}
 var fresh=await fetchPlayUrlFresh(song.id);
 if(token!==playToken)return;
 if(fresh&&fresh.url){

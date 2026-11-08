@@ -2426,8 +2426,8 @@ else if(detail&&detail.stack)d=String(detail.stack);
 else if(detail&&detail.message)d=String(detail.message);
 else{try{d=JSON.stringify(detail);}catch(e){d=String(detail);}}
 }
-d=String(d).replace(/("pass(?:word)?"\s*:\s*")[^"]*("/gi,'$1***$2');
-d=d.replace(/(password|passwd|pwd)\s*[:=]\s*\S+/gi,'$1=***');
+d=String(d).replace(/("pass(?:word)?"\s*:\s*")[^"]*(")/gi,"$1***$2");
+d=d.replace(/(password|passwd|pwd)\s*[:=]\s*\S+/gi,"$1=***");
 list.push({t:Date.now(),type:String(type||'info'),msg:String(msg||''),detail:d});
 while(list.length>10)list.shift();
 saveErrorLogs(list);

@@ -47,7 +47,6 @@ export const SW_CODE = [
   "  var url;",
   "  try { url = new URL(req.url); } catch (e) { return; }",
   "  if (url.origin !== self.location.origin) return;",
-  "  // API / JS 一律不走 SW 缓存，避免旧坏脚本",
   "  if (url.pathname.indexOf('/api/') === 0) return;",
   "  if (url.pathname.indexOf('/frontend-js-') === 0) return;",
   "  if (url.pathname === '/sw.js') return;",
@@ -58,7 +57,6 @@ export const SW_CODE = [
   "    );",
   "    return;",
   "  }",
-  "  // 其它静态：网络优先",
   "  event.respondWith(",
   "    fetch(req).then(function(res){",
   "      try {",
@@ -71,8 +69,7 @@ export const SW_CODE = [
   "    }).catch(function(){ return caches.match(req); })",
   "  );",
   "});"
-].join("
-");
+].join("\n");
 
 
 const ICON_URL = "https://a1.boltp.com/2026/10/17/6ad2fcb06efbe.png";

@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261108.4';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261108.5';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -2342,6 +2342,11 @@ ev.preventDefault();
 switchTab(tab);
 
 try{
+var lb=$('meLogsBtn');
+if(lb&&!lb._bound){
+lb._bound=true;
+lb.addEventListener('click',function(){if(typeof openLogsPage==='function')openLogsPage();});
+}
 var rb=$('refreshAppBtn');
 if(rb&&!rb._bound){
 rb._bound=true;
@@ -2526,40 +2531,77 @@ state.audioUrl='';state.quality='';
 try{if(typeof render==='function')render();}catch(e){}
 }
 
-(function bindLogsAndRefresh(){
-if($('refreshAppBtn')){
-if(typeof ICON!=='undefined'&&ICON.refresh)$('refreshAppBtn').innerHTML=ICON.refresh;
-$('refreshAppBtn').addEventListener('click',function(ev){
-blurControl(ev.currentTarget||this);
-forceRefreshApp();
+function openLogsPage(){
+try{
+['pagePlayer','pagePlaylists','pageMe','pagePlaylistDetail'].forEach(function(id){
+var el=$(id);if(el){el.classList.remove('page-active');el.style.display='none';}
 });
-}
-if($('meLogsBtn'))$('meLogsBtn').addEventListener('click',function(){
-var map=['pagePlayer','pagePlaylists','pageMe','pagePlaylistDetail'];
-map.forEach(function(id){var el=$(id);if(el){el.classList.remove('page-active');el.style.display='none';}});
 var logs=$('pageLogs');
-if(logs){
+if(!logs){toast('日志页不存在');return;}
 logs.style.display='flex';
 logs.style.flexDirection='column';
 logs.style.flex='1';
 logs.style.minHeight='0';
 logs.classList.add('page-active');
-}
-if($('logsBack')&&!$('logsBack').innerHTML.trim()){
-$('logsBack').innerHTML='<svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>';
-}
-renderLogsPage();
-logAction('打开日志页');
+var back=$('logsBack');
+if(back){
+if(!back.innerHTML.trim())back.innerHTML='<svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>';
+if(!back._bound){
+back._bound=true;
+back.addEventListener('click',function(){
+logs.style.display='none';
+logs.classList.remove('page-active');
+if(typeof switchTab==='function')switchTab('me');
 });
-if($('logsBack')){
+}
+}
+if(typeof renderLogsPage==='function')renderLogsPage();
+if(typeof logAction==='function')logAction('打开日志页');
+}catch(e){try{toast('打开日志失败');}catch(e2){}}
+}
+
+(function bindLogsAndRefresh(){
+try{
+if($('refreshAppBtn')&&!$('refreshAppBtn')._bound){
+$('refreshAppBtn')._bound=true;
+if(typeof ICON!=='undefined'&&ICON.refresh)$('refreshAppBtn').innerHTML=ICON.refresh;
+$('refreshAppBtn').addEventListener('click',function(ev){
+try{blurControl(ev.currentTarget||this);}catch(e){}
+if(typeof forceRefreshApp==='function')forceRefreshApp();
+});
+}
+}catch(e){}
+try{
+if($('meLogsBtn')&&!$('meLogsBtn')._bound){
+$('meLogsBtn')._bound=true;
+$('meLogsBtn').addEventListener('click',function(){openLogsPage();});
+}
+}catch(e){}
+try{
+if($('logsBack')&&!$('logsBack')._bound){
+$('logsBack')._bound=true;
+if(!$('logsBack').innerHTML.trim()){
 $('logsBack').innerHTML='<svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>';
+}
 $('logsBack').addEventListener('click',function(){
 var logs=$('pageLogs');
 if(logs){logs.style.display='none';logs.classList.remove('page-active');}
 if(typeof switchTab==='function')switchTab('me');
 });
 }
-if($('logsList'))$('logsList').addEventListener('click',function(e){
+}catch(e){}
+try{
+if($('logsList')&&!$('logsList')._bound){
+$('logsList')._bound=true;
+$('logsList').addEventListener('click',function(e){
+var msgEl=e.target.closest('.logs-item-msg');
+if(msgEl&&!e.target.closest('.log-copy')&&!e.target.closest('.log-del')){
+msgEl.classList.toggle('expanded');
+msgEl.classList.toggle('collapsed');
+var more=msgEl.querySelector('.logs-more');
+if(more)more.textContent=msgEl.classList.contains('expanded')?'点击收起':'点击展开';
+return;
+}
 var copy=e.target.closest('.log-copy');
 var del=e.target.closest('.log-del');
 var item=e.target.closest('.logs-item');
@@ -2568,7 +2610,7 @@ var idx=parseInt(item.getAttribute('data-log'),10);
 var list=loadErrorLogs();
 if(copy){
 var row=list[idx];
-var text=(row&&(row.msg+'\\n'+row.detail))||'';
+var text=(row&&('['+(row.type||'')+'] '+row.msg+'\n'+row.detail))||'';
 (async function(){
 try{await navigator.clipboard.writeText(text);toast('已复制');}
 catch(err){toast('复制失败');}
@@ -2582,15 +2624,17 @@ renderLogsPage();
 toast('已删除');
 }
 });
-// 全局错误捕获
+}
+}catch(e){}
+try{
 window.addEventListener('error',function(ev){
-logError('window.error',(ev&&ev.error)||(ev&&ev.message)||ev);
+if(typeof logError==='function')logError('window.error',(ev&&ev.error)||(ev&&ev.message)||ev);
 });
 window.addEventListener('unhandledrejection',function(ev){
-logError('unhandledrejection',(ev&&ev.reason)||ev);
+if(typeof logError==='function')logError('unhandledrejection',(ev&&ev.reason)||ev);
 });
+}catch(e){}
 })();
-
 
 // ==================== 启动 ====================
 (function boot(){

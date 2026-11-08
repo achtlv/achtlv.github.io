@@ -1,4 +1,4 @@
-export const BODY_INNER = `
+export const BODY_INNER = String.raw`export const BODY_INNER = `
 
 <div class="app">
 <div class="page page-active" id="pagePlayer">
@@ -12,7 +12,7 @@ export const BODY_INNER = `
 </header>
 
 <div id="stage">
-<div class="empty-actions" id="emptyActions">
+<div class="empty-actions" id="emptyActions" style="display:none">
 <button class="empty-add" id="emptyAdd" aria-label="添加歌曲">
 <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
 <span>添加歌曲</span>
@@ -417,4 +417,5 @@ export const BODY_INNER = `
 </div>
 </div>
 
+`;
 `;

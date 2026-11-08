@@ -152,8 +152,12 @@ function onLoaded(){
 if(settled)return;
 settled=true;
 cleanup();
+if(state&&state.playing){
 var p=audio.play();
 if(p&&p.catch)p.catch(function(){});
+}else{
+try{audio.pause();}catch(e){}
+}
 resolve();
 }
 function onError(){

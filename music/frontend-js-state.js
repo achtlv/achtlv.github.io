@@ -1,4 +1,20 @@
 export const STATE_SCRIPT = String.raw`
+// 使用 HTML 内联脚本已读到的列表，保证首页渲染前 state 已有数据
+(function(){
+try{
+if(window.__PLAYLET_PL_STATE_APPLIED__)return;
+var raw=window.__PLAYLET_PL_RAW__;
+if(!raw){
+try{raw=localStorage.getItem('m3_playlist');}catch(e){}
+if(!raw){try{raw=localStorage.getItem('m3_playlist_bak');}catch(e){}}
+if(!raw){try{raw=sessionStorage.getItem('m3_playlist');}catch(e){}}
+}
+if(!raw)return;
+window.__PLAYLET_PL_RAW__=raw;
+window.__PLAYLET_PL_STATE_APPLIED__=false; // 等 state 对象创建后再 apply
+}catch(e){}
+})();
+
 var $=function(id){return document.getElementById(id)};
 var LF=String.fromCharCode(10);
 var CR=String.fromCharCode(13);
@@ -48,6 +64,33 @@ _lastLyricKey:null,_lastMediaKey:null,_lyricScrollTimer:null
 };
 
 
+
+(function(){
+try{
+var raw=window.__PLAYLET_PL_RAW__;
+if(!raw||!state)return;
+var obj=JSON.parse(raw);
+var list=Array.isArray(obj)?obj:(obj&&obj.list);
+if(!Array.isArray(list)||!list.length)return;
+state.playlist=list.map(function(s){
+var o={id:String(s.id||''),name:s.name||'未知歌曲',artist:s.artist||'未知歌手',pic:s.pic||'',duration:0};
+if(s.ext){o.external=true;o.url=String(s.url||'');o.srcUrl=String(s.srcUrl||'');o.format=String(s.format||'');}
+if(s.source)o.source=s.source;
+if(o.pic&&o.pic.indexOf('http://')===0)o.pic=o.pic.replace(/^http:\/\//i,'https://');
+return o;
+}).filter(function(s){return !!s.id&&(!s.external||!!s.url);});
+if(!state.playlist.length)return;
+var restored=-1;
+if(obj&&obj.lastId){
+var lid=String(obj.lastId);
+for(var i=0;i<state.playlist.length;i++){if(String(state.playlist[i].id)===lid){restored=i;break;}}
+}
+if(restored<0&&obj&&typeof obj.current==='number'&&obj.current>=0&&obj.current<state.playlist.length)restored=obj.current;
+state.current=restored>=0?restored:0;
+state.playing=false;
+window.__PLAYLET_PL_STATE_APPLIED__=true;
+}catch(e){}
+})();
 // 尽早恢复播放列表（不依赖 utils），解决首屏空白
 (function(){
 try{

@@ -146,8 +146,15 @@ updateMediaSessionMetadata();
 }
 
 function render(){
-var song=state.playlist[state.current];
-var hasSongs=state.playlist.length>0;
+// 首屏空白根因：boot 时读到空 storage，真正数据稍后才可读；每次 render 前若空则再读一次
+try{
+if(!state.playlist||!state.playlist.length){
+if(typeof restorePlaylist==='function')restorePlaylist();
+}
+if(state.playlist&&state.playlist.length&&state.current<0)state.current=0;
+}catch(e){}
+var song=(state.current>=0)?state.playlist[state.current]:null;
+var hasSongs=!!(state.playlist&&state.playlist.length>0);
 
 $('title').textContent=song?(song.name||'未知歌曲'):'未在播放';
 $('artist').textContent=song?(song.artist||'未知歌手'):'—';
@@ -363,6 +370,12 @@ e2.urlExpireAt=Date.now()+((result.expi||DEFAULT_EXPI)*1000);
 render();
 try{
 await setAudioSource(result.url,song.format);
+if(token!==playToken||!state.playing){
+state.loadingUrl=false;
+try{audio.pause();}catch(e){}
+render();
+return;
+}
 state.loadingUrl=false;
 try{
 if(pendingSeekRatio!=null&&isFinite(pendingSeekRatio)){
@@ -588,6 +601,8 @@ audio.play().catch(function(){});
 }
 
 async function togglePlay(){
+// 根本修复：用户手势时再尝试恢复（解决进入页时 storage 未就绪）
+try{if(!state.playlist||!state.playlist.length)restorePlaylist();}catch(e){}
 // 正在获取下一首链接时，点击=取消获取
 if(state.loadingUrl){
 try{playToken++;}catch(e){}
@@ -1253,6 +1268,7 @@ setTimeout(function(){$('importKey').focus()},120);
 if($('emptyAdd'))$('emptyAdd').addEventListener('click',openAdd);
 if($('emptyImport'))$('emptyImport').addEventListener('click',openImportDialog);
 if($('listBtn'))$('listBtn').addEventListener('click',function(ev){
+try{if(typeof restorePlaylist==='function')restorePlaylist();}catch(e){}
 try{var b=ev.currentTarget||this;b.blur();if(document.activeElement)document.activeElement.blur();}catch(e){}
 closeOtherScrims('listScrim');
 listHistIndex=-1;

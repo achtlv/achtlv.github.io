@@ -966,6 +966,31 @@ if(p.indexOf(name+'=')===0)return p.substring(name.length+1);
 }
 return null;
 }
+
+var _plIdb=null;
+function openPlaylistIdb(){
+return new Promise(function(resolve,reject){
+try{
+if(_plIdb){resolve(_plIdb);return;}
+var req=indexedDB.open('playlet_db',1);
+req.onupgradeneeded=function(){var db=req.result;if(!db.objectStoreNames.contains('kv'))db.createObjectStore('kv');};
+req.onsuccess=function(){_plIdb=req.result;resolve(_plIdb);};
+req.onerror=function(){reject(req.error);};
+}catch(e){reject(e);}
+});
+}
+function idbSetPlaylist(payload){
+try{openPlaylistIdb().then(function(db){db.transaction('kv','readwrite').objectStore('kv').put(String(payload||''),'playlist');}).catch(function(){});}catch(e){}
+}
+function idbGetPlaylist(){
+return openPlaylistIdb().then(function(db){
+return new Promise(function(resolve){
+try{var r=db.transaction('kv','readonly').objectStore('kv').get('playlist');r.onsuccess=function(){resolve(r.result||'');};r.onerror=function(){resolve('');};}
+catch(e){resolve('');}
+});
+}).catch(function(){return '';});
+}
+
 function savePlaylist(){
 try{
 var data=state.playlist.map(function(s){
@@ -983,6 +1008,7 @@ var payload=JSON.stringify({v:1,list:data,current:state.current,lastId:lastId,ts
 localStorage.setItem(COOKIE_NAME,payload);
 try{localStorage.setItem(COOKIE_NAME+'_bak',payload);}catch(e3){}
 try{sessionStorage.setItem(COOKIE_NAME,payload);}catch(e4){}
+try{idbSetPlaylist(payload);}catch(e5){}
 try{
 var encoded=encodeURIComponent(JSON.stringify(data));
 if(encoded.length<=COOKIE_MAX)setCookieRaw(COOKIE_NAME,encoded);
@@ -992,151 +1018,81 @@ console.error('savePlaylist',e);
 try{if(typeof logError==='function')logError('保存播放列表失败',e);}catch(e5){}
 }
 }
-function restorePlaylist(){
-try{
-var raw=localStorage.getItem(COOKIE_NAME);
-if(!raw){try{raw=localStorage.getItem(COOKIE_NAME+'_bak');}catch(e){}}
-if(!raw){try{raw=sessionStorage.getItem(COOKIE_NAME);}catch(e){}}
-if(raw){
+function applyPlaylistPayload(raw){
+if(!raw)return false;
 try{
 var obj=JSON.parse(raw);
 var list=Array.isArray(obj)?obj:(obj&&obj.list);
-if(Array.isArray(list)&&list.length>0){
-state.playlist=list.map(function(s){
+if(!Array.isArray(list)||!list.length)return false;
+var mapped=list.map(function(s){
 var o={id:String(s.id||''),name:s.name||'未知歌曲',artist:s.artist||'未知歌手',pic:s.pic||'',duration:0};
 if(s.ext){o.external=true;o.url=String(s.url||'');o.srcUrl=String(s.srcUrl||'');o.format=String(s.format||'');}
 if(s.source)o.source=s.source;
 if(o.pic&&o.pic.indexOf('http://')===0)o.pic=o.pic.replace(/^http:\/\//i,'https://');
 return o;
 }).filter(function(s){return !!s.id&&(!s.external||!!s.url);});
-// 恢复上次播放的歌曲（优先 lastId，其次 current 索引），不自动播放
+if(!mapped.length)return false;
+state.playlist=mapped;
 var restored=-1;
 if(obj&&obj.lastId){
 var lid=String(obj.lastId);
-for(var ri=0;ri<state.playlist.length;ri++){
-if(String(state.playlist[ri].id)===lid){restored=ri;break;}
+for(var ri=0;ri<state.playlist.length;ri++){if(String(state.playlist[ri].id)===lid){restored=ri;break;}}
 }
+if(restored<0&&obj&&typeof obj.current==='number'&&obj.current>=0&&obj.current<state.playlist.length)restored=obj.current;
+state.current=restored>=0?restored:0;
+return true;
+}catch(e){return false;}
 }
-if(restored<0&&obj&&typeof obj.current==='number'&&obj.current>=0&&obj.current<state.playlist.length){
-restored=obj.current;
-}
-if(restored>=0)state.current=restored;
-else state.current=state.playlist.length?0:-1;
-state.playing=false;
-state.audioUrl='';
-state.quality='';
-state.showLyric=false;
-return;
-}
-}catch(e1){}
-}
-raw=getCookieRaw(COOKIE_NAME);
-if(!raw)return;
+function readPlaylistRaw(){
+var raw=null;
+try{raw=localStorage.getItem(COOKIE_NAME);}catch(e){}
+if(!raw){try{raw=localStorage.getItem(COOKIE_NAME+'_bak');}catch(e){}}
+if(!raw){try{raw=sessionStorage.getItem(COOKIE_NAME);}catch(e){}}
+if(!raw){try{raw=localStorage.getItem('m3_playlist');}catch(e){}}
+if(!raw){try{raw=localStorage.getItem('m3_playlist_bak');}catch(e){}}
+if(!raw){
 try{
-var list2=JSON.parse(decodeURIComponent(raw));
-if(!Array.isArray(list2))return;
-state.playlist=list2.map(function(s){
-var o={id:String(s.id||''),name:s.name||'未知歌曲',artist:s.artist||'未知歌手',pic:'',duration:0};
-if(s.ext){o.external=true;o.url=String(s.url||'');o.srcUrl=String(s.srcUrl||'');o.format=String(s.format||'');}
-if(s.source)o.source=s.source;
-if(o.pic&&o.pic.indexOf('http://')===0)o.pic=o.pic.replace(/^http:\/\//i,'https://');
-return o;
-}).filter(function(s){return !!s.id&&(!s.external||!!s.url);});
-// cookie 无 current：默认第 0 首
-state.current=state.playlist.length?0:-1;
-}catch(e2){}
-}catch(e){console.error('restorePlaylist',e);}
+var m=document.cookie.match(/(?:^|;\s*)m3_playlist=([^;]+)/);
+if(m)raw=decodeURIComponent(m[1]);
+}catch(e){}
 }
-function clearPlaylistCookie(){
-document.cookie=COOKIE_NAME+'=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax';
+return raw;
+}
+function restorePlaylist(){
+try{
+// 若内存已有列表，不要用空数据覆盖
+var raw=readPlaylistRaw();
+if(raw&&applyPlaylistPayload(raw))return true;
+}catch(e){}
+return !!(state.playlist&&state.playlist.length);
+}
+// 进入页面时 storage 可能尚未就绪：短轮询直到读到或超时
+function ensurePlaylistRestored(cb){
+var done=false;
+function finish(ok){
+if(done)return;
+done=true;
+if(typeof cb==='function')cb(ok);
+}
+if(restorePlaylist()){finish(true);return;}
+var tries=0;
+var timer=setInterval(function(){
+tries++;
+if(restorePlaylist()||tries>=20){
+clearInterval(timer);
+finish(!!(state.playlist&&state.playlist.length));
+}
+},50);
 }
 
-// ==================== 导入 / 导出 ====================
-function exportListText(){
-return state.playlist.map(function(s){
-var name=(s.name||'').split('|').join(' ');
-var artist=(s.artist||'').split('|').join(' ');
-var pic=(s.pic||'').split('|').join(' ');
-if(s.external){
-return (s.url||'')+'|'+name+'|'+artist+'|'+(s.srcUrl||'')+(pic?'|'+pic:'');
-}
-// id|name|artist|pic
-return s.id+'|'+name+'|'+artist+(pic?'|'+pic:'');
-}).join(String.fromCharCode(10));
-}
-function parseListText(text){
-// 兼容真实换行 与 错误导出的字面量 \n
-var src=String(text||'');
-src=src.split('\r\n').join('\n');
-src=src.split(CR).join('\n');
-// 字面量 \n（反斜杠+n）→ 真换行
-src=src.replace(/\\n/g,'\n');
-var lines=src.split('\n');
-var out=[];
-var seen={};
-for(var i=0;i<lines.length;i++){
-var line=String(lines[i]||'').trim();
-if(!line)continue;
-if(line.charAt(0)==='#')continue;
-var parts=line.split('|');
-var key=(parts[0]||'').trim();
-if(!key)continue;
-
-var item=null;
-var pic=(parts[3]||'').trim();
-if(isSongId(key)){
-item={id:key,name:(parts[1]||'').trim()||'未知歌曲',artist:(parts[2]||'').trim()||'未知歌手',pic:pic||'',duration:0,source:'wy'};
-}else if(typeof isKgId==='function'&&isKgId(key)){
-var kid=typeof normalizeKgId==='function'?normalizeKgId(key):key;
-item={id:kid,name:(parts[1]||'').trim()||'未知歌曲',artist:(parts[2]||'').trim()||'未知歌手',pic:pic||'',duration:0,source:'kg'};
-}else if(isHttpUrl(key)){
-var srcUrl=(parts[3]||'').trim();
-if(pic&&isHttpUrl(pic)&&!isHttpUrl(srcUrl)){/* parts[3] may be pic for netease export */}
-if(!isHttpUrl(srcUrl))srcUrl=(parts[4]||'').trim();
-if(!isHttpUrl(srcUrl))srcUrl='';
-// export format: url|name|artist|srcUrl  OR  id|name|artist|pic
-item={id:uid(),name:(parts[1]||'').trim()||'外部音源',artist:(parts[2]||'').trim()||'外部音源',pic:'',external:true,url:key,srcUrl:srcUrl,format:getFormatFromUrl(key)};
-}
-if(!item)continue;
-
-if(hasAnyKeyInSeen(seen,item))continue;
-addKeysToSeen(seen,item);
-out.push(item);
-}
-return out;
-}
-function applyImport(imported,mode){
-if(!imported.length)return 0;
-if(mode==='new'){
-if(typeof pushListHistory==='function')pushListHistory();
-state.playlist=imported.slice();
-state.current=-1;
-return imported.length;
-}
-if(mode==='replace'){
-state.playlist=imported.slice();
-state.current=-1;
-return imported.length;
-}
-var seen={};
-state.playlist.forEach(function(s){addKeysToSeen(seen,s)});
-var added=[];
-imported.forEach(function(s){
-if(hasAnyKeyInSeen(seen,s))return;
-added.push(s);
-addKeysToSeen(seen,s);
+// EARLY_RESTORE
+try{if(typeof restorePlaylist==='function')restorePlaylist();}catch(e){}
+try{
+if(typeof ensurePlaylistRestored==='function'){
+ensurePlaylistRestored(function(ok){
+try{if(ok&&typeof render==='function')render();}catch(e){}
 });
-if(added.length===0)return 0;
-var oldCurrent=state.current;
-state.playlist=added.concat(state.playlist);
-if(oldCurrent>=0)state.current=oldCurrent+added.length;
-return added.length;
 }
-
-
-// EARLY_RESTORE: 不依赖 app.js，脚本加载后立即恢复列表，避免 app 异常导致“数据全无”
-try{
-if(typeof restorePlaylist==='function')restorePlaylist();
 }catch(e){}
 
 try{

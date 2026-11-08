@@ -26,6 +26,22 @@ export const HTML = `<!DOCTYPE html>
 ${STYLE}
 </head>
 <body>
+<script>
+/* 先加载列表，再渲染首页：在任何业务脚本之前同步读取 storage */
+(function(){
+try{
+var keys=['m3_playlist','m3_playlist_bak'];
+var raw=null;
+for(var i=0;i<keys.length;i++){
+try{raw=localStorage.getItem(keys[i]);}catch(e){}
+if(raw)break;
+}
+if(!raw){try{raw=sessionStorage.getItem('m3_playlist');}catch(e){}}
+if(raw){window.__PLAYLET_PL_RAW__=raw;}
+}catch(e){}
+})();
+</script>
+
 ${BODY_INNER}
 ${SCRIPT_TAGS}
 </body>

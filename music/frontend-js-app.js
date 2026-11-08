@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261108.3';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261108.4';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -2340,6 +2340,24 @@ var tab=btn.getAttribute('data-tab');
 if(tab&&typeof switchTab==='function'){
 ev.preventDefault();
 switchTab(tab);
+
+try{
+var rb=$('refreshAppBtn');
+if(rb&&!rb._bound){
+rb._bound=true;
+if(typeof ICON!=='undefined'&&ICON.refresh)rb.innerHTML=ICON.refresh;
+rb.addEventListener('click',function(ev){
+try{if(ev&&ev.currentTarget)ev.currentTarget.blur();}catch(e){}
+try{
+if(typeof forceRefreshApp==='function')forceRefreshApp();
+else{
+try{localStorage.removeItem('m3_media_cache');}catch(e2){}
+toast('已清理媒体缓存');
+}
+}catch(e){try{toast('刷新失败');}catch(e3){}}
+});
+}
+}catch(e){}
 }
 return;
 }
@@ -2457,9 +2475,7 @@ var _origToast=typeof toast==='function'?toast:null;
 
 // ==================== 强制刷新（先同步，再版本检测） ====================
 async function forceRefreshApp(){
-toast('正在清理缓存...');
-try{
-// 1) 只清媒体缓存：播放链接 / 封面 / 歌词（本地）
+try{toast('正在清理缓存...');}catch(e){}
 try{localStorage.removeItem(typeof MEDIA_CACHE_KEY!=='undefined'?MEDIA_CACHE_KEY:'m3_media_cache');}catch(e){}
 try{
 if(typeof preloadCache==='object'&&preloadCache){
@@ -2476,49 +2492,35 @@ delete preloadTimers[t];
 }
 }
 }catch(e){}
-// 不碰账号、歌单、播放列表、主题、设置、日志
-logAction('刷新：已清理媒体缓存');
-}catch(e){logError('清理媒体缓存失败',e);}
+try{if(typeof logAction==='function')logAction('刷新：已清理媒体缓存');}catch(e){}
 
-// 2) 检查 Worker 版本，仅版本变化时软刷新页面（保留 localStorage）
-var remoteVer='';
-var localVer='';
+var remoteVer='',localVer='';
 try{localVer=localStorage.getItem('m3_app_version')||'';}catch(e){}
 try{
 var r=await fetch(toAbsoluteApiUrl('/api/version')+'?t='+Date.now(),{cache:'no-store'});
 var d=await r.json();
 remoteVer=d&&d.version?String(d.version):'';
-}catch(e){logError('检查版本失败',e);}
-
+}catch(e){}
 if(remoteVer){
 try{localStorage.setItem('m3_app_version',remoteVer);}catch(e){}
 }
 if(remoteVer&&localVer&&remoteVer!==localVer){
-logAction('发现新版本，准备更新','local='+localVer+' remote='+remoteVer);
-toast('发现新版本，正在更新…');
-// 仅在版本变化时更新 SW 缓存的脚本，不清除用户数据
+try{toast('发现新版本，正在更新…');}catch(e){}
 try{
 if('serviceWorker' in navigator){
 var regs=await navigator.serviceWorker.getRegistrations();
 for(var i=0;i<regs.length;i++){
-try{
-if(regs[i].active){try{regs[i].active.postMessage({type:'SKIP_WAITING'});}catch(e){}}
-await regs[i].update();
-}catch(e){}
+try{await regs[i].update();}catch(e){}
 }
 }
 }catch(e){}
-setTimeout(function(){location.reload();},300);
+setTimeout(function(){try{location.reload();}catch(e){}},200);
 return;
 }
-
-toast('媒体缓存已清理');
-logAction('刷新完成','无版本更新 local='+(localVer||'')+' remote='+(remoteVer||''));
-// 若当前在播，提示可手动重进歌曲以拉新链
+try{toast('媒体缓存已清理');}catch(e){}
 try{
 if(state.current>=0&&state.playlist[state.current]&&!state.playlist[state.current].external){
-state.audioUrl='';
-state.quality='';
+state.audioUrl='';state.quality='';
 }
 }catch(e){}
 try{if(typeof render==='function')render();}catch(e){}
@@ -2631,6 +2633,14 @@ setTimeout(function(){try{handleUrlParams();}catch(e){}},300);
 // 确保歌单/我的页按钮一定有事件（防前面脚本中断）
 
 try{if(typeof APP_VERSION!=='undefined')localStorage.setItem('m3_app_version',APP_VERSION);}catch(e){}
+try{
+window.addEventListener('beforeunload',function(){
+try{if(typeof savePlaylist==='function')savePlaylist();}catch(e){}
+try{if(typeof savePlaylistsLocal==='function')savePlaylistsLocal();}catch(e){}
+try{if(typeof saveAuthLocal==='function')saveAuthLocal();}catch(e){}
+try{if(typeof saveSettingsLocal==='function')saveSettingsLocal();}catch(e){}
+});
+}catch(e){}
 state._booted=true;
 if('serviceWorker' in navigator){
 window.addEventListener('load',function(){

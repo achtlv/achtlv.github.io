@@ -16,7 +16,7 @@ import {
   handleGetSongLyric, proxy,
 } from './handlers.js';
 
-const JS_HEADERS = { 'Content-Type': 'application/javascript;charset=UTF-8', 'Cache-Control': 'no-cache' };
+const JS_HEADERS = { 'Content-Type': 'application/javascript;charset=UTF-8', 'Cache-Control': 'no-store, no-cache, must-revalidate' };
 const JS_ROUTES = {
   '/frontend-js-state.js': STATE_SCRIPT,
   '/frontend-js-utils.js': UTILS_SCRIPT,
@@ -41,7 +41,7 @@ export default {
       }});
     }
     if (url.pathname === '/' || url.pathname === '/index.html') {
-      return new Response(HTML, { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
+      return new Response(HTML, { headers: { 'Content-Type': 'text/html;charset=UTF-8', 'Cache-Control': 'no-store, no-cache, must-revalidate' } });
     }
     if (url.pathname === '/manifest.json') {
       return new Response(JSON.stringify(MANIFEST_JSON), { headers: {
@@ -55,7 +55,7 @@ export default {
     }
     if (url.pathname === '/icon.png') return await handleIcon();
     if (url.pathname === '/api/version') {
-      return new Response(JSON.stringify({ version: '20261108.3' }), { headers: {
+      return new Response(JSON.stringify({ version: '20261108.4' }), { headers: {
         'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store'
       }});
     }

@@ -2873,4 +2873,24 @@ navigator.serviceWorker.register(toAbsoluteApiUrl('/sw.js')).catch(function(){})
 });
 }
 })();
+
+
+// ===== 全局兜底：即使 boot 中途异常，也要结束列表加载并恢复 =====
+(function playlistLoadFailsafe(){
+function run(){
+try{if(typeof restorePlaylist==='function')restorePlaylist();}catch(e){}
+try{
+if(state){
+state.playlistLoading=false;
+if(state.playlist&&state.playlist.length&&(state.current<0||state.current>=state.playlist.length))state.current=0;
+}
+}catch(e){}
+try{if(typeof render==='function')render();}catch(e){}
+}
+try{run();}catch(e){}
+try{setTimeout(run,50);}catch(e){}
+try{setTimeout(run,200);}catch(e){}
+try{setTimeout(run,600);}catch(e){}
+try{setTimeout(run,1200);}catch(e){}
+})();
 `;

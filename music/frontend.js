@@ -44,5 +44,30 @@ if(raw){window.__PLAYLET_PL_RAW__=raw;}
 
 ${BODY_INNER}
 ${SCRIPT_TAGS}
+
+<script>
+/* 不依赖 app boot：脚本全部加载后强制恢复列表并结束「加载中」 */
+(function(){
+function forceDone(){
+try{if(typeof restorePlaylist==='function')restorePlaylist();}catch(e){}
+try{if(window.state){state.playlistLoading=false;if(state.playlist&&state.playlist.length&&state.current<0)state.current=0;}}catch(e){}
+try{if(typeof render==='function')render();}catch(e){}
+try{
+var loading=document.getElementById('emptyLoading');
+var actions=document.getElementById('emptyActions');
+var has=window.state&&state.playlist&&state.playlist.length>0;
+if(loading)loading.style.display='none';
+if(actions)actions.style.display=has?'none':'flex';
+}catch(e){}
+}
+// 多次尝试，覆盖 boot 抛错 / storage 延迟
+setTimeout(forceDone,0);
+setTimeout(forceDone,100);
+setTimeout(forceDone,300);
+setTimeout(forceDone,800);
+setTimeout(forceDone,1500);
+})();
+</script>
+
 </body>
 </html>`;

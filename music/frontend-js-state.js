@@ -41,7 +41,7 @@ showLyric:false,lyric:'',audioUrl:'',quality:'',
 lyricTrans:'',lyricRoma:'',
 transEnabled:true,romaEnabled:false,
 lyricLoading:false,
-retrying:false,
+retrying:false,loadingUrl:false,loadCancelToken:0,
 lyricLines:[],lyricHasTime:false,lyricCurrent:-1,lyricUserScrolled:false,
 editingOrder:false,
 _lastLyricKey:null,_lastMediaKey:null,_lyricScrollTimer:null
@@ -55,9 +55,16 @@ var raw=null;
 try{raw=localStorage.getItem('m3_playlist');}catch(e){}
 if(!raw){try{raw=localStorage.getItem('m3_playlist_bak');}catch(e){}}
 if(!raw){try{raw=sessionStorage.getItem('m3_playlist');}catch(e){}}
+if(!raw){
+try{
+var m=document.cookie.match(/(?:^|;\s*)m3_playlist=([^;]+)/);
+if(m)raw=decodeURIComponent(m[1]);
+}catch(e){}
+}
 if(!raw)return;
 var obj=JSON.parse(raw);
 var list=Array.isArray(obj)?obj:(obj&&obj.list);
+// 禁止用空列表覆盖（避免把已有内存列表清掉）
 if(!Array.isArray(list)||!list.length)return;
 state.playlist=list.map(function(s){
 var o={id:String(s.id||''),name:s.name||'未知歌曲',artist:s.artist||'未知歌手',pic:s.pic||'',duration:0};

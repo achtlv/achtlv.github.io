@@ -22,7 +22,9 @@ return {url:fallback,expi:DEFAULT_EXPI,fromCache:false};
 
 // ==================== 音频源控制 ====================
 function stopAudio(){
+try{state._ignorePause=true;}catch(e){}
 try{audio.pause()}catch(e){}
+setTimeout(function(){try{state._ignorePause=false;}catch(e){}},30);
 if(hlsInstance){try{hlsInstance.destroy()}catch(e){}hlsInstance=null}
 if(flvInstance){try{flvInstance.destroy()}catch(e){}flvInstance=null}
 try{

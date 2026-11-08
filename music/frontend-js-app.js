@@ -197,7 +197,7 @@ setTimeout(function(){updateLyricScroll(true)},30);
 }
 }catch(e){}
 
-if($('playBtn'))$('playBtn').innerHTML=(state.playing||refreshingUrl)?ICON.pause:ICON.play;
+if($('playBtn'))$('playBtn').innerHTML=(state.playing||state.loadingUrl||refreshingUrl)?ICON.pause:ICON.play;
 $('prevBtn').disabled=!hasSongs;
 $('nextBtn').disabled=!hasSongs;
 
@@ -302,6 +302,7 @@ if(typeof updateFavBtn==='function')updateFavBtn();
 state.showLyric=false;
 state.audioUrl='';state.quality='';
 state.playing=true;
+state.loadingUrl=true;
 
 var song=state.playlist[i];
 var pe=preloadCache[song.id];
@@ -362,6 +363,7 @@ e2.urlExpireAt=Date.now()+((result.expi||DEFAULT_EXPI)*1000);
 render();
 try{
 await setAudioSource(result.url,song.format);
+state.loadingUrl=false;
 }catch(e1){
 // 失败再强刷一次链接（避免偶发过期/拦截）
 if(token!==playToken)return;
@@ -412,6 +414,7 @@ if(cachedLyric&&cachedLyric.trans){
 // 缓存含翻译才直接用；否则继续请求，避免旧缓存缺翻译
 state.lyric=cachedLyric.main||'暂无歌词';
 state.lyricTrans=cachedLyric.trans||'';
+if(state.lyricTrans&&String(state.lyricTrans).trim())state.transEnabled=true;
 state.lyricRoma=cachedLyric.roma||'';
 state.lyricLoading=false;
 var eC=getPreloadEntry(song.id);
@@ -453,6 +456,7 @@ if(token!==playToken)return;
 var m=extractLyricMulti(lr);
 state.lyric=m.main||'暂无歌词';
 state.lyricTrans=m.trans||'';
+if(state.lyricTrans&&String(state.lyricTrans).trim())state.transEnabled=true;
 state.lyricRoma=m.roma||'';
 state.lyricLoading=false;
 var e3=getPreloadEntry(song.id);
@@ -567,6 +571,16 @@ audio.play().catch(function(){});
 }
 
 async function togglePlay(){
+// 正在获取下一首链接时，点击=取消获取
+if(state.loadingUrl){
+try{playToken++;}catch(e){}
+state.loadingUrl=false;
+state.playing=false;
+try{stopAudio();}catch(e){}
+try{toast('已取消获取');}catch(e){}
+render();
+return;
+}
 if(!state.playlist.length){openAdd();return}
 if(state.current<0){playIndex(0);return}
 
@@ -2547,11 +2561,12 @@ setTimeout(function(){try{location.reload();}catch(e){}},200);
 return;
 }
 try{toast('媒体缓存已清理');}catch(e){}
+try{if(typeof restorePlaylist==='function')restorePlaylist();}catch(e){}
 try{if(typeof savePlaylist==='function')savePlaylist();}catch(e){}
+try{logEvent('action','刷新完成','list='+(state.playlist?state.playlist.length:0));}catch(e){}
 try{
 if(state.current>=0&&state.playlist[state.current]&&!state.playlist[state.current].external){
 state.audioUrl='';state.quality='';
-// 清缓存后立即重新拉链，避免点播放无响应
 var ci=state.current;
 setTimeout(function(){
 try{if(typeof playIndex==='function')playIndex(ci);}catch(e){}
@@ -2692,16 +2707,18 @@ try{restoreListHistory();}catch(e){}
 try{restoreAuthLocal();}catch(e){}
 try{if(typeof restoreSyncMetaLocal==='function')restoreSyncMetaLocal();}catch(e){}
 try{restorePlaylist();}catch(e){}
-// 再读一次，防止早先恢复失败
 try{
 if(!state.playlist||!state.playlist.length){
-var raw=localStorage.getItem(COOKIE_NAME)||localStorage.getItem(COOKIE_NAME+'_bak')||sessionStorage.getItem(COOKIE_NAME);
-if(raw)restorePlaylist();
+var raw2=null;
+try{raw2=localStorage.getItem(COOKIE_NAME);}catch(e){}
+if(!raw2){try{raw2=localStorage.getItem(COOKIE_NAME+'_bak');}catch(e){}}
+if(!raw2){try{raw2=sessionStorage.getItem(COOKIE_NAME);}catch(e){}}
+if(raw2){try{restorePlaylist();}catch(e){}}
 }
 }catch(e){}
-try{state.playing=false;state.audioUrl='';state.quality='';state.showLyric=false;}catch(e){}
+try{state.playing=false;state.loadingUrl=false;state.audioUrl='';state.quality='';state.showLyric=false;}catch(e){}
 try{if(typeof savePlaylist==='function'&&state.playlist&&state.playlist.length)savePlaylist();}catch(e){}
-try{if(typeof logAction==='function')logAction('启动恢复列表','count='+(state.playlist?state.playlist.length:0)+' current='+state.current);}catch(e){}
+try{logEvent('action','启动恢复列表','count='+(state.playlist?state.playlist.length:0)+' current='+state.current+' key='+COOKIE_NAME);}catch(e){}
 try{render();}catch(e){console.error('render',e);}
 try{
 // 恢复后若有歌，预取当前曲链接（不自动播放）

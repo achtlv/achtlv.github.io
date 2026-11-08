@@ -976,7 +976,7 @@ if(raw){
 try{
 var obj=JSON.parse(raw);
 var list=Array.isArray(obj)?obj:(obj&&obj.list);
-if(Array.isArray(list)&&list.length>=0){
+if(Array.isArray(list)&&list.length>0){
 state.playlist=list.map(function(s){
 var o={id:String(s.id||''),name:s.name||'未知歌曲',artist:s.artist||'未知歌手',pic:s.pic||'',duration:0};
 if(s.ext){o.external=true;o.url=String(s.url||'');o.srcUrl=String(s.srcUrl||'');o.format=String(s.format||'');}

@@ -140,58 +140,29 @@ async function preloadSongUrl(song){
 if(!song||!song.id)return;
 var entry=getPreloadEntry(song.id);
 if(!entry)return;
-
 if(song.external){
-entry.url=song.url;
-entry.quality='external';
-entry.urlExpireAt=0;
-entry.urlDone=true;
-return;
+entry.url=song.url;entry.quality='external';entry.urlExpireAt=0;entry.urlDone=true;return;
 }
-
-if(entry.urlDone)return;
-if(entry.quality==='exhigh'){
-entry.urlDone=true;
-return;
-}
-
+if(entry.urlDone&&entry.quality==='exhigh')return;
 var dur=song.duration&&song.duration>0?song.duration:360;
-var needRemain=dur+URL_SAFETY_BUFFER;
-
-for(var k=0;k<LEVELS.length;k++){
-var lv=LEVELS[k];
-var cached=await getCachedAudioUrl(song.id,lv,needRemain);
-if(cached){
-entry.url=cached.url;
-entry.quality=lv;
-entry.urlExpireAt=cached.expireAt;
-if(lv==='exhigh'){
-entry.urlDone=true;
-return;
-}
-break;
-}
-}
-
-for(var i=0;i<3;i++){
+var needRemain=dur+(typeof URL_SAFETY_BUFFER==='number'?URL_SAFETY_BUFFER:30);
 try{
-var r=await fetchPlayUrlOnce(song.id);
-if(r&&r.url&&isHttpUrl(r.url)){
-if(!entry.quality||qualityRank(r.level)>=qualityRank(entry.quality)){
-entry.url=r.url;
-entry.quality=r.level;
-entry.urlExpireAt=Date.now()+(r.expi||DEFAULT_EXPI)*1000;
-await saveAudioUrlToCache(song.id,r.level,r.url,r.expi);
-}
-if(entry.quality==='exhigh'){
+// 并发链路在 tryGetLevelWithCache / localGetSongUrl 内部；结果会写入本地+textdb
+var r=null;
+if(typeof fetchPlayUrl==='function')r=await fetchPlayUrl(song.id,dur);
+else if(typeof tryGetLevelWithCache==='function')r=await tryGetLevelWithCache(song.id,'exhigh',needRemain);
+if(r&&r.url){
+entry.url=(typeof ensureHttps==='function'?ensureHttps(r.url):r.url);
+entry.quality=r.level||'exhigh';
+entry.urlExpireAt=Date.now()+((r.expi||DEFAULT_EXPI||1200)*1000);
 entry.urlDone=true;
-return;
+// 再异步把 standard 也预热进缓存（不阻塞）
+if(typeof tryGetLevelWithCache==='function'){
+tryGetLevelWithCache(song.id,'standard',needRemain).catch(function(){});
+tryGetLevelWithCache(song.id,'lossless',needRemain).catch(function(){});
 }
 }
 }catch(e){}
-}
-
-schedulePreloadRetry(song,'url');
 }
 
 function schedulePreloadRetry(song,type){

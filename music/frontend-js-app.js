@@ -207,7 +207,7 @@ setTimeout(function(){updateLyricScroll(true)},30);
 }
 }catch(e){}
 
-if($('playBtn'))$('playBtn').innerHTML=(state.playing||state.loadingUrl||refreshingUrl)?ICON.pause:ICON.play;
+if($('playBtn'))$('playBtn').innerHTML=state.playing?ICON.pause:ICON.play;
 $('prevBtn').disabled=!hasSongs;
 $('nextBtn').disabled=!hasSongs;
 
@@ -572,9 +572,10 @@ if(token!==playToken)return;
 triggerPreloadNeighbors();
 }
 
-function nextSong(){
+function nextSong(forcePlay){
 if(!state.playlist.length)return;
-var keepPlay=!!state.playing||!!state.loadingUrl;
+// 只看播放意图，不看 loadingUrl（避免暂停连点下一首被当成要播放）
+var keepPlay=(forcePlay===true)?true:!!state.playing;
 var n=state.current;
 if(state.mode==='shuffle'){
 if(state.playlist.length===1){n=0}
@@ -584,7 +585,7 @@ playIndex(n,null,null,{play:keepPlay});
 }
 function prevSong(){
 if(!state.playlist.length)return;
-var keepPlay=!!state.playing||!!state.loadingUrl;
+var keepPlay=!!state.playing;
 var n=state.current;
 if(state.mode==='shuffle'){
 if(state.playlist.length===1){n=0}
@@ -851,10 +852,16 @@ render();
 updateMediaSessionPlaybackState();
 });
 audio.addEventListener('ended',function(){
-if(state.mode==='single'){
-audio.currentTime=0;
-audio.play().catch(function(){});
-}else{nextSong();}
+// 自然结束：明确保持播放意图，避免 pause 事件先把 playing 清掉
+state.playing=true;
+if(state.mode==='single'||state.mode==='loop'){
+try{audio.currentTime=0;}catch(e){}
+var p=audio.play();
+if(p&&p.catch)p.catch(function(){});
+render();
+}else{
+nextSong(true);
+}
 });
 
 // ==================== 事件绑定 ====================

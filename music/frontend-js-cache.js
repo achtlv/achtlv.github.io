@@ -127,13 +127,36 @@ mediaCacheSave(store);
 }catch(e){}
 }
 
+
+function audioCacheKeys(id,level){
+var lv=String(level||'').toLowerCase();
+var ids=String(id||'');
+var keys=[lv+ids];
+if(lv==='lossless'||lv==='flac'||lv==='hires'){keys.push('lossless'+ids,'flac'+ids);}
+else if(lv==='exhigh'||lv==='320k'||lv==='higher'){keys.push('exhigh'+ids,'320k'+ids);}
+else if(lv==='standard'||lv==='128k'){keys.push('standard'+ids,'128k'+ids);}
+// unique
+var out=[],seen={};
+for(var i=0;i<keys.length;i++){if(!seen[keys[i]]){seen[keys[i]]=1;out.push(keys[i]);}}
+return out;
+}
+function mediaCacheGetAudio(id,level){
+var keys=audioCacheKeys(id,level);
+for(var i=0;i<keys.length;i++){
+var it=mediaCacheGetEntry(keys[i]);
+if(it&&(it.url||(it.payload&&typeof it.payload==='string'))){
+return {expireAt:it.expireAt,url:it.url||it.payload,key:keys[i]};
+}
+}
+return null;
+}
+
 async function getLocalAudioUrlOnly(id,level,minRemainSec){
 if(level==='external')return null;
-var key=level+String(id);
-var local=mediaCacheGetEntry(key);
+var local=mediaCacheGetAudio(id,level);
 if(local&&local.url){
 var remainL=(local.expireAt-Date.now())/1000;
-if(remainL>=minRemainSec)return {expireAt:local.expireAt,url:local.url,fromLocal:true};
+if(remainL>=(minRemainSec||0))return {expireAt:local.expireAt,url:local.url,fromLocal:true};
 }
 return null;
 }
@@ -176,16 +199,25 @@ url=(typeof ensureHttps==='function'?ensureHttps(url):String(url).replace(/^http
 var ttl=typeof expi==='number'&&expi>0?expi:DEFAULT_EXPI;
 if(ttl>DEFAULT_EXPI)ttl=DEFAULT_EXPI;
 var expireAt=Date.now()+ttl*1000;
-var key=level+String(id);
-mediaCacheSetEntry(key,url,expireAt,'audio');
 var value=cacheEncodeValue(expireAt,url);
-await cacheSetRaw(key,value);
+var keys=audioCacheKeys(id,level);
+for(var i=0;i<keys.length;i++){
+mediaCacheSetEntry(keys[i],url,expireAt,'audio');
+}
+// textdb 只写主 key，避免爆炸
+try{await cacheSetRaw(keys[0],value);}catch(e){}
 }
 
-async function getCachedCover(id){
+function getLocalCoverOnly(id){
 var key='cover'+String(id);
 var local=mediaCacheGetEntry(key);
 if(local&&local.url)return (typeof ensureHttps==='function'?ensureHttps(local.url):local.url);
+return '';
+}
+async function getCachedCover(id){
+var loc=getLocalCoverOnly(id);
+if(loc)return loc;
+var key='cover'+String(id);
 var text=await cacheGetRaw(key);
 var data=cacheDecodeValue(text);
 if(!data)return '';
@@ -204,7 +236,7 @@ var value=cacheEncodeValue(expireAt,picUrl);
 await cacheSetRaw(key,value);
 }
 
-async function getCachedLyric(id){
+function getLocalLyricOnly(id){
 var key='lyric'+String(id);
 var local=mediaCacheGetEntry(key);
 if(local&&local.payload&&typeof local.payload==='object'){
@@ -214,6 +246,12 @@ trans:String(local.payload.t||''),
 roma:String(local.payload.r||'')
 };
 }
+return null;
+}
+async function getCachedLyric(id){
+var loc=getLocalLyricOnly(id);
+if(loc&&(loc.main||loc.trans||loc.roma))return loc;
+var key='lyric'+String(id);
 var text=await cacheGetRaw(key);
 if(!text)return null;
 var idx=text.indexOf('|');

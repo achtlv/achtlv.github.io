@@ -364,6 +364,23 @@ render();
 try{
 await setAudioSource(result.url,song.format);
 state.loadingUrl=false;
+try{
+if(pendingSeekRatio!=null&&isFinite(pendingSeekRatio)){
+var ratio=Math.max(0,Math.min(1,pendingSeekRatio));
+pendingSeekRatio=null;
+var applySeek=function(){
+try{
+if(audio.duration&&isFinite(audio.duration)&&audio.duration>0){
+audio.currentTime=ratio*audio.duration;
+updateSeekBg(ratio*100);
+$('curTime').textContent=fmt(audio.currentTime);
+}
+}catch(e){}
+};
+if(audio.readyState>=1)applySeek();
+else audio.addEventListener('loadedmetadata',function once(){audio.removeEventListener('loadedmetadata',once);applySeek();});
+}
+}catch(e){}
 }catch(e1){
 // 失败再强刷一次链接（避免偶发过期/拦截）
 if(token!==playToken)return;
@@ -719,6 +736,11 @@ try{audio.currentTime=t;}catch(e){}
 function finishSeek(){
 if(!isSeeking)return;
 isSeeking=false;
+// 取链中：只记录目标比例，拿到链接后再跳
+if(state.loadingUrl){
+try{pendingSeekRatio=Number($('seek').value)/1000;}catch(e){pendingSeekRatio=null;}
+return;
+}
 if(audio.duration&&isFinite(audio.duration)){
 var t=(parseFloat($('seek').value)/1000)*audio.duration;
 seekWithUrlCheck(t);
@@ -926,35 +948,55 @@ return true;
 }
 
 async function checkAllLevels(id){
-// 下载：先扫本地（快），本地齐了三档就返回；否则再并行远端（每路超时）
+// 只关心无损/极高/标准；官方永不主动探测
 var levels=['lossless','exhigh','standard'];
 var result={lossless:false,exhigh:false,standard:false,official:false};
 var t0=Date.now();
 try{logAction('下载音质检测开始','id='+id);}catch(e){}
-// 1) 本地
+// 1) 纯本地（同步级速度）
 for(var i=0;i<levels.length;i++){
 var lv=levels[i];
 try{
-var loc=await getLocalAudioUrlOnly(id,lv,30);
-if(loc&&loc.url){result[lv]=true;}
+var loc=await getLocalAudioUrlOnly(id,lv,10);
+if(loc&&loc.url){result[lv]=true;try{logAction('下载命中本地',lv);}catch(e){}}
 }catch(e){}
 }
 if(result.lossless&&result.exhigh&&result.standard){
 try{logAction('下载音质本地齐','id='+id+' ms='+(Date.now()-t0));}catch(e){}
 return result;
 }
-// 2) 远端并行 + 超时
+// 2) 仅 TextDB（不打解析 API）
+await Promise.all(levels.map(async function(lv){
+if(result[lv])return;
+try{
+if(typeof getTextdbAudioUrlOnly==='function'){
+var db=await getTextdbAudioUrlOnly(id,lv,10);
+if(db&&db.url){
+result[lv]=true;
+// 回填本地
+try{await saveAudioUrlToCache(id,lv,db.url,Math.max(60,Math.floor((db.expireAt-Date.now())/1000)));}catch(e){}
+try{logAction('下载命中TextDB',lv);}catch(e){}
+}
+}
+}catch(e){}
+}));
+if(result.lossless&&result.exhigh&&result.standard){
+try{logAction('下载音质缓存齐','id='+id+' ms='+(Date.now()-t0));}catch(e){}
+return result;
+}
+// 3) 缺的档位才打解析 API（并发，超时 10s），不碰官方
 function withTimeout(p,ms){
-return Promise.race([
-p,
-new Promise(function(res){setTimeout(function(){res(null);},ms);})
-]);
+return Promise.race([p,new Promise(function(res){setTimeout(function(){res(null);},ms);})]);
 }
 await Promise.all(levels.map(async function(lv){
 if(result[lv])return;
 try{
-var r=await withTimeout(tryGetLevelWithCache(id,lv,30),12000);
-if(r&&r.url)result[lv]=true;
+var r=await withTimeout(tryGetLevelWithCache(id,lv,10),10000);
+if(r&&r.url){
+result[lv]=true;
+try{await saveAudioUrlToCache(id,lv,r.url,r.expi||DEFAULT_EXPI);}catch(e){}
+try{logAction('下载命中API',lv);}catch(e){}
+}
 }catch(e){try{logError('下载音质检测失败 '+lv,e);}catch(e2){}}
 }));
 try{logAction('下载音质检测结束','id='+id+' result='+JSON.stringify(result)+' ms='+(Date.now()-t0));}catch(e){}
@@ -1359,6 +1401,8 @@ render();
 
 // ==================== 网络导出 ====================
 var exportGenerating=false;
+var pendingSeekRatio=null;
+
 if($('sheetExport'))$('sheetExport').addEventListener('click',async function(ev){
 blurControl(ev.currentTarget||this);
 if(!state.playlist.length){toast('播放列表为空');return}
@@ -2718,8 +2762,13 @@ if(raw2){try{restorePlaylist();}catch(e){}}
 }catch(e){}
 try{state.playing=false;state.loadingUrl=false;state.audioUrl='';state.quality='';state.showLyric=false;}catch(e){}
 try{if(typeof savePlaylist==='function'&&state.playlist&&state.playlist.length)savePlaylist();}catch(e){}
+try{
+if(state.playlist&&state.playlist.length&&state.current<0)state.current=0;
+}catch(e){}
 try{logEvent('action','启动恢复列表','count='+(state.playlist?state.playlist.length:0)+' current='+state.current+' key='+COOKIE_NAME);}catch(e){}
 try{render();}catch(e){console.error('render',e);}
+try{setTimeout(function(){try{if(state.playlist&&state.playlist.length&&state.current<0){state.current=0;}render();}catch(e){}},50);}catch(e){}
+try{setTimeout(function(){try{render();}catch(e){}},300);}catch(e){}
 try{
 // 恢复后若有歌，预取当前曲链接（不自动播放）
 if(state.playlist&&state.playlist.length&&state.current>=0){

@@ -458,18 +458,28 @@ async function localGetSongInfo(id){
 var songId=String(id||'').trim();
 if(!songId||!/^\d+$/.test(songId))return {code:400,msg:'无效歌曲 ID'};
 if(_songInfoMem[songId])return _songInfoMem[songId];
-// 封面缓存
+// 1) 仅本地封面
 try{
-if(typeof getCachedCover==='function'){
-var cp=await getCachedCover(songId);
-if(cp){
-var out={code:200,data:{songs:[{id:Number(songId)||songId,name:'',ar:[{name:''}],al:{picUrl:ensureHttps(cp)}}]}};
-_songInfoMem[songId]=out;
-return out;
+if(typeof getLocalCoverOnly==='function'){
+var lp=getLocalCoverOnly(songId);
+if(lp){
+var outL={code:200,data:{songs:[{id:Number(songId)||songId,name:'',ar:[{name:''}],al:{picUrl:ensureHttps(lp)}}]}};
+_songInfoMem[songId]=outL;
+return outL;
 }
 }
 }catch(e){}
+// 2) textdb + API 并发
 var tasks=[];
+tasks.push(async function(){
+try{
+if(typeof getCachedCover==='function'){
+var cp=await getCachedCover(songId);
+if(cp)return {code:200,data:{songs:[{id:Number(songId)||songId,name:'',ar:[{name:''}],al:{picUrl:ensureHttps(cp)}}]}};
+}
+}catch(e){}
+return null;
+});
 tasks.push(async function(){
 try{
 var r=await localFetchJson('https://api.paugram.com/netease/?id='+encodeURIComponent(songId),{method:'GET'},10000);
@@ -524,7 +534,20 @@ romalrc:{lyric:ensureHttpsInText(L.romalrc&&L.romalrc.lyric||L.roma||'')}
 }catch(e){}
 }
 }
-// 网易：textdb 歌词缓存 + 多接口并发
+// 1) 仅本地
+try{
+if(typeof getLocalLyricOnly==='function'){
+var loc=getLocalLyricOnly(songId);
+if(loc&&(loc.main||loc.trans||loc.roma)){
+return {code:200,data:{
+lrc:{lyric:ensureHttpsInText(loc.main||'')},
+tlyric:{lyric:ensureHttpsInText(loc.trans||'')},
+romalrc:{lyric:ensureHttpsInText(loc.roma||'')}
+}};
+}
+}
+}catch(e){}
+// 2) textdb + API 并发
 var tasks=[];
 tasks.push(async function(){
 try{

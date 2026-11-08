@@ -569,5 +569,11 @@ box-shadow:none!important;filter:none;
 .logs-item-msg.expanded{max-height:none}
 .logs-item-msg .logs-more{color:var(--primary);font-size:12px;margin-top:4px}
 #refreshAppBtn svg,#logsBack svg{width:20px;height:20px;fill:currentColor}
+.logs-dialog{max-height:80dvh;display:flex;flex-direction:column;width:min(420px,92vw);padding:12px 14px 16px}
+.logs-dialog-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-shrink:0}
+.logs-dialog-head h2{font-size:18px;font-weight:500;flex:1;margin:0}
+.logs-dialog-head .icon-btn{width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--on-surface)}
+.logs-dialog-head .icon-btn svg{width:22px;height:22px;fill:currentColor;display:block}
+.logs-dialog .logs-list{flex:1;overflow:auto;max-height:60dvh;min-height:160px;-webkit-overflow-scrolling:touch}
 </style>
 `;

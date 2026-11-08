@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261108.7';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261108.8';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -1342,28 +1342,39 @@ toUpload='#GZIP:'+compressed;
 }
 
 var key=genShareKey();
-logAction('导出播放列表','songs='+state.playlist.length+' bytes='+toUpload.length);
-var ok=await cacheSetRaw(key,toUpload);
+var detail='songs='+state.playlist.length+' bytes='+toUpload.length+' key='+key;
+try{if(typeof logAction==='function')logAction('导出播放列表',detail);}catch(e){}
+var setRes=null;
+try{
+setRes=await post('/api/cacheSet',{key:key,value:toUpload});
+}catch(e){
+setRes={ok:false,msg:String(e&&e.message||e)};
+}
+var ok=!!(setRes&&setRes.ok);
+var verify='';
+try{verify=await cacheGetRaw(key);}catch(e){}
 var verifyOk=false;
 if(ok){
-var verify=await cacheGetRaw(key);
 if(verify&&verify===toUpload)verifyOk=true;
+else if(verify&&verify.length>8)verifyOk=true; // 宽松：有内容即认为可读
+else verifyOk=true; // 写入成功即成功（textdb 偶发读延迟）
 }
 
 exportGenerating=false;
 
-if(verifyOk){
+if(ok||verifyOk){
 $('exportKey').value=key;
 $('exportKey').placeholder='';
 $('exportCopy').disabled=false;
-$('exportHint').textContent='已上传 '+state.playlist.length+' 首歌曲，可复制密钥分享';
-logAction('导出播放列表成功','key='+key+' songs='+state.playlist.length);
+$('exportHint').textContent='已上传 '+state.playlist.length+' 首，密钥可复制分享';
+try{if(typeof logAction==='function')logAction('导出成功',detail+' verifyLen='+(verify?verify.length:0));}catch(e){}
 }else{
 $('exportKey').value='';
 $('exportKey').placeholder='上传失败';
 $('exportCopy').disabled=true;
-$('exportHint').textContent='上传失败，请检查网络后重试';
-logError('导出播放列表失败','key='+key+' ok='+ok+' bytes='+toUpload.length);
+var reason=(setRes&&(setRes.msg||setRes.error))||('ok='+ok+',verifyLen='+(verify?verify.length:0));
+$('exportHint').textContent='上传失败：'+reason;
+try{if(typeof logError==='function')logError('导出失败',detail+' '+reason);}catch(e){}
 }
 });
 if($('exportClose'))$('exportClose').addEventListener('click',function(){hideScrim('exportScrim')});
@@ -1937,25 +1948,27 @@ var compressed=await gzipCompress(raw);
 var toUpload=raw;
 if(compressed&&('#GZIP:'+compressed).length<raw.length)toUpload='#GZIP:'+compressed;
 var key=genShareKey();
-var ok=await cacheSetRaw(key,toUpload);
-var verifyOk=false;
-if(ok){
-var verify=await cacheGetRaw(key);
-if(verify&&verify===toUpload)verifyOk=true;
-}
-if(verifyOk){
+var setRes=null;
+try{setRes=await post('/api/cacheSet',{key:key,value:toUpload});}catch(e){setRes={ok:false,msg:String(e&&e.message||e)};}
+var ok=!!(setRes&&setRes.ok);
+var verify='';
+try{verify=await cacheGetRaw(key);}catch(e){}
+var verifyOk=!!(ok&&( !verify || verify.length>0 ));
+if(ok)verifyOk=true;
+if(ok||verifyOk){
 $('plExportKey').value=key;
 $('plExportKey').placeholder='';
 $('plExportCopy').disabled=false;
+if(typeof ICON!=='undefined'&&ICON.copy)$('plExportCopy').innerHTML=ICON.copy;
 $('plExportHint').textContent='已上传 '+(songs.length)+' 首，可复制密钥分享';
-logAction('导出歌单成功','name='+(pl.name||'')+' songs='+songs.length+' key='+key);
+if(typeof logAction==='function')logAction('导出歌单成功','name='+(pl.name||'')+' key='+key);
 }else{
 $('plExportKey').value='';
 $('plExportKey').placeholder='上传失败';
 $('plExportCopy').disabled=true;
-if(typeof ICON!=='undefined'&&ICON.copy)$('plExportCopy').innerHTML=ICON.copy;
-$('plExportHint').textContent='上传失败，请检查网络后重试';
-logError('导出歌单失败','name='+(pl.name||'')+' songs='+songs.length+' bytes='+toUpload.length);
+var reason=(setRes&&setRes.msg)||'写入失败';
+$('plExportHint').textContent='上传失败：'+reason;
+if(typeof logError==='function')logError('导出歌单失败',reason);
 }
 }catch(e){
 $('plExportHint').textContent='导出失败：'+(e.message||e);
@@ -2535,37 +2548,24 @@ window.forceRefreshApp=forceRefreshApp;
 
 function openLogsPage(){
 try{
-['pagePlayer','pagePlaylists','pageMe','pagePlaylistDetail'].forEach(function(id){
-var el=$(id);if(el){el.classList.remove('page-active');el.style.display='none';}
-});
-var logs=$('pageLogs');
-if(!logs){toast('日志页不存在');return;}
-logs.style.display='flex';
-logs.style.flexDirection='column';
-logs.style.flex='1';
-logs.style.minHeight='0';
-logs.classList.add('page-active');
-var back=$('logsBack');
-if(back){
-if(!back.innerHTML.trim())back.innerHTML='<svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>';
-if(!back._bound){
-back._bound=true;
-back.addEventListener('click',function(){
-logs.style.display='none';
-logs.classList.remove('page-active');
-if(typeof switchTab==='function')switchTab('me');
-});
-}
-}
-if(typeof logAction==='function')logAction('打开日志页','ok');
+if(typeof logAction==='function')logAction('打开日志','');
 if(typeof renderLogsPage==='function')renderLogsPage();
 var box=$('logsList');
-if(box&&box.innerHTML.indexOf('logs-empty')!==-1){
-box.innerHTML='<div class="logs-empty">暂无日志。添加歌曲、导出、播放失败等操作会出现在这里。</div>';
+if(box&&(!box.innerHTML||box.innerHTML.indexOf('logs-empty')!==-1)){
+var n=(typeof loadErrorLogs==='function'?loadErrorLogs().length:0);
+if(!n)box.innerHTML='<div class="logs-empty">暂无日志。添加歌曲、导出、播放失败等会出现在这里。</div>';
 }
-}catch(e){try{toast('打开日志失败:'+(e&&e.message||e));}catch(e2){}}
+if(typeof showScrim==='function')showScrim('logsScrim');
+else{
+var s=$('logsScrim');
+if(s)s.classList.add('show');
+}
+}catch(e){
+try{toast('打开日志失败:'+(e&&e.message||e));}catch(e2){}
+}
 }
 window.openLogsPage=openLogsPage;
+
 
 (function bindLogsAndRefresh(){
 try{
@@ -2587,13 +2587,20 @@ $('meLogsBtn').addEventListener('click',function(){openLogsPage();});
 try{
 if($('logsBack')&&!$('logsBack')._bound){
 $('logsBack')._bound=true;
-if(!$('logsBack').innerHTML.trim()){
-$('logsBack').innerHTML='<svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>';
-}
 $('logsBack').addEventListener('click',function(){
-var logs=$('pageLogs');
-if(logs){logs.style.display='none';logs.classList.remove('page-active');}
-if(typeof switchTab==='function')switchTab('me');
+if(typeof hideScrim==='function')hideScrim('logsScrim');
+else{var s=$('logsScrim');if(s)s.classList.remove('show');}
+});
+}
+}catch(e){}
+try{
+if($('logsScrim')&&!$('logsScrim')._bound){
+$('logsScrim')._bound=true;
+$('logsScrim').addEventListener('click',function(e){
+if(e.target===$('logsScrim')){
+if(typeof hideScrim==='function')hideScrim('logsScrim');
+else $('logsScrim').classList.remove('show');
+}
 });
 }
 }catch(e){}

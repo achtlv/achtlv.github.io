@@ -107,7 +107,7 @@ var hlsLoading=null;
 var flvInstance=null;
 var flvLoading=null;
 
-var ALL_SCRIMS=['addScrim','clearScrim','renameScrim','shareScrim','downloadScrim','exportScrim','importScrim','listScrim','favScrim','loginScrim','changePassScrim','syncChoiceScrim','plImportScrim','urlKeyScrim','logoutScrim','plExportScrim','plNameScrim'];
+var ALL_SCRIMS=['logsScrim','addScrim','clearScrim','renameScrim','shareScrim','downloadScrim','exportScrim','importScrim','listScrim','favScrim','loginScrim','changePassScrim','syncChoiceScrim','plImportScrim','urlKeyScrim','logoutScrim','plExportScrim','plNameScrim'];
 
 function setIcon(id,html){var el=$(id);if(el&&html)el.innerHTML=html;}
 setIcon('shareBtn',ICON.share);

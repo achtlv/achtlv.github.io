@@ -176,13 +176,8 @@ return url.replace(/^http:\/\/(([a-z0-9.-]+)\.music\.126\.net)\//i,'https://$1/'
 function upgradeMediaUrl(url){
 if(!url||typeof url!=='string')return url;
 var u=String(url).trim();
-u=upgradeNeteaseUrl(u);
-// HTTPS 页面禁止 http 媒体：常见音频 CDN 一律升 https
-if(/^http:\/\//i.test(u)){
-if(/music\.126\.net|music\.163\.|netease|kugou\.com|qqmusic|gtimg|myqcloud|kuwo|tencentmusic|vod\./i.test(u)){
-u=u.replace(/^http:\/\//i,'https://');
-}
-}
+// HTTPS 页面禁止任何 http 媒体，一律升为 https（解决混合内容拦截）
+if(/^http:\/\//i.test(u))u=u.replace(/^http:\/\//i,'https://');
 return u;
 }
 function qualitiesForLevel(level){

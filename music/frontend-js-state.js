@@ -52,7 +52,7 @@ copy:'<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4
 };
 
 var state={
-playlist:[],current:-1,playing:false,mode:'order',playlists:[],activePlaylistId:null,listHistory:[],theme:'green',tab:'player',user:null,syncPlaylists:true,syncSettings:true,lastLocalChangeAt:0,lastCloudChangeAt:0,
+playlist:[],playlistLoading:true,current:-1,playing:false,mode:'order',playlists:[],activePlaylistId:null,listHistory:[],theme:'green',tab:'player',user:null,syncPlaylists:true,syncSettings:true,lastLocalChangeAt:0,lastCloudChangeAt:0,
 showLyric:false,lyric:'',audioUrl:'',quality:'',
 lyricTrans:'',lyricRoma:'',
 transEnabled:true,romaEnabled:false,
@@ -88,7 +88,7 @@ for(var i=0;i<state.playlist.length;i++){if(String(state.playlist[i].id)===lid){
 if(restored<0&&obj&&typeof obj.current==='number'&&obj.current>=0&&obj.current<state.playlist.length)restored=obj.current;
 state.current=restored>=0?restored:0;
 state.playing=false;
-window.__PLAYLET_PL_STATE_APPLIED__=true;
+window.__PLAYLET_PL_STATE_APPLIED__=true;state.playlistLoading=false;
 }catch(e){}
 })();
 // 尽早恢复播放列表（不依赖 utils），解决首屏空白

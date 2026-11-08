@@ -1060,9 +1060,11 @@ return raw;
 }
 function restorePlaylist(){
 try{
-// 若内存已有列表，不要用空数据覆盖
 var raw=readPlaylistRaw();
-if(raw&&applyPlaylistPayload(raw))return true;
+if(raw&&applyPlaylistPayload(raw)){
+try{state.playlistLoading=false;}catch(e){}
+return true;
+}
 }catch(e){}
 return !!(state.playlist&&state.playlist.length);
 }
@@ -1072,6 +1074,7 @@ var done=false;
 function finish(ok){
 if(done)return;
 done=true;
+try{state.playlistLoading=false;}catch(e){}
 if(typeof cb==='function')cb(ok);
 }
 if(restorePlaylist()){finish(true);return;}

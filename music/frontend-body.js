@@ -1,6 +1,4 @@
-export const BODY_INNER = String.raw`export const BODY_INNER = `
-
-<div class="app">
+export const BODY_INNER = String.raw`<div class="app">
 <div class="page page-active" id="pagePlayer">
 <header>
 <button class="icon-btn" id="shareBtn" title="分享" aria-label="分享"></button>
@@ -12,6 +10,10 @@ export const BODY_INNER = String.raw`export const BODY_INNER = `
 </header>
 
 <div id="stage">
+<div class="empty-loading" id="emptyLoading">
+<div class="empty-loading-spinner"></div>
+<div class="empty-loading-text">列表加载中…</div>
+</div>
 <div class="empty-actions" id="emptyActions" style="display:none">
 <button class="empty-add" id="emptyAdd" aria-label="添加歌曲">
 <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
@@ -415,7 +417,4 @@ export const BODY_INNER = String.raw`export const BODY_INNER = `
 <div class="logs-list" id="logsList"><div class="logs-empty">暂无日志</div></div>
 </div>
 </div>
-</div>
-
-`;
-`;
+</div>`;

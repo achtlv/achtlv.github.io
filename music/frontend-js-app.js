@@ -179,7 +179,10 @@ $('retryBtn').disabled=!!state.retrying;
 $('retryBtn').style.display='none';
 }
 
-if($('emptyActions'))$('emptyActions').style.display=hasSongs?'none':'flex';
+// 三态：加载中 / 有歌 / 确认空
+var loadingPl=!!state.playlistLoading&&!hasSongs;
+if($('emptyLoading'))$('emptyLoading').style.display=loadingPl?'flex':'none';
+if($('emptyActions'))$('emptyActions').style.display=(!hasSongs&&!loadingPl)?'flex':'none';
 $('coverBox').style.display=(hasSongs&&!state.showLyric)?'block':'none';
 $('lyricBox').style.display=(hasSongs&&state.showLyric)?'block':'none';
 

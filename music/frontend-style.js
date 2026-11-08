@@ -585,5 +585,12 @@ border:2px solid color-mix(in srgb,var(--outline) 50%,transparent);
 border-top-color:var(--on-surface-variant);
 animation:retry-spin .8s linear infinite;vertical-align:middle}
 .quality-item:not([disabled]){cursor:pointer}
+.empty-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+padding:24px;color:var(--on-surface-variant);font-size:14px}
+.empty-loading-spinner{width:36px;height:36px;border-radius:50%;
+border:3px solid color-mix(in srgb,var(--primary) 25%,transparent);
+border-top-color:var(--primary);animation:spin .8s linear infinite}
+.empty-loading-text{opacity:.85}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 `;

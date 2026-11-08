@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261108.2';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261108.3';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -2457,40 +2457,71 @@ var _origToast=typeof toast==='function'?toast:null;
 
 // ==================== 强制刷新（先同步，再版本检测） ====================
 async function forceRefreshApp(){
-toast('正在刷新...');
+toast('正在清理缓存...');
 try{
-if(state.user&&typeof syncAndMaybeRefreshKey==='function'){
-await syncAndMaybeRefreshKey();
-}else if(state.user&&typeof pushSync==='function'){
-try{await pushSync();}catch(e){}
+// 1) 只清媒体缓存：播放链接 / 封面 / 歌词（本地）
+try{localStorage.removeItem(typeof MEDIA_CACHE_KEY!=='undefined'?MEDIA_CACHE_KEY:'m3_media_cache');}catch(e){}
+try{
+if(typeof preloadCache==='object'&&preloadCache){
+for(var k in preloadCache){if(Object.prototype.hasOwnProperty.call(preloadCache,k))delete preloadCache[k];}
 }
-}catch(e){logError('刷新前同步失败',e);}
+}catch(e){}
+try{
+if(typeof preloadTimers==='object'&&preloadTimers){
+for(var t in preloadTimers){
+if(!Object.prototype.hasOwnProperty.call(preloadTimers,t))continue;
+var pt=preloadTimers[t];
+if(pt){if(pt.pic)clearTimeout(pt.pic);if(pt.lyric)clearTimeout(pt.lyric);if(pt.url)clearTimeout(pt.url);}
+delete preloadTimers[t];
+}
+}
+}catch(e){}
+// 不碰账号、歌单、播放列表、主题、设置、日志
+logAction('刷新：已清理媒体缓存');
+}catch(e){logError('清理媒体缓存失败',e);}
+
+// 2) 检查 Worker 版本，仅版本变化时软刷新页面（保留 localStorage）
 var remoteVer='';
+var localVer='';
+try{localVer=localStorage.getItem('m3_app_version')||'';}catch(e){}
 try{
 var r=await fetch(toAbsoluteApiUrl('/api/version')+'?t='+Date.now(),{cache:'no-store'});
 var d=await r.json();
 remoteVer=d&&d.version?String(d.version):'';
 }catch(e){logError('检查版本失败',e);}
-try{
-var localVer=localStorage.getItem('m3_app_version')||'';
-if(remoteVer)localStorage.setItem('m3_app_version',remoteVer);
-if(remoteVer&&localVer&&remoteVer!==localVer){
-toast('发现新版本，正在更新');
-}else{
-toast('正在重新加载');
+
+if(remoteVer){
+try{localStorage.setItem('m3_app_version',remoteVer);}catch(e){}
 }
-}catch(e){}
+if(remoteVer&&localVer&&remoteVer!==localVer){
+logAction('发现新版本，准备更新','local='+localVer+' remote='+remoteVer);
+toast('发现新版本，正在更新…');
+// 仅在版本变化时更新 SW 缓存的脚本，不清除用户数据
 try{
 if('serviceWorker' in navigator){
 var regs=await navigator.serviceWorker.getRegistrations();
-for(var i=0;i<regs.length;i++){try{await regs[i].unregister();}catch(e){}}
+for(var i=0;i<regs.length;i++){
+try{
+if(regs[i].active){try{regs[i].active.postMessage({type:'SKIP_WAITING'});}catch(e){}}
+await regs[i].update();
+}catch(e){}
 }
-if(window.caches){
-var keys=await caches.keys();
-for(var j=0;j<keys.length;j++){try{await caches.delete(keys[j]);}catch(e){}}
 }
 }catch(e){}
-location.href=location.pathname+(location.search||'')+(location.search?'&':'?')+'_v='+Date.now()+location.hash;
+setTimeout(function(){location.reload();},300);
+return;
+}
+
+toast('媒体缓存已清理');
+logAction('刷新完成','无版本更新 local='+(localVer||'')+' remote='+(remoteVer||''));
+// 若当前在播，提示可手动重进歌曲以拉新链
+try{
+if(state.current>=0&&state.playlist[state.current]&&!state.playlist[state.current].external){
+state.audioUrl='';
+state.quality='';
+}
+}catch(e){}
+try{if(typeof render==='function')render();}catch(e){}
 }
 
 (function bindLogsAndRefresh(){

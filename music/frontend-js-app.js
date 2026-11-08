@@ -299,11 +299,17 @@ toast('已重命名');
 }
 
 // ==================== 播放 ====================
-async function playIndex(i,forcedQuality,startPos){
+async function playIndex(i,forcedQuality,startPos,opts){
 if(i<0||i>=state.playlist.length)return;
+opts=opts||{};
+// opts.play: 明确指定是否播放；默认 true（点列表/确认添加等）；切歌时传入当前播放状态
+var wantPlay=(opts.play!=null)?!!opts.play:true;
 var token=++playToken;
 
 stopAudio();
+// 换歌时清空「用户在取链中拖动」的标记（除非显式带了 startPos）
+pendingSeekFromUser=false;
+pendingSeekRatio=null;
 resetProgressUI();
 
 state.current=i;
@@ -311,7 +317,7 @@ try{savePlaylist();}catch(e){}
 if(typeof updateFavBtn==='function')updateFavBtn();
 state.showLyric=false;
 state.audioUrl='';state.quality='';
-state.playing=true;
+state.playing=wantPlay;
 state.loadingUrl=true;
 
 var song=state.playlist[i];
@@ -381,22 +387,46 @@ return;
 }
 state.loadingUrl=false;
 try{
-if(pendingSeekRatio!=null&&isFinite(pendingSeekRatio)){
-var ratio=Math.max(0,Math.min(1,pendingSeekRatio));
+var ratioToApply=null;
+if(typeof startPos==='number'&&startPos>0&&audio.duration){
+// startPos 为秒
+ratioToApply=null;
+var secPos=startPos;
+var applySec=function(){
+try{
+if(audio.duration&&isFinite(audio.duration)&&audio.duration>0){
+audio.currentTime=Math.min(secPos,audio.duration);
+updateSeekBg((audio.currentTime/audio.duration)*100);
+$('curTime').textContent=fmt(audio.currentTime);
+}
+}catch(e){}
+};
+if(audio.readyState>=1)applySec();
+else audio.addEventListener('loadedmetadata',function once(){audio.removeEventListener('loadedmetadata',once);applySec();});
+}else if(pendingSeekFromUser&&pendingSeekRatio!=null&&isFinite(pendingSeekRatio)){
+ratioToApply=Math.max(0,Math.min(1,pendingSeekRatio));
 pendingSeekRatio=null;
+pendingSeekFromUser=false;
 var applySeek=function(){
 try{
 if(audio.duration&&isFinite(audio.duration)&&audio.duration>0){
-audio.currentTime=ratio*audio.duration;
-updateSeekBg(ratio*100);
+audio.currentTime=ratioToApply*audio.duration;
+updateSeekBg(ratioToApply*100);
 $('curTime').textContent=fmt(audio.currentTime);
 }
 }catch(e){}
 };
 if(audio.readyState>=1)applySeek();
 else audio.addEventListener('loadedmetadata',function once(){audio.removeEventListener('loadedmetadata',once);applySeek();});
+}else{
+pendingSeekRatio=null;
+pendingSeekFromUser=false;
 }
 }catch(e){}
+// 暂停意图：确保不会因 setAudioSource 内部逻辑而播起来
+if(!state.playing){
+try{audio.pause();}catch(e){}
+}
 }catch(e1){
 // 失败再强刷一次链接（避免偶发过期/拦截）
 if(token!==playToken)return;
@@ -544,21 +574,23 @@ triggerPreloadNeighbors();
 
 function nextSong(){
 if(!state.playlist.length)return;
+var keepPlay=!!state.playing||!!state.loadingUrl;
 var n=state.current;
 if(state.mode==='shuffle'){
 if(state.playlist.length===1){n=0}
 else{do{n=Math.floor(Math.random()*state.playlist.length)}while(n===state.current)}
 }else{n=(state.current+1)%state.playlist.length;}
-playIndex(n);
+playIndex(n,null,null,{play:keepPlay});
 }
 function prevSong(){
 if(!state.playlist.length)return;
+var keepPlay=!!state.playing||!!state.loadingUrl;
 var n=state.current;
 if(state.mode==='shuffle'){
 if(state.playlist.length===1){n=0}
 else{do{n=Math.floor(Math.random()*state.playlist.length)}while(n===state.current)}
 }else{n=(state.current-1+state.playlist.length)%state.playlist.length;}
-playIndex(n);
+playIndex(n,null,null,{play:keepPlay});
 }
 
 async function resumeWithRefresh(pos){
@@ -744,6 +776,9 @@ toast(e.message||'跳转失败');
 
 if($('seek'))$('seek').addEventListener('input',function(){
 isSeeking=true;
+if(state.loadingUrl||!state.audioUrl){
+try{pendingSeekRatio=Number(this.value)/1000;pendingSeekFromUser=true;}catch(e){}
+}
 var pct=parseFloat(this.value)/10;
 updateSeekBg(pct);
 if(audio.duration&&isFinite(audio.duration)){
@@ -756,8 +791,11 @@ function finishSeek(){
 if(!isSeeking)return;
 isSeeking=false;
 // 取链中：只记录目标比例，拿到链接后再跳
-if(state.loadingUrl){
-try{pendingSeekRatio=Number($('seek').value)/1000;}catch(e){pendingSeekRatio=null;}
+if(state.loadingUrl||!state.audioUrl){
+try{
+pendingSeekRatio=Number($('seek').value)/1000;
+pendingSeekFromUser=true;
+}catch(e){pendingSeekRatio=null;pendingSeekFromUser=false;}
 return;
 }
 if(audio.duration&&isFinite(audio.duration)){
@@ -1437,6 +1475,7 @@ render();
 // ==================== 网络导出 ====================
 var exportGenerating=false;
 var pendingSeekRatio=null;
+var pendingSeekFromUser=false;;
 
 if($('sheetExport'))$('sheetExport').addEventListener('click',async function(ev){
 blurControl(ev.currentTarget||this);
@@ -2644,12 +2683,77 @@ try{if(typeof restorePlaylist==='function')restorePlaylist();}catch(e){}
 try{if(typeof savePlaylist==='function')savePlaylist();}catch(e){}
 try{logEvent('action','刷新完成','list='+(state.playlist?state.playlist.length:0));}catch(e){}
 try{
-if(state.current>=0&&state.playlist[state.current]&&!state.playlist[state.current].external){
-state.audioUrl='';state.quality='';
+var wasPlaying=!!state.playing;
+var resumePos=0;
+try{resumePos=audio.currentTime||0;}catch(e){}
 var ci=state.current;
-setTimeout(function(){
-try{if(typeof playIndex==='function')playIndex(ci);}catch(e){}
-},50);
+if(ci>=0&&state.playlist[ci]&&!state.playlist[ci].external){
+// 清的是媒体缓存，重新取链；保持暂停/播放意图与进度
+// 使用 playToken，暂停/取消获取时 togglePlay 会 ++playToken
+var token=++playToken;
+state.audioUrl='';
+state.quality='';
+state.loadingUrl=true;
+state.playing=wasPlaying;
+render();
+(async function(){
+try{
+var song=state.playlist[ci];
+if(!song)return;
+var result=null;
+if(typeof fetchPlayUrl==='function')result=await fetchPlayUrl(song.id,song.duration);
+else if(typeof tryGetLevelWithCache==='function')result=await tryGetLevelWithCache(song.id,'exhigh',30);
+// 用户已点暂停取消
+if(token!==playToken){
+state.loadingUrl=false;
+try{audio.pause();}catch(e){}
+render();
+return;
+}
+if(result&&result.url){
+state.audioUrl=result.url;
+state.quality=result.level||'exhigh';
+await setAudioSource(result.url,song.format);
+if(token!==playToken||!state.playing){
+state.loadingUrl=false;
+try{audio.pause();}catch(e){}
+render();
+return;
+}
+state.loadingUrl=false;
+var applyPos=function(){
+if(token!==playToken){try{audio.pause();}catch(e){}return;}
+try{
+if(resumePos>0&&audio.duration&&isFinite(audio.duration)){
+audio.currentTime=Math.min(resumePos,audio.duration);
+updateSeekBg((audio.currentTime/audio.duration)*100);
+$('curTime').textContent=fmt(audio.currentTime);
+}
+}catch(e){}
+if(token!==playToken||!state.playing){try{audio.pause();}catch(e){}state.playing=false;render();return;}
+try{var p=audio.play();if(p&&p.catch)p.catch(function(){});}catch(e){}
+render();
+};
+if(audio.readyState>=1)applyPos();
+else audio.addEventListener('loadedmetadata',function once(){audio.removeEventListener('loadedmetadata',once);applyPos();});
+}else{
+if(token===playToken){
+state.loadingUrl=false;
+state.playing=false;
+render();
+}
+}
+}catch(e){
+if(token===playToken){
+state.loadingUrl=false;
+if(!wasPlaying)state.playing=false;
+render();
+}
+}
+})();
+}else{
+state.loadingUrl=false;
+render();
 }
 }catch(e){}
 try{if(typeof render==='function')render();}catch(e){}
@@ -2659,7 +2763,6 @@ window.forceRefreshApp=forceRefreshApp;
 
 function openLogsPage(){
 try{
-if(typeof logAction==='function')logAction('打开日志','');
 if(typeof renderLogsPage==='function')renderLogsPage();
 var box=$('logsList');
 if(box&&(!box.innerHTML||box.innerHTML.indexOf('logs-empty')!==-1)){

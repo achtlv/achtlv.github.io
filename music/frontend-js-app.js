@@ -1,4 +1,5 @@
-export const APP_SCRIPT = String.raw`function blurControl(el){
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261108.2';
+function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
 }
@@ -902,27 +903,20 @@ return true;
 }
 
 async function checkAllLevels(id){
-// 下载探测：每个音质只走一遍 本地→API→TextDB；minRemain 放宽以便用上本地缓存
-var levels=['exhigh','standard','lossless'];
+// 下载：只探测 lossless/exhigh/standard；本地→API→TextDB；拿齐三个非官方源即停；不探测官方
+var levels=['lossless','exhigh','standard'];
 var result={lossless:false,exhigh:false,standard:false,official:false};
 for(var i=0;i<levels.length;i++){
 var lv=levels[i];
 try{
-// 先看本地（几乎不耗时）
 var loc=await getLocalAudioUrlOnly(id,lv,30);
 if(loc&&loc.url){result[lv]=true;continue;}
 var r=await tryGetLevelWithCache(id,lv,30);
 if(r&&r.url)result[lv]=true;
 }catch(e){}
+// 已拿齐三个则提前结束
+if(result.lossless&&result.exhigh&&result.standard)break;
 }
-
-try{
-var vipNeeded=await checkVipNeeded(id);
-result.official=!vipNeeded;
-}catch(e){
-result.official=false;
-}
-
 return result;
 }
 
@@ -1911,58 +1905,82 @@ $('plDetailDelete')&&($('plDetailDelete').innerHTML=(ICON&&ICON.del)||'<svg view
 if($('plDetailBack')){try{$('plDetailBack').addEventListener('click',function(ev){blurControl(ev.currentTarget||this);});}catch(e){}
 $('plDetailBack').innerHTML='<svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>';$('plDetailBack').addEventListener('click',closePlaylistDetail);}
 
-if($('plDetailExport'))$('plDetailExport').addEventListener('click',function(){
+if($('plDetailExport'))$('plDetailExport').addEventListener('click',async function(){
 if(!viewingPlId)return;
 var pl=getPlaylist(viewingPlId);
 if(!pl)return;
-$('plExportName').textContent=pl.name||'歌单';
 window._exportingPl=pl;
+$('plExportName').textContent=pl.name||'歌单';
+$('plExportKey').value='';
+$('plExportKey').placeholder='正在上传...';
+$('plExportCopy').disabled=true;
+$('plExportHint').textContent='正在将歌单上传到网络...';
 showScrim('plExportScrim');
-});
-if($('plExportCancel'))$('plExportCancel').addEventListener('click',function(){hideScrim('plExportScrim');});
-if($('plExportKeyBtn'))$('plExportKeyBtn').addEventListener('click',async function(){
-var pl=window._exportingPl;
-if(!pl)return;
 try{
-var text=typeof buildListText==='function'?buildListText(pl.songs||[]):JSON.stringify(pl.songs||[]);
-// use same format as playlist export - list text lines
-if(typeof songsToListText==='function')text=songsToListText(pl.songs||[]);
-else if(typeof exportPlaylistText==='function')text=exportPlaylistText(pl.songs||[]);
-else{
-text=(pl.songs||[]).map(function(s){
-if(s.external)return (s.url||'')+'\t'+(s.name||'')+'\t'+(s.artist||'');
-return String(s.id||'')+'\t'+(s.name||'')+'\t'+(s.artist||'');
-}).join('\n');
+var songs=pl.songs||[];
+var raw=songs.map(function(s){
+var name=(s.name||'').split('|').join(' ');
+var artist=(s.artist||'').split('|').join(' ');
+var pic=(s.pic||'').split('|').join(' ');
+if(s.external)return (s.url||'')+'|'+name+'|'+artist+'|'+(s.srcUrl||'');
+return String(s.id||'')+'|'+name+'|'+artist+(pic?'|'+pic:'');
+}).join('\\n');
+var compressed=await gzipCompress(raw);
+var toUpload=raw;
+if(compressed&&('#GZIP:'+compressed).length<raw.length)toUpload='#GZIP:'+compressed;
+var key=genShareKey();
+var ok=await cacheSetRaw(key,toUpload);
+var verifyOk=false;
+if(ok){
+var verify=await cacheGetRaw(key);
+if(verify&&verify===toUpload)verifyOk=true;
 }
-var key='pl'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-var r=await post('/api/cacheSet',{key:key,value:text});
-if(r&&r.ok){
-try{await navigator.clipboard.writeText(key);toast('密钥已复制：'+key);}
-catch(e){toast('密钥：'+key);}
-}else toast('导出密钥失败');
-}catch(e){toast('导出失败');}
-hideScrim('plExportScrim');
+if(verifyOk){
+$('plExportKey').value=key;
+$('plExportKey').placeholder='';
+$('plExportCopy').disabled=false;
+$('plExportHint').textContent='已上传 '+(songs.length)+' 首，可复制密钥分享';
+}else{
+$('plExportKey').value='';
+$('plExportKey').placeholder='上传失败';
+$('plExportCopy').disabled=true;
+$('plExportHint').textContent='上传失败，请检查网络后重试';
+}
+}catch(e){
+$('plExportHint').textContent='导出失败：'+(e.message||e);
+logError('导出歌单失败',e);
+}
 });
-if($('plExportGzipBtn'))$('plExportGzipBtn').addEventListener('click',async function(){
+if($('plExportClose'))$('plExportClose').addEventListener('click',function(){hideScrim('plExportScrim');});
+if($('plExportScrim'))$('plExportScrim').addEventListener('click',function(e){if(e.target===this)hideScrim('plExportScrim');});
+if($('plExportCopy'))$('plExportCopy').addEventListener('click',async function(){
+var key=$('plExportKey').value;
+if(!key){toast('请等待上传完成');return;}
+try{await navigator.clipboard.writeText(key);toast('密钥已复制');}
+catch(e){toast('复制失败：'+key);}
+});
+if($('plExportDownload'))$('plExportDownload').addEventListener('click',async function(){
 var pl=window._exportingPl;
 if(!pl)return;
 try{
-var text=(pl.songs||[]).map(function(s){
-if(s.external)return (s.url||'')+'\t'+(s.name||'')+'\t'+(s.artist||'');
-return String(s.id||'')+'\t'+(s.name||'')+'\t'+(s.artist||'');
-}).join('\n');
-var blob;
-if(typeof gzipCompress==='function'){
-var gz=await gzipCompress(text);
-blob=new Blob([gz],{type:'application/octet-stream'});
-}else blob=new Blob([text],{type:'text/plain'});
+var songs=pl.songs||[];
+var raw=songs.map(function(s){
+var name=(s.name||'').split('|').join(' ');
+var artist=(s.artist||'').split('|').join(' ');
+var pic=(s.pic||'').split('|').join(' ');
+if(s.external)return (s.url||'')+'|'+name+'|'+artist+'|'+(s.srcUrl||'');
+return String(s.id||'')+'|'+name+'|'+artist+(pic?'|'+pic:'');
+}).join('\\n');
+var compressed=await gzipCompress(raw);
+var text=compressed?('#GZIP:'+compressed):raw;
+var blob=new Blob([text],{type:'text/plain;charset=utf-8'});
 var a=document.createElement('a');
 a.href=URL.createObjectURL(blob);
-a.download=(pl.name||'playlist')+'.txt';
-a.click();
+a.download='playlist_'+(pl.name||'export').replace(/[\\\\/:*?"<>|]/g,'_')+'.txt';
+document.body.appendChild(a);a.click();a.remove();
+setTimeout(function(){URL.revokeObjectURL(a.href)},3000);
 toast('已开始下载');
-}catch(e){toast('导出失败');}
-hideScrim('plExportScrim');
+}catch(e){toast('下载失败');logError('下载歌单失败',e);}
 });
 
 if($('plDetailPlay'))$('plDetailPlay').addEventListener('click',function(){
@@ -2377,6 +2395,137 @@ if(ei&&!ei._bound){ei._bound=true;ei.addEventListener('click',function(ev){blurC
 }catch(e){}
 }
 
+
+// ==================== 本地错误日志（最多 10 条，不上云） ====================
+var LOG_KEY='m3_error_logs';
+function loadErrorLogs(){
+try{var a=JSON.parse(localStorage.getItem(LOG_KEY)||'[]');return Array.isArray(a)?a:[];}catch(e){return [];}
+}
+function saveErrorLogs(list){
+try{localStorage.setItem(LOG_KEY,JSON.stringify(list.slice(-10)));}catch(e){}
+}
+function logError(msg,err){
+try{
+var list=loadErrorLogs();
+var detail='';
+if(err){
+if(typeof err==='string')detail=err;
+else if(err.stack)detail=String(err.stack);
+else if(err.message)detail=String(err.message);
+else detail=JSON.stringify(err);
+}
+list.push({t:Date.now(),msg:String(msg||'错误'),detail:detail});
+while(list.length>10)list.shift();
+saveErrorLogs(list);
+}catch(e){}
+}
+function renderLogsPage(){
+var box=$('logsList');
+if(!box)return;
+var list=loadErrorLogs().slice().reverse();
+if(!list.length){box.innerHTML='<div class="logs-empty">暂无日志</div>';return;}
+box.innerHTML=list.map(function(item,idx){
+var realIdx=list.length-1-idx;
+var time=new Date(item.t||0).toLocaleString();
+var safeMsg=(item.msg||'').replace(/</g,'&lt;');
+var safeDetail=(item.detail||'').replace(/</g,'&lt;');
+return '<div class="logs-item" data-log="'+realIdx+'"><div class="logs-item-time">'+time+'</div><div class="logs-item-msg"><b>'+safeMsg+'</b>\\n'+safeDetail+'</div><div class="logs-item-actions"><button class="text-btn log-copy" type="button">复制</button><button class="text-btn log-del" type="button">删除</button></div></div>';
+}).join('');
+}
+// 包装 toast 中的失败信息也可记录关键错误
+var _origToast=typeof toast==='function'?toast:null;
+
+// ==================== 强制刷新（先同步，再版本检测） ====================
+async function forceRefreshApp(){
+toast('正在刷新...');
+try{
+if(state.user&&typeof syncAndMaybeRefreshKey==='function'){
+await syncAndMaybeRefreshKey();
+}else if(state.user&&typeof pushSync==='function'){
+try{await pushSync();}catch(e){}
+}
+}catch(e){logError('刷新前同步失败',e);}
+var remoteVer='';
+try{
+var r=await fetch(toAbsoluteApiUrl('/api/version')+'?t='+Date.now(),{cache:'no-store'});
+var d=await r.json();
+remoteVer=d&&d.version?String(d.version):'';
+}catch(e){logError('检查版本失败',e);}
+try{
+var localVer=localStorage.getItem('m3_app_version')||'';
+if(remoteVer)localStorage.setItem('m3_app_version',remoteVer);
+if(remoteVer&&localVer&&remoteVer!==localVer){
+toast('发现新版本，正在更新');
+}else{
+toast('正在重新加载');
+}
+}catch(e){}
+try{
+if('serviceWorker' in navigator){
+var regs=await navigator.serviceWorker.getRegistrations();
+for(var i=0;i<regs.length;i++){try{await regs[i].unregister();}catch(e){}}
+}
+if(window.caches){
+var keys=await caches.keys();
+for(var j=0;j<keys.length;j++){try{await caches.delete(keys[j]);}catch(e){}}
+}
+}catch(e){}
+location.href=location.pathname+(location.search||'')+(location.search?'&':'?')+'_v='+Date.now()+location.hash;
+}
+
+(function bindLogsAndRefresh(){
+if($('refreshAppBtn'))$('refreshAppBtn').addEventListener('click',function(ev){
+blurControl(ev.currentTarget||this);
+forceRefreshApp();
+});
+if($('meLogsBtn'))$('meLogsBtn').addEventListener('click',function(){
+if(typeof switchTab==='function'){
+// 显示日志页
+var map=['pagePlayer','pagePlaylists','pageMe','pagePlaylistDetail'];
+map.forEach(function(id){var el=$(id);if(el){el.classList.remove('page-active');el.style.display='none';}});
+var logs=$('pageLogs');
+if(logs){logs.style.display='flex';logs.classList.add('page-active');}
+renderLogsPage();
+}
+});
+if($('logsBack'))$('logsBack').addEventListener('click',function(){
+var logs=$('pageLogs');
+if(logs){logs.style.display='none';logs.classList.remove('page-active');}
+if(typeof switchTab==='function')switchTab('me');
+});
+if($('logsList'))$('logsList').addEventListener('click',function(e){
+var copy=e.target.closest('.log-copy');
+var del=e.target.closest('.log-del');
+var item=e.target.closest('.logs-item');
+if(!item)return;
+var idx=parseInt(item.getAttribute('data-log'),10);
+var list=loadErrorLogs();
+if(copy){
+var row=list[idx];
+var text=(row&&(row.msg+'\\n'+row.detail))||'';
+(async function(){
+try{await navigator.clipboard.writeText(text);toast('已复制');}
+catch(err){toast('复制失败');}
+})();
+return;
+}
+if(del){
+list.splice(idx,1);
+saveErrorLogs(list);
+renderLogsPage();
+toast('已删除');
+}
+});
+// 全局错误捕获
+window.addEventListener('error',function(ev){
+logError('window.error',(ev&&ev.error)||(ev&&ev.message)||ev);
+});
+window.addEventListener('unhandledrejection',function(ev){
+logError('unhandledrejection',(ev&&ev.reason)||ev);
+});
+})();
+
+
 // ==================== 启动 ====================
 (function boot(){
 try{updateSeekBg(0);}catch(e){}
@@ -2417,6 +2566,7 @@ setTimeout(function(){try{handleUrlParams();}catch(e){}},300);
 
 // 确保歌单/我的页按钮一定有事件（防前面脚本中断）
 
+try{if(typeof APP_VERSION!=='undefined')localStorage.setItem('m3_app_version',APP_VERSION);}catch(e){}
 state._booted=true;
 if('serviceWorker' in navigator){
 window.addEventListener('load',function(){

@@ -3,7 +3,10 @@ export const PLAYLISTS_SCRIPT = String.raw`
 function songKey(s){
 if(!s)return '';
 if(s.external)return 'ext:'+String(s.url||'').trim();
-return 'id:'+String(s.id||'').trim();
+var id=String(s.id||'').trim();
+if(/^kg/i.test(id))return 'kg:'+id.toLowerCase();
+if(/^[a-fA-F0-9]{32}$/.test(id))return 'kg:kg'+id.toLowerCase();
+return 'wy:'+id;
 }
 
 function genPlId(){
@@ -107,7 +110,8 @@ var k=songKey(song);
 pl.songs=pl.songs.filter(function(s){return songKey(s)!==k;});
 var copy={
 id:song.id,name:song.name,artist:song.artist,pic:song.pic||'',
-duration:song.duration||0,external:!!song.external,url:song.url||'',format:song.format||''
+duration:song.duration||0,external:!!song.external,url:song.url||'',format:song.format||'',
+source:song.source||(/^kg/i.test(String(song.id||''))?'kg':'wy')
 };
 if(toTop!==false)pl.songs.unshift(copy);
 else pl.songs.push(copy);
@@ -342,7 +346,8 @@ function insertSongNext(song){
 if(!song)return;
 var copy={
 id:song.id,name:song.name,artist:song.artist,pic:song.pic||'',
-duration:song.duration||0,external:!!song.external,url:song.url||'',format:song.format||''
+duration:song.duration||0,external:!!song.external,url:song.url||'',format:song.format||'',
+source:song.source||(/^kg/i.test(String(song.id||''))?'kg':'wy')
 };
 var k=songKey(copy);
 // 若已在列表中，先移除再插入
@@ -361,7 +366,8 @@ function playSongFromPlaylist(song){
 if(!song)return;
 var copy={
 id:song.id,name:song.name,artist:song.artist,pic:song.pic||'',
-duration:song.duration||0,external:!!song.external,url:song.url||'',format:song.format||''
+duration:song.duration||0,external:!!song.external,url:song.url||'',format:song.format||'',
+source:song.source||(/^kg/i.test(String(song.id||''))?'kg':'wy')
 };
 var k=songKey(copy);
 if(state.current>=0&&state.playlist.length){
@@ -388,25 +394,19 @@ toast('已开始播放「'+(pl.name||'歌单')+'」');
 function renderMePage(){
 var label=$('meUserLabel');
 var loginBtn=$('meLoginBtn');
-var logoutBtn=$('meLogoutBtn');
-var syncBtn=$('meSyncBtn');
-var changeBtn=$('meChangePassBtn');
+var authActions=$('meAuthActions');
 var syncOpts=$('meSyncOpts');
 if(state.user){
 label.textContent='已登录：'+state.user.username;
-loginBtn.style.display='none';
-if(logoutBtn)logoutBtn.style.display='';
-if(syncBtn)syncBtn.style.display='';
-if(changeBtn)changeBtn.style.display='';
+if(loginBtn)loginBtn.style.display='none';
+if(authActions)authActions.style.display='flex';
 if(syncOpts)syncOpts.style.display='';
 if($('syncPlaylists'))$('syncPlaylists').checked=!!state.syncPlaylists;
 if($('syncSettings'))$('syncSettings').checked=!!state.syncSettings;
 }else{
 label.textContent='未登录';
-loginBtn.style.display='';
-if(logoutBtn)logoutBtn.style.display='none';
-if(syncBtn)syncBtn.style.display='none';
-if(changeBtn)changeBtn.style.display='none';
+if(loginBtn)loginBtn.style.display='';
+if(authActions)authActions.style.display='none';
 if(syncOpts)syncOpts.style.display='none';
 }
 document.querySelectorAll('.theme-dot').forEach(function(dot){
@@ -419,7 +419,7 @@ if(window.__pendingTab){var p=window.__pendingTab;window.__pendingTab=null;if(!t
 
 if(!tab)return;
 state.tab=tab;
-var map={player:'pagePlayer',playlists:'pagePlaylists',me:'pageMe'};
+var map={player:'pagePlayer',playlists:'pagePlaylists',me:'pageMe',logs:'pageLogs'};
 Object.keys(map).forEach(function(t){
 var el=$(map[t]);
 if(!el)return;

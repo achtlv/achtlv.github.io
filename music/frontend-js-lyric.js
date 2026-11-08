@@ -100,6 +100,22 @@ if(ms2<0)return null;
 return n0*3600+n1*60+n2+ms2/1000;
 }
 
+function cleanLyricMeta(text){
+if(!text)return '';
+var lines=String(text).split(/\r?\n/);
+var out=[];
+for(var i=0;i<lines.length;i++){
+var line=lines[i];
+if(!line||!String(line).trim()){out.push(line);continue;}
+var t=String(line).trim();
+// 保留时间轴 [00:12.00] / [00:12.00]xxx
+if(/^\[\d{1,2}:\d{2}/.test(t)){out.push(line);continue;}
+// 去掉元信息 [ti:] [ar:] [al:] [by:] [hash:] [id:] [sign:] [qq:] [total:] [offset:] [sign:] 等
+if(/^\[[a-zA-Z$][^\]]*:/.test(t))continue;
+out.push(line);
+}
+return out.join('\n').replace(/^\n+/,'').replace(/\n+$/,'');
+}
 function stripTimeTags(line){
 var tags=[];
 var j=0;
@@ -198,6 +214,11 @@ var mainP=parseRichLyric(main),transP=parseRichLyric(trans),romaP=parseRichLyric
 // 仅时间轴、无有效正文的翻译/音译视为空
 if(transP&&!hasMeaningfulLyricText(transP))transP='';
 if(romaP&&!hasMeaningfulLyricText(romaP))romaP='';
+if(typeof cleanLyricMeta==='function'){
+mainP=cleanLyricMeta(mainP);
+transP=cleanLyricMeta(transP);
+romaP=cleanLyricMeta(romaP);
+}
 return {main:mainP,trans:transP,roma:romaP};
 }
 

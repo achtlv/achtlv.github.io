@@ -34,7 +34,8 @@ text-overflow:ellipsis;color:var(--on-surface);max-width:100%}
 .meta p{font-size:13px;color:var(--on-surface-variant);white-space:nowrap;overflow:hidden;
 text-overflow:ellipsis;margin-top:2px;display:flex;align-items:center;gap:8px;justify-content:center;max-width:100%}
 .meta p .artist-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-#shareBtn{position:absolute;top:18px;right:0}
+#shareBtn{position:absolute;top:18px;left:0}
+#refreshAppBtn{position:absolute;top:18px;right:0}
 .badge{display:inline-block;padding:1px 8px;border-radius:9px;font-size:11px;font-weight:500;
 background:color-mix(in srgb,var(--primary) 15%,transparent);color:var(--primary);
 vertical-align:middle;line-height:1.5;flex-shrink:0;white-space:nowrap}
@@ -350,7 +351,7 @@ margin:0;
 header{padding:4px 46px 10px}
 .meta h1{font-size:22px}
 .meta p{font-size:13.5px}
-#shareBtn{top:0}
+#shareBtn,#refreshAppBtn{top:0}
 .cover-box{max-height:400px;border-radius:24px}
 .controls{gap:24px;padding:14px 0 8px}
 .controls .icon-btn{width:58px;height:58px}
@@ -542,5 +543,13 @@ max-width:100%;
 .add-src.active{background:color-mix(in srgb,var(--primary) 22%,transparent);border-color:color-mix(in srgb,var(--primary) 45%,transparent);color:var(--primary);font-weight:600}
 .add-head-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
 .add-head-row h2{margin:0;flex-shrink:0}
+.me-auth-actions{display:flex;gap:8px;margin-top:10px}
+.me-auth-actions .text-btn{flex:1;justify-content:center;padding:10px 6px;font-size:13px}
+.logs-list{flex:1;overflow:auto;padding:8px 0 24px}
+.logs-item{background:var(--surface-container);border-radius:12px;padding:12px;margin-bottom:10px}
+.logs-item-time{font-size:11px;color:var(--on-surface-variant);margin-bottom:6px}
+.logs-item-msg{font-size:13px;word-break:break-word;white-space:pre-wrap;max-height:120px;overflow:auto}
+.logs-item-actions{display:flex;gap:8px;margin-top:8px}
+.logs-empty{text-align:center;color:var(--on-surface-variant);padding:40px 12px;font-size:14px}
 </style>
 `;

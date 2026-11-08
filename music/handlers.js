@@ -141,39 +141,94 @@ export async function handleGetSongLyric(id) {
   const songId = String(id || "").trim();
   if (!songId) return json({ code: 400, msg: "无效歌曲 ID" }, 400);
 
-  // 酷狗歌词
+  function stripMeta(text) {
+    if (!text) return "";
+    return String(text)
+      .split(/\r?\n/)
+      .filter((line) => {
+        const t = line.trim();
+        if (!t) return true;
+        if (/^\[\d{1,2}:\d{2}/.test(t)) return true;
+        if (/^\[[a-zA-Z$][^\]]*:/.test(t)) return false;
+        return true;
+      })
+      .join("\n")
+      .replace(/^\n+/, "")
+      .replace(/\n+$/, "");
+  }
+
+  // 酷狗歌词 + 翻译
   if (/^kg/i.test(songId) || /^[a-fA-F0-9]{32}$/.test(songId)) {
     let hash = /^kg/i.test(songId) ? songId.slice(2) : songId;
     hash = String(hash).toLowerCase().replace(/[^a-f0-9]/g, "");
-    if (hash.length !== 32) return json({ code: 200, data: { lrc: { lyric: "" }, tlyric: { lyric: "" }, romalrc: { lyric: "" } } });
+    if (hash.length !== 32)
+      return json({ code: 200, data: { lrc: { lyric: "" }, tlyric: { lyric: "" }, romalrc: { lyric: "" } } });
     try {
       const searchRes = await fetch(
         "https://krcs.kugou.com/search?ver=1&man=yes&client=mobi&hash=" + encodeURIComponent(hash),
         { headers: { "User-Agent": "Mozilla/5.0" }, redirect: "follow" }
       );
       const searchData = await searchRes.json();
-      const cand = searchData && searchData.candidates && searchData.candidates[0];
-      if (!cand || !cand.id || !cand.accesskey) {
+      const list = (searchData && searchData.candidates) || [];
+      if (!list.length)
         return json({ code: 200, data: { lrc: { lyric: "" }, tlyric: { lyric: "" }, romalrc: { lyric: "" } } });
-      }
-      const dl = await fetch(
-        "https://krcs.kugou.com/download?ver=1&client=pc&id=" +
-          encodeURIComponent(cand.id) +
-          "&accesskey=" +
-          encodeURIComponent(cand.accesskey) +
-          "&fmt=lrc&charset=utf8",
-        { headers: { "User-Agent": "Mozilla/5.0" }, redirect: "follow" }
-      );
-      const dlData = await dl.json();
-      let lyric = "";
-      if (dlData && dlData.content) {
+
+      async function dlLyric(cand) {
+        if (!cand || !cand.id || !cand.accesskey) return "";
+        const dl = await fetch(
+          "https://krcs.kugou.com/download?ver=1&client=pc&id=" +
+            encodeURIComponent(cand.id) +
+            "&accesskey=" +
+            encodeURIComponent(cand.accesskey) +
+            "&fmt=lrc&charset=utf8",
+          { headers: { "User-Agent": "Mozilla/5.0" }, redirect: "follow" }
+        );
+        const dlData = await dl.json();
+        if (!dlData || !dlData.content) return "";
         try {
-          lyric = Buffer.from(String(dlData.content), "base64").toString("utf8");
+          return Buffer.from(String(dlData.content), "base64").toString("utf8");
         } catch (e) {
-          lyric = String(dlData.content);
+          return String(dlData.content);
         }
       }
-      return json({ code: 200, data: { lrc: { lyric: lyric || "" }, tlyric: { lyric: "" }, romalrc: { lyric: "" } } });
+
+      const mainCand = list[0];
+      let main = stripMeta(await dlLyric(mainCand));
+      let trans = "";
+      // 找带翻译的候选：transuid!=0 或 product_from 含翻译
+      let transCand = list.find(
+        (c) =>
+          (c.transuid && String(c.transuid) !== "0") ||
+          (c.product_from && /译|trans/i.test(String(c.product_from)))
+      );
+      if (transCand && transCand.id !== mainCand.id) {
+        trans = stripMeta(await dlLyric(transCand));
+      } else if (mainCand.transuid && String(mainCand.transuid) !== "0") {
+        // 有些接口用同一 accesskey 下发翻译轨，再试一次带 language
+        try {
+          const dl2 = await fetch(
+            "https://krcs.kugou.com/download?ver=1&client=pc&id=" +
+              encodeURIComponent(mainCand.transuid) +
+              "&accesskey=" +
+              encodeURIComponent(mainCand.accesskey) +
+              "&fmt=lrc&charset=utf8",
+            { headers: { "User-Agent": "Mozilla/5.0" }, redirect: "follow" }
+          );
+          const d2 = await dl2.json();
+          if (d2 && d2.content) {
+            try {
+              trans = stripMeta(Buffer.from(String(d2.content), "base64").toString("utf8"));
+            } catch (e) {
+              trans = stripMeta(String(d2.content));
+            }
+          }
+        } catch (e) {}
+      }
+      // 正文内嵌翻译：日文后紧跟中文行且无时间轴时不强拆，交给前端显示 main
+      return json({
+        code: 200,
+        data: { lrc: { lyric: main || "" }, tlyric: { lyric: trans || "" }, romalrc: { lyric: "" } },
+      });
     } catch (e) {
       return json({ code: 200, data: { lrc: { lyric: "" }, tlyric: { lyric: "" }, romalrc: { lyric: "" } } });
     }
@@ -187,9 +242,9 @@ export async function handleGetSongLyric(id) {
       return json({
         code: 200,
         data: {
-          lrc: { lyric: d.lrc || "" },
-          tlyric: { lyric: d.trans || "" },
-          romalrc: { lyric: d.roma || "" },
+          lrc: { lyric: stripMeta(d.lrc || "") },
+          tlyric: { lyric: stripMeta(d.trans || "") },
+          romalrc: { lyric: stripMeta(d.roma || "") },
         },
       });
     }
@@ -202,8 +257,8 @@ export async function handleGetSongLyric(id) {
       return json({
         code: 200,
         data: {
-          lrc: { lyric: r.data.lyric || "" },
-          tlyric: { lyric: r.data.tlyric || r.data.trans || "" },
+          lrc: { lyric: stripMeta(r.data.lyric || "") },
+          tlyric: { lyric: stripMeta(r.data.tlyric || r.data.trans || "") },
           romalrc: { lyric: "" },
         },
       });
@@ -270,9 +325,9 @@ export async function handleSearchKg(word) {
     const hash = String(it.FileHash || it.fileHash || it.hash || "").toLowerCase().replace(/[^a-f0-9]/g, "");
     if (!/^[a-f0-9]{32}$/.test(hash)) return null;
     let pic = "";
-    if (it.Image) pic = String(it.Image).replace("{size}", "480");
-    else if (it.TransParam && it.TransParam.union_cover) pic = String(it.TransParam.union_cover).replace("{size}", "480");
-    else if (it.trans_param && it.trans_param.union_cover) pic = String(it.trans_param.union_cover).replace("{size}", "480");
+    if (it.Image) pic = String(it.Image).replace("{size}", "400");
+    else if (it.TransParam && it.TransParam.union_cover) pic = String(it.TransParam.union_cover).replace("{size}", "400");
+    else if (it.trans_param && it.trans_param.union_cover) pic = String(it.trans_param.union_cover).replace("{size}", "400");
     return {
       code: 200,
       id: "kg" + hash,

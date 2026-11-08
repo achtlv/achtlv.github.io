@@ -54,6 +54,11 @@ export default {
       }});
     }
     if (url.pathname === '/icon.png') return await handleIcon();
+    if (url.pathname === '/api/version') {
+      return new Response(JSON.stringify({ version: '20261108.2' }), { headers: {
+        'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store'
+      }});
+    }
     if (JS_ROUTES[url.pathname]) return new Response(JS_ROUTES[url.pathname], { headers: JS_HEADERS });
     if (url.pathname === '/api/download') {
       return await handleDownload(url.searchParams.get('u') || '', url.searchParams.get('name') || '', request);

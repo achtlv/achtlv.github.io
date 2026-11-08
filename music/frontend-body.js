@@ -6,6 +6,7 @@ export const BODY_INNER = `<div class="app">
 <h1 id="title">未在播放</h1>
 <p><span class="artist-text" id="artist">—</span><span class="badge" id="qualityBadge" style="display:none"></span><button class="retry-btn" id="retryBtn" style="display:none" aria-label="重新检测音源"></button></p>
 </div>
+<button class="icon-btn" id="refreshAppBtn" title="刷新" aria-label="刷新"></button>
 </header>
 
 <div id="stage">
@@ -92,9 +93,11 @@ export const BODY_INNER = `<div class="app">
 <div class="me-card" id="meAuthCard">
 <div class="me-user" id="meUserLabel">未登录</div>
 <button class="filled-btn block" id="meLoginBtn">登录 / 注册</button>
-<button class="text-btn block" id="meChangePassBtn" style="display:none;justify-content:center">更改密码</button>
-<button class="text-btn block" id="meLogoutBtn" style="display:none;justify-content:center">退出登录</button>
-<button class="text-btn block" id="meSyncBtn" style="display:none;justify-content:center">立即同步</button>
+<div class="me-auth-actions" id="meAuthActions" style="display:none">
+<button class="text-btn" id="meSyncBtn">立即同步</button>
+<button class="text-btn" id="meChangePassBtn">更改密码</button>
+<button class="text-btn" id="meLogoutBtn">退出登录</button>
+</div>
 </div>
 <div class="me-card" id="meSyncOpts" style="display:none">
 <div class="me-label">同步内容</div>
@@ -110,10 +113,19 @@ export const BODY_INNER = `<div class="app">
 <button class="theme-dot" data-theme="red" title="红色"></button>
 </div>
 </div>
+<button class="text-btn block" id="meLogsBtn" style="margin-top:16px;justify-content:center">日志</button>
 </div>
 </div>
 
 </div>
+<div class="page" id="pageLogs">
+<div class="page-head">
+<button class="icon-btn" id="logsBack" aria-label="返回"></button>
+<h1>日志</h1>
+</div>
+<div class="logs-list" id="logsList"><div class="logs-empty">暂无日志</div></div>
+</div>
+
 <nav class="tabbar" id="tabbar">
 <button class="tab-item active" data-tab="player" aria-label="播放器">
 <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
@@ -376,10 +388,14 @@ export const BODY_INNER = `<div class="app">
 <div class="dialog">
 <h2>导出歌单</h2>
 <p class="dialog-text" id="plExportName">—</p>
-<div class="share-menu">
-<button class="filled-btn block" id="plExportKeyBtn">导出为密钥并复制</button>
-<button class="filled-btn block" id="plExportGzipBtn">下载 GZIP 文本</button>
-<button class="text-btn block" id="plExportCancel" style="justify-content:center">取消</button>
+<div class="input-row">
+<input id="plExportKey" readonly placeholder="正在上传...">
+<button class="filled-icon" id="plExportCopy" aria-label="复制密钥" disabled></button>
+</div>
+<p class="hint" id="plExportHint">正在将歌单上传到网络...</p>
+<div class="dlg-actions">
+<button class="text-btn" id="plExportDownload">下载 .txt</button>
+<button class="filled-btn" id="plExportClose">关闭</button>
 </div>
 </div>
 </div>

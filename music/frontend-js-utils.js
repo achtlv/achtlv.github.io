@@ -353,9 +353,11 @@ var it=lists[0];
 var hash=String(it.FileHash||it.fileHash||it.hash||'').toLowerCase().replace(/[^a-f0-9]/g,'');
 if(hash.length!==32)return null;
 var pic='';
-if(it.Image)pic=String(it.Image).replace('{size}','480');
-else if(it.TransParam&&it.TransParam.union_cover)pic=String(it.TransParam.union_cover).replace('{size}','480');
-else if(it.trans_param&&it.trans_param.union_cover)pic=String(it.trans_param.union_cover).replace('{size}','480');
+if(it.Image)pic=String(it.Image).replace('{size}','400');
+if(pic&&/stdmusic\/\d+\//.test(pic))pic=pic.replace(/stdmusic\/\d+\//,'stdmusic/400/');
+if(pic&&/\/150\//.test(pic))pic=pic.replace(/\/150\//,'/400/');
+else if(it.TransParam&&it.TransParam.union_cover)pic=String(it.TransParam.union_cover).replace('{size}','400');
+else if(it.trans_param&&it.trans_param.union_cover)pic=String(it.trans_param.union_cover).replace('{size}','400');
 return {
 code:200,
 id:'kg'+hash,
@@ -424,7 +426,9 @@ if(d&&(d.title||d.name||d.cover||d.artist)){
 var name=d.title||d.name||'';
 var artist=d.artist||d.singer||'';
 var pic=d.cover||d.pic||d.picUrl||'';
-if(pic&&pic.indexOf('music.126.net')!==-1&&pic.indexOf('param=')===-1){
+if(pic&&/music\.126\.net/i.test(pic)){
+// 强制高清，覆盖已有小图 param
+pic=pic.replace(/([?&])param=[^&]*/g,'').replace(/\?&/,'?').replace(/[?&]$/,'');
 pic=pic+(pic.indexOf('?')===-1?'?':'&')+'param=500y500';
 }
 var out={code:200,data:{songs:[{id:Number(songId)||songId,name:name,ar:[{name:artist}],al:{picUrl:pic},dt:0}]}};
@@ -750,8 +754,12 @@ var u1=normalizeUrlForKey(song.url||'');
 if(u1)keys.push('ext:'+u1);
 var u2=normalizeUrlForKey(song.srcUrl||'');
 if(u2&&u2!==u1)keys.push('ext:'+u2);
-}else{
-if(song.id)keys.push('id:'+String(song.id));
+}else if(song.id){
+var id=String(song.id);
+// 不同平台不算重复：网易数字 ID vs 酷狗 kg+hash
+if(/^kg/i.test(id))keys.push('kg:'+id.toLowerCase());
+else if(/^[a-fA-F0-9]{32}$/.test(id))keys.push('kg:kg'+id.toLowerCase());
+else keys.push('wy:'+id);
 }
 return keys;
 }
@@ -873,10 +881,12 @@ function exportListText(){
 return state.playlist.map(function(s){
 var name=(s.name||'').split('|').join(' ');
 var artist=(s.artist||'').split('|').join(' ');
+var pic=(s.pic||'').split('|').join(' ');
 if(s.external){
-return (s.url||'')+'|'+name+'|'+artist+'|'+(s.srcUrl||'');
+return (s.url||'')+'|'+name+'|'+artist+'|'+(s.srcUrl||'')+(pic?'|'+pic:'');
 }
-return s.id+'|'+name+'|'+artist;
+// id|name|artist|pic
+return s.id+'|'+name+'|'+artist+(pic?'|'+pic:'');
 }).join(LF);
 }
 function parseListText(text){
@@ -892,11 +902,18 @@ var key=(parts[0]||'').trim();
 if(!key)continue;
 
 var item=null;
+var pic=(parts[3]||'').trim();
 if(isSongId(key)){
-item={id:key,name:(parts[1]||'').trim()||'未知歌曲',artist:(parts[2]||'').trim()||'未知歌手',pic:'',duration:0};
+item={id:key,name:(parts[1]||'').trim()||'未知歌曲',artist:(parts[2]||'').trim()||'未知歌手',pic:pic||'',duration:0,source:'wy'};
+}else if(typeof isKgId==='function'&&isKgId(key)){
+var kid=typeof normalizeKgId==='function'?normalizeKgId(key):key;
+item={id:kid,name:(parts[1]||'').trim()||'未知歌曲',artist:(parts[2]||'').trim()||'未知歌手',pic:pic||'',duration:0,source:'kg'};
 }else if(isHttpUrl(key)){
 var srcUrl=(parts[3]||'').trim();
+if(pic&&isHttpUrl(pic)&&!isHttpUrl(srcUrl)){/* parts[3] may be pic for netease export */}
+if(!isHttpUrl(srcUrl))srcUrl=(parts[4]||'').trim();
 if(!isHttpUrl(srcUrl))srcUrl='';
+// export format: url|name|artist|srcUrl  OR  id|name|artist|pic
 item={id:uid(),name:(parts[1]||'').trim()||'外部音源',artist:(parts[2]||'').trim()||'外部音源',pic:'',external:true,url:key,srcUrl:srcUrl,format:getFormatFromUrl(key)};
 }
 if(!item)continue;

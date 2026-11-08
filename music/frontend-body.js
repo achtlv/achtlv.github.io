@@ -1,4 +1,5 @@
 export const BODY_INNER = `
+
 <div class="app">
 <div class="page page-active" id="pagePlayer">
 <header>
@@ -415,4 +416,5 @@ export const BODY_INNER = `
 </div>
 </div>
 </div>
+
 `;

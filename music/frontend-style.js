@@ -1,5 +1,6 @@
 export const STYLE = `<style>
 
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
 --primary:#386A20;--on-primary:#FFFFFF;--primary-container:#B7F397;--on-primary-container:#042100;
@@ -576,6 +577,7 @@ box-shadow:none!important;filter:none;
 .logs-dialog-head .icon-btn{width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--on-surface)}
 .logs-dialog-head .icon-btn svg{width:22px;height:22px;fill:currentColor;display:block}
 .logs-dialog .logs-list{flex:1;overflow:auto;max-height:60dvh;min-height:160px;-webkit-overflow-scrolling:touch}
+
 
 </style>
 `;

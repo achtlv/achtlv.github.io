@@ -912,21 +912,38 @@ return true;
 }
 
 async function checkAllLevels(id){
-// 下载：三音质并行；每路 本地→API→TextDB；不探测官方
+// 下载：先扫本地（快），本地齐了三档就返回；否则再并行远端（每路超时）
 var levels=['lossless','exhigh','standard'];
 var result={lossless:false,exhigh:false,standard:false,official:false};
 var t0=Date.now();
-logAction('下载音质检测开始','id='+id);
-await Promise.all(levels.map(async function(lv){
+try{logAction('下载音质检测开始','id='+id);}catch(e){}
+// 1) 本地
+for(var i=0;i<levels.length;i++){
+var lv=levels[i];
 try{
 var loc=await getLocalAudioUrlOnly(id,lv,30);
-if(loc&&loc.url){result[lv]=true;logAction('下载音质命中本地',lv+' id='+id);return;}
-var r=await tryGetLevelWithCache(id,lv,30);
-if(r&&r.url){result[lv]=true;logAction('下载音质命中远端',lv+' id='+id+' expi='+(r.expi||''));}
-else logAction('下载音质不可用',lv+' id='+id);
-}catch(e){logError('下载音质检测失败 '+lv,e);}
+if(loc&&loc.url){result[lv]=true;}
+}catch(e){}
+}
+if(result.lossless&&result.exhigh&&result.standard){
+try{logAction('下载音质本地齐','id='+id+' ms='+(Date.now()-t0));}catch(e){}
+return result;
+}
+// 2) 远端并行 + 超时
+function withTimeout(p,ms){
+return Promise.race([
+p,
+new Promise(function(res){setTimeout(function(){res(null);},ms);})
+]);
+}
+await Promise.all(levels.map(async function(lv){
+if(result[lv])return;
+try{
+var r=await withTimeout(tryGetLevelWithCache(id,lv,30),12000);
+if(r&&r.url)result[lv]=true;
+}catch(e){try{logError('下载音质检测失败 '+lv,e);}catch(e2){}}
 }));
-logAction('下载音质检测结束','id='+id+' result='+JSON.stringify(result)+' ms='+(Date.now()-t0));
+try{logAction('下载音质检测结束','id='+id+' result='+JSON.stringify(result)+' ms='+(Date.now()-t0));}catch(e){}
 return result;
 }
 
@@ -1937,7 +1954,7 @@ var artist=(s.artist||'').split('|').join(' ');
 var pic=(s.pic||'').split('|').join(' ');
 if(s.external)return (s.url||'')+'|'+name+'|'+artist+'|'+(s.srcUrl||'');
 return String(s.id||'')+'|'+name+'|'+artist+(pic?'|'+pic:'');
-}).join('\\n');
+}).join(String.fromCharCode(10));
 var compressed=await gzipCompress(raw);
 var toUpload=raw;
 if(compressed&&('#GZIP:'+compressed).length<raw.length)toUpload='#GZIP:'+compressed;
@@ -1988,7 +2005,7 @@ var artist=(s.artist||'').split('|').join(' ');
 var pic=(s.pic||'').split('|').join(' ');
 if(s.external)return (s.url||'')+'|'+name+'|'+artist+'|'+(s.srcUrl||'');
 return String(s.id||'')+'|'+name+'|'+artist+(pic?'|'+pic:'');
-}).join('\\n');
+}).join(String.fromCharCode(10));
 var compressed=await gzipCompress(raw);
 var text=compressed?('#GZIP:'+compressed):raw;
 var blob=new Blob([text],{type:'text/plain;charset=utf-8'});
@@ -2530,9 +2547,15 @@ setTimeout(function(){try{location.reload();}catch(e){}},200);
 return;
 }
 try{toast('媒体缓存已清理');}catch(e){}
+try{if(typeof savePlaylist==='function')savePlaylist();}catch(e){}
 try{
 if(state.current>=0&&state.playlist[state.current]&&!state.playlist[state.current].external){
 state.audioUrl='';state.quality='';
+// 清缓存后立即重新拉链，避免点播放无响应
+var ci=state.current;
+setTimeout(function(){
+try{if(typeof playIndex==='function')playIndex(ci);}catch(e){}
+},50);
 }
 }catch(e){}
 try{if(typeof render==='function')render();}catch(e){}
@@ -2670,7 +2693,17 @@ try{restoreAuthLocal();}catch(e){}
 try{if(typeof restoreSyncMetaLocal==='function')restoreSyncMetaLocal();}catch(e){}
 try{restorePlaylist();}catch(e){}
 try{state.playing=false;state.audioUrl='';state.quality='';state.showLyric=false;}catch(e){}
+try{if(typeof savePlaylist==='function'&&state.playlist&&state.playlist.length)savePlaylist();}catch(e){}
 try{render();}catch(e){console.error('render',e);}
+try{
+// 恢复后若有歌，预取当前曲链接（不自动播放）
+if(state.playlist&&state.playlist.length&&state.current>=0){
+var cs=state.playlist[state.current];
+if(cs&&!cs.external&&typeof tryGetLevelWithCache==='function'){
+tryGetLevelWithCache(cs.id,'exhigh',30).catch(function(){});
+}
+}
+}catch(e){}
 try{if(typeof updateFavBtn==='function')updateFavBtn();}catch(e){}
 try{
 if(!state.playlist||!state.playlist.length){

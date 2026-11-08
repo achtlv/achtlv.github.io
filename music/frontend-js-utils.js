@@ -903,6 +903,8 @@ if(Array.isArray(list)&&list.length>=0){
 state.playlist=list.map(function(s){
 var o={id:String(s.id||''),name:s.name||'未知歌曲',artist:s.artist||'未知歌手',pic:s.pic||'',duration:0};
 if(s.ext){o.external=true;o.url=String(s.url||'');o.srcUrl=String(s.srcUrl||'');o.format=String(s.format||'');}
+if(s.source)o.source=s.source;
+if(o.pic&&o.pic.indexOf('http://')===0)o.pic=o.pic.replace(/^http:\/\//i,'https://');
 return o;
 }).filter(function(s){return !!s.id&&(!s.external||!!s.url);});
 // 恢复上次播放的歌曲（优先 lastId，其次 current 索引），不自动播放
@@ -934,6 +936,8 @@ if(!Array.isArray(list2))return;
 state.playlist=list2.map(function(s){
 var o={id:String(s.id||''),name:s.name||'未知歌曲',artist:s.artist||'未知歌手',pic:'',duration:0};
 if(s.ext){o.external=true;o.url=String(s.url||'');o.srcUrl=String(s.srcUrl||'');o.format=String(s.format||'');}
+if(s.source)o.source=s.source;
+if(o.pic&&o.pic.indexOf('http://')===0)o.pic=o.pic.replace(/^http:\/\//i,'https://');
 return o;
 }).filter(function(s){return !!s.id&&(!s.external||!!s.url);});
 // cookie 无 current：默认第 0 首
@@ -956,14 +960,20 @@ return (s.url||'')+'|'+name+'|'+artist+'|'+(s.srcUrl||'')+(pic?'|'+pic:'');
 }
 // id|name|artist|pic
 return s.id+'|'+name+'|'+artist+(pic?'|'+pic:'');
-}).join(LF);
+}).join(String.fromCharCode(10));
 }
 function parseListText(text){
-var lines=String(text||'').split(LF);
+// 兼容真实换行 与 错误导出的字面量 \n
+var src=String(text||'');
+src=src.split('\r\n').join('\n');
+src=src.split(CR).join('\n');
+// 字面量 \n（反斜杠+n）→ 真换行
+src=src.replace(/\\n/g,'\n');
+var lines=src.split('\n');
 var out=[];
 var seen={};
 for(var i=0;i<lines.length;i++){
-var line=lines[i].split(CR).join('').trim();
+var line=String(lines[i]||'').trim();
 if(!line)continue;
 if(line.charAt(0)==='#')continue;
 var parts=line.split('|');
@@ -1025,5 +1035,13 @@ return added.length;
 // EARLY_RESTORE: 不依赖 app.js，脚本加载后立即恢复列表，避免 app 异常导致“数据全无”
 try{
 if(typeof restorePlaylist==='function')restorePlaylist();
+}catch(e){}
+
+try{
+window.addEventListener('pagehide',function(){try{savePlaylist();}catch(e){}});
+window.addEventListener('beforeunload',function(){try{savePlaylist();}catch(e){}});
+document.addEventListener('visibilitychange',function(){
+if(document.visibilityState==='hidden'){try{savePlaylist();}catch(e){}}
+});
 }catch(e){}
 `;

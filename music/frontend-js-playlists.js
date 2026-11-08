@@ -490,4 +490,9 @@ if(typeof renderPlaylistsPage==='function')renderPlaylistsPage();
 
 if(typeof __bindTabBar==='function')__bindTabBar();
 if(window.__pendingTab&&typeof switchTab==='function'){var _t=window.__pendingTab;window.__pendingTab=null;switchTab(_t);}
+
+// EARLY_RESTORE_PL
+try{if(typeof restorePlaylistsLocal==='function')restorePlaylistsLocal();}catch(e){}
+try{if(typeof restoreAuthLocal==='function')restoreAuthLocal();}catch(e){}
+try{if(typeof restoreSettingsLocal==='function')restoreSettingsLocal();}catch(e){}
 `;

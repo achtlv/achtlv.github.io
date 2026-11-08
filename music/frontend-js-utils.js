@@ -506,33 +506,25 @@ romalrc:{lyric:''}
 return {code:200,data:{lrc:{lyric:''},tlyric:{lyric:''},romalrc:{lyric:''}}};
 }
 async function textdbPutOne(safeKey,val){
-// 优先 Worker（POST body，不受 URL 长度限制）
+// 浏览器直连 textdb（与旧版一致，不走 Worker）
+var v=String(val);
+// GET URL 过长会失败，调用方应分片
+var url='https://textdb.online/update/?key='+encodeURIComponent(safeKey)+'&value='+encodeURIComponent(v);
 try{
-var url=toAbsoluteApiUrl('/api/cacheSet');
-var res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:safeKey,value:val})});
-var data=await res.json();
-if(data&&data.ok)return {ok:true};
-}catch(e){}
-// 直连仅适合短内容
-if(String(val).length>1800)return {ok:false,msg:'内容过长且 Worker 上传失败'};
-try{
-var url2='https://textdb.online/update/?key='+encodeURIComponent(safeKey)+'&value='+encodeURIComponent(String(val));
-var r=await localFetchJson(url2,{method:'GET'},20000);
+var r=await localFetchJson(url,{method:'GET'},25000);
 if(r.status===0)return {ok:false,msg:r.error||'网络错误'};
+// textdb 成功时通常 200
 return {ok:true};
 }catch(e){return {ok:false,msg:String(e.message||e)};}
 }
 async function textdbGetOne(safeKey){
 try{
-var url=toAbsoluteApiUrl('/api/cacheGet');
-var res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:safeKey})});
-var data=await res.json();
-if(data&&data.ok&&data.value!=null)return {ok:true,value:String(data.value)};
-}catch(e){}
-try{
-var r=await localFetchJson('https://textdb.online/'+safeKey,{method:'GET'});
+var r=await localFetchJson('https://textdb.online/'+encodeURIComponent(safeKey),{method:'GET'},20000);
 if(!r.ok)return {ok:false,msg:'HTTP '+r.status};
-return {ok:true,value:(r.text||'').trim()};
+var val='';
+if(r.text!=null)val=String(r.text);
+else if(r.data!=null)val=typeof r.data==='string'?r.data:JSON.stringify(r.data);
+return {ok:true,value:String(val).trim()};
 }catch(e){return {ok:false,msg:String(e.message||e)};}
 }
 async function localCacheGet(key){
@@ -542,8 +534,7 @@ if(!safeKey)return {ok:false,msg:'无效 key'};
 var meta=await textdbGetOne(safeKey);
 if(!meta.ok)return meta;
 var val=String(meta.value||'').trim();
-// 分片元数据
-if(val.indexOf('{"v":2,"n":')===0||val.indexOf('{"v":2, "n":')===0){
+if(val.indexOf('{"v":2')===0){
 try{
 var o=JSON.parse(val);
 if(o&&o.v===2&&o.n>1){
@@ -564,15 +555,13 @@ if(!key||value===undefined||value===null)return {ok:false,msg:'缺少参数'};
 var safeKey=String(key).replace(/[^a-zA-Z0-9_-]/g,'');
 if(!safeKey)return {ok:false,msg:'无效 key'};
 var val=String(value);
-// 单片阈值：Worker POST 可较大；保险起见 >12k 分片
-var CHUNK=200000;
+// 浏览器直连：分片约 1500 字符，避免 URL 过长
+var CHUNK=1500;
 if(val.length<=CHUNK){
-var r=await textdbPutOne(safeKey,val);
-return r.ok?{ok:true}:r;
+return await textdbPutOne(safeKey,val);
 }
 var n=Math.ceil(val.length/CHUNK);
-var meta=JSON.stringify({v:2,n:n});
-var rm=await textdbPutOne(safeKey,meta);
+var rm=await textdbPutOne(safeKey,JSON.stringify({v:2,n:n}));
 if(!rm.ok)return rm;
 for(var i=0;i<n;i++){
 var part=val.substring(i*CHUNK,(i+1)*CHUNK);
@@ -1006,4 +995,9 @@ if(oldCurrent>=0)state.current=oldCurrent+added.length;
 return added.length;
 }
 
+
+// EARLY_RESTORE: 不依赖 app.js，脚本加载后立即恢复列表，避免 app 异常导致“数据全无”
+try{
+if(typeof restorePlaylist==='function')restorePlaylist();
+}catch(e){}
 `;

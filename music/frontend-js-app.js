@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261108.5';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261108.6';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -2530,6 +2530,8 @@ state.audioUrl='';state.quality='';
 }catch(e){}
 try{if(typeof render==='function')render();}catch(e){}
 }
+window.__forceRefresh=forceRefreshApp;
+window.forceRefreshApp=forceRefreshApp;
 
 function openLogsPage(){
 try{
@@ -2559,6 +2561,7 @@ if(typeof renderLogsPage==='function')renderLogsPage();
 if(typeof logAction==='function')logAction('打开日志页');
 }catch(e){try{toast('打开日志失败');}catch(e2){}}
 }
+window.openLogsPage=openLogsPage;
 
 (function bindLogsAndRefresh(){
 try{

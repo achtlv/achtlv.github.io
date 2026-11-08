@@ -6,7 +6,7 @@ export const BODY_INNER = `<div class="app">
 <h1 id="title">未在播放</h1>
 <p><span class="artist-text" id="artist">—</span><span class="badge" id="qualityBadge" style="display:none"></span><button class="retry-btn" id="retryBtn" style="display:none" aria-label="重新检测音源"></button></p>
 </div>
-<button class="icon-btn" id="refreshAppBtn" title="刷新" aria-label="刷新"></button>
+<button class="icon-btn" id="refreshAppBtn" title="刷新" aria-label="刷新" type="button" onclick="try{if(window.__forceRefresh)window.__forceRefresh();else if(window.forceRefreshApp)window.forceRefreshApp();}catch(e){}"></button>
 </header>
 
 <div id="stage">
@@ -113,7 +113,7 @@ export const BODY_INNER = `<div class="app">
 <button class="theme-dot" data-theme="red" title="红色"></button>
 </div>
 </div>
-<button class="text-btn block" id="meLogsBtn" style="margin-top:16px;justify-content:center">日志</button>
+<button class="text-btn block" id="meLogsBtn" style="margin-top:16px;justify-content:center" type="button" onclick="try{if(window.openLogsPage)window.openLogsPage();}catch(e){}">日志</button>
 </div>
 </div>
 

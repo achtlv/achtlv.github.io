@@ -401,4 +401,7 @@ var s=localStorage.getItem(COOKIE_AUTH);
 if(s)state.user=JSON.parse(s);
 }catch(e){}
 }
+
+// EARLY_RESTORE_AUTH
+try{if(typeof restoreAuthLocal==='function')restoreAuthLocal();}catch(e){}
 `;

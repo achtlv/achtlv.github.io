@@ -1,4 +1,31 @@
 export const CACHE_SCRIPT = String.raw`// ==================== 本地媒体缓存（播放/封面/歌词） ====================
+function mediaCachePurgeExpired(store){
+if(!store||!store.items)return store;
+var now=Date.now();
+var changed=false;
+var order=Array.isArray(store.order)?store.order:[];
+var nextOrder=[];
+for(var i=0;i<order.length;i++){
+var k=order[i];
+var it=store.items[k];
+if(!it||!it.expireAt||it.expireAt<=now){
+delete store.items[k];
+changed=true;
+}else{
+nextOrder.push(k);
+}
+}
+// 清掉 order 里没有、但 items 里过期的
+Object.keys(store.items).forEach(function(k){
+var it=store.items[k];
+if(!it||!it.expireAt||it.expireAt<=now){
+delete store.items[k];
+changed=true;
+}
+});
+store.order=nextOrder.filter(function(k){return !!store.items[k];});
+return store;
+}
 function mediaCacheLoad(){
 try{
 var raw=localStorage.getItem(MEDIA_CACHE_KEY);
@@ -7,11 +34,19 @@ var o=JSON.parse(raw);
 if(!o||typeof o!=='object')return {v:1,order:[],items:{}};
 if(!Array.isArray(o.order))o.order=[];
 if(!o.items||typeof o.items!=='object')o.items={};
+// 每次读取都清过期，避免死缓存
+o=mediaCachePurgeExpired(o);
 return o;
 }catch(e){return {v:1,order:[],items:{}};}
 }
 function mediaCacheSave(store){
 try{
+store=mediaCachePurgeExpired(store||{v:1,order:[],items:{}});
+// LRU 上限
+while(store.order&&store.order.length>MEDIA_CACHE_MAX){
+var drop=store.order.shift();
+if(drop)delete store.items[drop];
+}
 localStorage.setItem(MEDIA_CACHE_KEY,JSON.stringify(store));
 }catch(e){
 // quota: drop half oldest

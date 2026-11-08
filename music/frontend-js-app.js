@@ -606,6 +606,7 @@ audio.play().catch(function(){});
 async function togglePlay(){
 // 根本修复：用户手势时再尝试恢复（解决进入页时 storage 未就绪）
 try{if(!state.playlist||!state.playlist.length)restorePlaylist();}catch(e){}
+try{state.playlistLoading=false;}catch(e){}
 // 正在获取下一首链接时，点击=取消获取
 if(state.loadingUrl){
 try{playToken++;}catch(e){}
@@ -2786,21 +2787,38 @@ try{restoreAuthLocal();}catch(e){}
 try{if(typeof restoreSyncMetaLocal==='function')restoreSyncMetaLocal();}catch(e){}
 try{restorePlaylist();}catch(e){}
 try{
-if(!state.playlist||!state.playlist.length){
-var raw2=null;
-try{raw2=localStorage.getItem(COOKIE_NAME);}catch(e){}
-if(!raw2){try{raw2=localStorage.getItem(COOKIE_NAME+'_bak');}catch(e){}}
-if(!raw2){try{raw2=sessionStorage.getItem(COOKIE_NAME);}catch(e){}}
-if(raw2){try{restorePlaylist();}catch(e){}}
+if(state.playlist&&state.playlist.length){
+state.playlistLoading=false;
+if(state.current<0)state.current=0;
 }
 }catch(e){}
-try{state.playing=false;state.loadingUrl=false;state.audioUrl='';state.quality='';state.showLyric=false;}catch(e){}
-try{if(typeof savePlaylist==='function'&&state.playlist&&state.playlist.length)savePlaylist();}catch(e){}
-try{
-if(state.playlist&&state.playlist.length&&state.current<0)state.current=0;
-}catch(e){}
-try{logEvent('action','启动恢复列表','count='+(state.playlist?state.playlist.length:0)+' current='+state.current+' key='+COOKIE_NAME);}catch(e){}
+try{logEvent('action','启动恢复列表','count='+(state.playlist?state.playlist.length:0)+' current='+state.current+' loading='+!!state.playlistLoading);}catch(e){}
 try{render();}catch(e){console.error('render',e);}
+// 无论成功与否：短轮询 + 硬超时结束 loading（避免永远「列表加载中」）
+try{
+if(typeof ensurePlaylistRestored==='function'){
+ensurePlaylistRestored(function(ok){
+try{
+state.playlistLoading=false;
+if(state.playlist&&state.playlist.length&&state.current<0)state.current=0;
+logEvent('action','列表加载结束','ok='+ok+' count='+(state.playlist?state.playlist.length:0));
+render();
+}catch(e){}
+});
+}else{
+state.playlistLoading=false;
+render();
+}
+}catch(e){try{state.playlistLoading=false;render();}catch(e2){}}
+// 硬超时兜底 1.2s
+try{setTimeout(function(){
+if(state.playlistLoading){
+state.playlistLoading=false;
+try{restorePlaylist();}catch(e){}
+try{render();}catch(e){}
+}
+},1200);}catch(e){}
+
 try{setTimeout(function(){try{if(state.playlist&&state.playlist.length&&state.current<0){state.current=0;}render();}catch(e){}},50);}catch(e){}
 try{setTimeout(function(){try{render();}catch(e){}},300);}catch(e){}
 try{

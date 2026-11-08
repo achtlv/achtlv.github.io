@@ -1075,14 +1075,34 @@ function finish(ok){
 if(done)return;
 done=true;
 try{state.playlistLoading=false;}catch(e){}
-if(typeof cb==='function')cb(ok);
+if(typeof cb==='function'){
+try{cb(ok);}catch(e){}
 }
+}
+try{
 if(restorePlaylist()){finish(true);return;}
+}catch(e){}
 var tries=0;
 var timer=setInterval(function(){
 tries++;
-if(restorePlaylist()||tries>=20){
+var ok=false;
+try{ok=restorePlaylist();}catch(e){}
+if(ok||tries>=20){
 clearInterval(timer);
+// 最后尝试 IDB
+if(!ok&&typeof idbGetPlaylist==='function'){
+idbGetPlaylist().then(function(raw){
+try{
+if(raw&&typeof applyPlaylistPayload==='function'&&applyPlaylistPayload(raw)){
+try{localStorage.setItem(COOKIE_NAME,raw);}catch(e){}
+finish(true);
+return;
+}
+}catch(e){}
+finish(!!(state.playlist&&state.playlist.length));
+}).catch(function(){finish(!!(state.playlist&&state.playlist.length));});
+return;
+}
 finish(!!(state.playlist&&state.playlist.length));
 }
 },50);

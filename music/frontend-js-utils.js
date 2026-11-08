@@ -505,27 +505,81 @@ romalrc:{lyric:''}
 }catch(e){}
 return {code:200,data:{lrc:{lyric:''},tlyric:{lyric:''},romalrc:{lyric:''}}};
 }
-async function localCacheGet(key){
-if(!key)return {ok:false,msg:'缺少 key'};
-var safeKey=String(key).replace(/[^a-zA-Z0-9_-]/g,'');
-if(!safeKey)return {ok:false,msg:'无效 key'};
+async function textdbPutOne(safeKey,val){
+// 优先 Worker（POST body，不受 URL 长度限制）
+try{
+var url=toAbsoluteApiUrl('/api/cacheSet');
+var res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:safeKey,value:val})});
+var data=await res.json();
+if(data&&data.ok)return {ok:true};
+}catch(e){}
+// 直连仅适合短内容
+if(String(val).length>1800)return {ok:false,msg:'内容过长且 Worker 上传失败'};
+try{
+var url2='https://textdb.online/update/?key='+encodeURIComponent(safeKey)+'&value='+encodeURIComponent(String(val));
+var r=await localFetchJson(url2,{method:'GET'},20000);
+if(r.status===0)return {ok:false,msg:r.error||'网络错误'};
+return {ok:true};
+}catch(e){return {ok:false,msg:String(e.message||e)};}
+}
+async function textdbGetOne(safeKey){
+try{
+var url=toAbsoluteApiUrl('/api/cacheGet');
+var res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:safeKey})});
+var data=await res.json();
+if(data&&data.ok&&data.value!=null)return {ok:true,value:String(data.value)};
+}catch(e){}
 try{
 var r=await localFetchJson('https://textdb.online/'+safeKey,{method:'GET'});
 if(!r.ok)return {ok:false,msg:'HTTP '+r.status};
 return {ok:true,value:(r.text||'').trim()};
 }catch(e){return {ok:false,msg:String(e.message||e)};}
 }
+async function localCacheGet(key){
+if(!key)return {ok:false,msg:'缺少 key'};
+var safeKey=String(key).replace(/[^a-zA-Z0-9_-]/g,'');
+if(!safeKey)return {ok:false,msg:'无效 key'};
+var meta=await textdbGetOne(safeKey);
+if(!meta.ok)return meta;
+var val=String(meta.value||'').trim();
+// 分片元数据
+if(val.indexOf('{"v":2,"n":')===0||val.indexOf('{"v":2, "n":')===0){
+try{
+var o=JSON.parse(val);
+if(o&&o.v===2&&o.n>1){
+var parts=[];
+for(var i=0;i<o.n;i++){
+var p=await textdbGetOne(safeKey+'_c'+i);
+if(!p.ok||p.value==null)return {ok:false,msg:'分片 '+i+' 缺失'};
+parts.push(String(p.value));
+}
+return {ok:true,value:parts.join('')};
+}
+}catch(e){}
+}
+return {ok:true,value:val};
+}
 async function localCacheSet(key,value){
 if(!key||value===undefined||value===null)return {ok:false,msg:'缺少参数'};
 var safeKey=String(key).replace(/[^a-zA-Z0-9_-]/g,'');
 if(!safeKey)return {ok:false,msg:'无效 key'};
 var val=String(value);
-try{
-var url='https://textdb.online/update/?key='+encodeURIComponent(safeKey)+'&value='+encodeURIComponent(val);
-var r=await localFetchJson(url,{method:'GET'},15000);
-if(r.status===0)return {ok:false,msg:r.error||'网络错误'};
+// 单片阈值：Worker POST 可较大；保险起见 >12k 分片
+var CHUNK=200000;
+if(val.length<=CHUNK){
+var r=await textdbPutOne(safeKey,val);
+return r.ok?{ok:true}:r;
+}
+var n=Math.ceil(val.length/CHUNK);
+var meta=JSON.stringify({v:2,n:n});
+var rm=await textdbPutOne(safeKey,meta);
+if(!rm.ok)return rm;
+for(var i=0;i<n;i++){
+var part=val.substring(i*CHUNK,(i+1)*CHUNK);
+var rp=await textdbPutOne(safeKey+'_c'+i,part);
+if(!rp.ok)return {ok:false,msg:'分片 '+i+' 上传失败:'+(rp.msg||'')};
+}
 return {ok:true};
-}catch(e){return {ok:false,msg:String(e.message||e)};}
 }
 function post(path,body){
 body=body||{};

@@ -168,7 +168,7 @@ if(!vHash||vHash!==passHash){toast('注册失败');return false;}
 state.user={username:username,key:key,passHash:passHash};
 state.lastLocalChangeAt=payload.updatedAt;
 saveAuthLocal();
-toast('注册并登录成功');
+toast('注册并登录成功');if(typeof logAction==='function')logAction('注册并登录成功');;
 return {isNew:true};
 }
 
@@ -177,14 +177,14 @@ var lines=raw.split('\n');
 var storedHash=String(lines[0]||'').trim();
 var body=lines.slice(1).join('\n');
 if(!storedHash){toast('账号数据损坏，请更换用户名');return false;}
-if(storedHash!==passHash){toast('密码错误');return false;}
+if(storedHash!==passHash){toast('密码错误');if(typeof logError==='function')logError('登录失败','密码错误');;return false;}
 var cloud=null;
 try{cloud=JSON.parse(body||'{}');}catch(e){cloud={};}
 state.user={username:username,key:key,passHash:passHash};
 saveAuthLocal();
 // 登录成功：先同步，若未推送再刷新 key
 await syncAndMaybeRefreshKey();
-toast('登录成功');
+toast('登录成功');if(typeof logAction==='function')logAction('登录成功');;
 return {isNew:false,cloud:cloud};
 }
 
@@ -220,7 +220,7 @@ if(!raw){toast('无法读取账号数据');return false;}
 var lines=raw.split('\n');
 var storedHash=String(lines[0]||'').trim();
 var body=lines.slice(1).join('\n');
-if(storedHash!==oldHash){toast('旧密码错误');return false;}
+if(storedHash!==oldHash){toast('旧密码错误');if(typeof logError==='function')logError('修改密码失败','旧密码错误');;return false;}
 if(oldHash===newHash){toast('新密码不能与旧密码相同');return false;}
 var value=newHash+'\n'+(body||'{}');
 var ok=await textdbSetRaw(state.user.key,value);
@@ -230,7 +230,7 @@ var vHash=(verify.split('\n')[0]||'').trim();
 if(!verify||vHash!==newHash){toast('修改失败：校验未通过');return false;}
 state.user.passHash=newHash;
 saveAuthLocal();
-toast('密码已修改');
+toast('密码已修改');if(typeof logAction==='function')logAction('修改密码成功');;
 return true;
 }
 

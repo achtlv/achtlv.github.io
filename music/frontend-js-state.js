@@ -111,6 +111,8 @@ var ALL_SCRIMS=['addScrim','clearScrim','renameScrim','shareScrim','downloadScri
 
 function setIcon(id,html){var el=$(id);if(el&&html)el.innerHTML=html;}
 setIcon('shareBtn',ICON.share);
+setIcon('refreshAppBtn',ICON.refresh);
+setIcon('plExportCopy',ICON.copy);
 setIcon('prevBtn',ICON.prev);
 setIcon('nextBtn',ICON.next);
 setIcon('playBtn',ICON.play);

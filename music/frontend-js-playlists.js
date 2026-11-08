@@ -36,6 +36,7 @@ createdAt:Date.now()
 state.playlists.unshift(pl);
 markLocalChange();
 savePlaylistsLocal();
+if(typeof logAction==='function')logAction('创建歌单','name='+(pl.name||'')+' id='+pl.id);
 return pl;
 }
 

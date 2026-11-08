@@ -273,23 +273,70 @@ export async function proxy(endpoint, body) {
   return json({ code: 404, msg: "未知接口" }, 404);
 }
 export async function handleCacheGet(key) {
-  if (!key) return json({ ok: false, msg: "缺少 key" });
-  const safeKey = String(key).replace(/[^a-zA-Z0-9_-]/g, "");
+  const safeKey = String(key || "").replace(/[^a-zA-Z0-9_-]/g, "");
   if (!safeKey) return json({ ok: false, msg: "无效 key" });
   try {
-    const res = await fetch("https://textdb.online/" + safeKey, { headers: { "User-Agent": UA } });
+    const res = await fetch("https://textdb.online/" + encodeURIComponent(safeKey), {
+      headers: { "User-Agent": UA },
+      redirect: "follow",
+    });
     if (!res.ok) return json({ ok: false, msg: "HTTP " + res.status });
-    return json({ ok: true, value: (await res.text()).trim() });
-  } catch (e) { return json({ ok: false, msg: String(e.message || e) }); }
+    let val = (await res.text()).trim();
+    // 分片
+    if (val.indexOf('{"v":2') === 0) {
+      try {
+        const o = JSON.parse(val);
+        if (o && o.v === 2 && o.n > 1) {
+          const parts = [];
+          for (let i = 0; i < o.n; i++) {
+            const r2 = await fetch("https://textdb.online/" + encodeURIComponent(safeKey + "_c" + i), {
+              headers: { "User-Agent": UA },
+              redirect: "follow",
+            });
+            if (!r2.ok) return json({ ok: false, msg: "分片 " + i + " 缺失" });
+            parts.push(await r2.text());
+          }
+          val = parts.join("");
+        }
+      } catch (e) {}
+    }
+    return json({ ok: true, value: val });
+  } catch (e) {
+    return json({ ok: false, msg: String(e.message || e) });
+  }
 }
 export async function handleCacheSet(key, value) {
   if (!key || value == null) return json({ ok: false, msg: "缺少参数" });
   const safeKey = String(key).replace(/[^a-zA-Z0-9_-]/g, "");
   if (!safeKey) return json({ ok: false, msg: "无效 key" });
+  const val = String(value);
+  const CHUNK = 1500; // textdb GET URL 安全长度
+  async function putOne(k, v) {
+    const url =
+      "https://textdb.online/update/?key=" +
+      encodeURIComponent(k) +
+      "&value=" +
+      encodeURIComponent(String(v));
+    const res = await fetch(url, { headers: { "User-Agent": UA }, redirect: "follow" });
+    return res.ok || res.status === 200 || res.status === 201 || res.status === 204;
+  }
   try {
-    await fetch("https://textdb.online/update/?key=" + encodeURIComponent(safeKey) + "&value=" + encodeURIComponent(String(value)), { headers: { "User-Agent": UA } });
+    if (val.length <= CHUNK) {
+      const ok = await putOne(safeKey, val);
+      return json({ ok: !!ok });
+    }
+    const n = Math.ceil(val.length / CHUNK);
+    const metaOk = await putOne(safeKey, JSON.stringify({ v: 2, n: n }));
+    if (!metaOk) return json({ ok: false, msg: "元数据写入失败" });
+    for (let i = 0; i < n; i++) {
+      const part = val.substring(i * CHUNK, (i + 1) * CHUNK);
+      const ok = await putOne(safeKey + "_c" + i, part);
+      if (!ok) return json({ ok: false, msg: "分片 " + i + " 写入失败" });
+    }
     return json({ ok: true });
-  } catch (e) { return json({ ok: false, msg: String(e.message || e) }); }
+  } catch (e) {
+    return json({ ok: false, msg: String(e.message || e) });
+  }
 }
 export async function handleSearch(word) {
   if (!word) return json({ code: 400, msg: "缺少搜索关键词" }, 400);

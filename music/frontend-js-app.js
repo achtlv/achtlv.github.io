@@ -383,6 +383,7 @@ state.playing=false;
 state.lyricLoading=false;
 state.quality='unavailable';
 toast(e.message||'播放失败');
+logError('播放失败 id='+(song&&song.id),e);
 render();
 return;
 }
@@ -903,20 +904,21 @@ return true;
 }
 
 async function checkAllLevels(id){
-// 下载：只探测 lossless/exhigh/standard；本地→API→TextDB；拿齐三个非官方源即停；不探测官方
+// 下载：三音质并行；每路 本地→API→TextDB；不探测官方
 var levels=['lossless','exhigh','standard'];
 var result={lossless:false,exhigh:false,standard:false,official:false};
-for(var i=0;i<levels.length;i++){
-var lv=levels[i];
+var t0=Date.now();
+logAction('下载音质检测开始','id='+id);
+await Promise.all(levels.map(async function(lv){
 try{
 var loc=await getLocalAudioUrlOnly(id,lv,30);
-if(loc&&loc.url){result[lv]=true;continue;}
+if(loc&&loc.url){result[lv]=true;logAction('下载音质命中本地',lv+' id='+id);return;}
 var r=await tryGetLevelWithCache(id,lv,30);
-if(r&&r.url)result[lv]=true;
-}catch(e){}
-// 已拿齐三个则提前结束
-if(result.lossless&&result.exhigh&&result.standard)break;
-}
+if(r&&r.url){result[lv]=true;logAction('下载音质命中远端',lv+' id='+id+' expi='+(r.expi||''));}
+else logAction('下载音质不可用',lv+' id='+id);
+}catch(e){logError('下载音质检测失败 '+lv,e);}
+}));
+logAction('下载音质检测结束','id='+id+' result='+JSON.stringify(result)+' ms='+(Date.now()-t0));
 return result;
 }
 
@@ -1259,6 +1261,7 @@ state.playlist.splice(insertAt,0,toAdd);
 }
 savePlaylist();
 toast('已加入播放列表');
+if(typeof logAction==='function')logAction('添加歌曲','id='+(toAdd&&toAdd.id)+' name='+(toAdd&&toAdd.name)+' artist='+(toAdd&&toAdd.artist));
 pendingSong=null;
 closeAdd();
 $('addHint').textContent='是否将此歌曲加入播放列表？';
@@ -1339,8 +1342,8 @@ toUpload='#GZIP:'+compressed;
 }
 
 var key=genShareKey();
+logAction('导出播放列表','songs='+state.playlist.length+' bytes='+toUpload.length);
 var ok=await cacheSetRaw(key,toUpload);
-
 var verifyOk=false;
 if(ok){
 var verify=await cacheGetRaw(key);
@@ -1353,12 +1356,14 @@ if(verifyOk){
 $('exportKey').value=key;
 $('exportKey').placeholder='';
 $('exportCopy').disabled=false;
-$('exportHint').textContent='已上传 '+state.playlist.length+' 首歌曲，可复制 15 位密钥分享';
+$('exportHint').textContent='已上传 '+state.playlist.length+' 首歌曲，可复制密钥分享';
+logAction('导出播放列表成功','key='+key+' songs='+state.playlist.length);
 }else{
 $('exportKey').value='';
 $('exportKey').placeholder='上传失败';
 $('exportCopy').disabled=true;
 $('exportHint').textContent='上传失败，请检查网络后重试';
+logError('导出播放列表失败','key='+key+' ok='+ok+' bytes='+toUpload.length);
 }
 });
 if($('exportClose'))$('exportClose').addEventListener('click',function(){hideScrim('exportScrim')});
@@ -1519,8 +1524,10 @@ hideScrim('listScrim');
 
 if(mode==='replace'){
 toast('已覆盖为 '+after+' 首歌曲');
+logAction('导入播放列表','mode=replace count='+after);
 }else{
 toast('新增 '+added+' 首，共 '+after+' 首');
+logAction('导入播放列表','mode='+mode+' added='+added+' total='+after);
 }
 });
 
@@ -1914,6 +1921,7 @@ $('plExportName').textContent=pl.name||'歌单';
 $('plExportKey').value='';
 $('plExportKey').placeholder='正在上传...';
 $('plExportCopy').disabled=true;
+if(typeof ICON!=='undefined'&&ICON.copy)$('plExportCopy').innerHTML=ICON.copy;
 $('plExportHint').textContent='正在将歌单上传到网络...';
 showScrim('plExportScrim');
 try{
@@ -1940,11 +1948,14 @@ $('plExportKey').value=key;
 $('plExportKey').placeholder='';
 $('plExportCopy').disabled=false;
 $('plExportHint').textContent='已上传 '+(songs.length)+' 首，可复制密钥分享';
+logAction('导出歌单成功','name='+(pl.name||'')+' songs='+songs.length+' key='+key);
 }else{
 $('plExportKey').value='';
 $('plExportKey').placeholder='上传失败';
 $('plExportCopy').disabled=true;
+if(typeof ICON!=='undefined'&&ICON.copy)$('plExportCopy').innerHTML=ICON.copy;
 $('plExportHint').textContent='上传失败，请检查网络后重试';
+logError('导出歌单失败','name='+(pl.name||'')+' songs='+songs.length+' bytes='+toUpload.length);
 }
 }catch(e){
 $('plExportHint').textContent='导出失败：'+(e.message||e);
@@ -2095,7 +2106,7 @@ renderMePage();
 if(typeof startSyncLoop==='function')startSyncLoop();
 if(r.isNew){
 await pushSync();
-toast('注册并登录成功');
+toast('注册并登录成功');logAction('注册并登录成功');
 }else{
 window._pendingCloud=r.cloud;
 // 只弹一次同步选项
@@ -2142,6 +2153,7 @@ showScrim('logoutScrim');
 if($('logoutCancel'))$('logoutCancel').addEventListener('click',function(){hideScrim('logoutScrim');});
 if($('logoutConfirm'))$('logoutConfirm').addEventListener('click',function(){
 hideScrim('logoutScrim');
+if(typeof logAction==='function')logAction('退出登录');
 state.user=null;
 try{localStorage.removeItem(COOKIE_AUTH);}catch(e){}
 try{localStorage.removeItem(COOKIE_PLAYLISTS);}catch(e){}
@@ -2159,7 +2171,7 @@ if(syncTimer){clearInterval(syncTimer);syncTimer=null;}
 renderMePage();
 renderPlaylistsPage();
 if(typeof updateFavBtn==='function')updateFavBtn();
-toast('已退出登录');
+toast('已退出登录');if(typeof logAction==='function')logAction('退出登录');;
 });
 if($('meSyncBtn'))$('meSyncBtn').addEventListener('click',async function(){
 toast('正在同步...');
@@ -2404,35 +2416,43 @@ try{var a=JSON.parse(localStorage.getItem(LOG_KEY)||'[]');return Array.isArray(a
 function saveErrorLogs(list){
 try{localStorage.setItem(LOG_KEY,JSON.stringify(list.slice(-10)));}catch(e){}
 }
-function logError(msg,err){
+function logEvent(type,msg,detail){
 try{
 var list=loadErrorLogs();
-var detail='';
-if(err){
-if(typeof err==='string')detail=err;
-else if(err.stack)detail=String(err.stack);
-else if(err.message)detail=String(err.message);
-else detail=JSON.stringify(err);
+var d='';
+if(detail!=null){
+if(typeof detail==='string')d=detail;
+else if(detail&&detail.stack)d=String(detail.stack);
+else if(detail&&detail.message)d=String(detail.message);
+else{try{d=JSON.stringify(detail);}catch(e){d=String(detail);}}
 }
-list.push({t:Date.now(),msg:String(msg||'错误'),detail:detail});
+d=String(d).replace(/("pass(?:word)?"\s*:\s*")[^"]*("/gi,'$1***$2');
+d=d.replace(/(password|passwd|pwd)\s*[:=]\s*\S+/gi,'$1=***');
+list.push({t:Date.now(),type:String(type||'info'),msg:String(msg||''),detail:d});
 while(list.length>10)list.shift();
 saveErrorLogs(list);
 }catch(e){}
 }
+function logError(msg,err){logEvent('error',msg,err);}
+function logAction(msg,detail){logEvent('action',msg,detail);}
 function renderLogsPage(){
 var box=$('logsList');
 if(!box)return;
-var list=loadErrorLogs().slice().reverse();
+var all=loadErrorLogs();
+var list=all.slice().reverse();
 if(!list.length){box.innerHTML='<div class="logs-empty">暂无日志</div>';return;}
 box.innerHTML=list.map(function(item,idx){
-var realIdx=list.length-1-idx;
+var realIdx=all.length-1-idx;
 var time=new Date(item.t||0).toLocaleString();
-var safeMsg=(item.msg||'').replace(/</g,'&lt;');
-var safeDetail=(item.detail||'').replace(/</g,'&lt;');
-return '<div class="logs-item" data-log="'+realIdx+'"><div class="logs-item-time">'+time+'</div><div class="logs-item-msg"><b>'+safeMsg+'</b>\\n'+safeDetail+'</div><div class="logs-item-actions"><button class="text-btn log-copy" type="button">复制</button><button class="text-btn log-del" type="button">删除</button></div></div>';
+var type=item.type||'info';
+var safeMsg=String(item.msg||'').replace(/</g,'&lt;');
+var safeDetail=String(item.detail||'').replace(/</g,'&lt;');
+var long=safeDetail.length>120;
+var body='<b>['+type+'] '+safeMsg+'</b>'+(safeDetail?('\n'+safeDetail):'');
+return '<div class="logs-item" data-log="'+realIdx+'"><div class="logs-item-time">'+time+'</div><div class="logs-item-msg'+(long?' collapsed':'')+'">'+body+(long?'<div class="logs-more">点击展开</div>':'')+'</div><div class="logs-item-actions"><button class="text-btn log-copy" type="button">复制</button><button class="text-btn log-del" type="button">删除</button></div></div>';
 }).join('');
 }
-// 包装 toast 中的失败信息也可记录关键错误
+ 中的失败信息也可记录关键错误
 var _origToast=typeof toast==='function'?toast:null;
 
 // ==================== 强制刷新（先同步，再版本检测） ====================
@@ -2474,25 +2494,38 @@ location.href=location.pathname+(location.search||'')+(location.search?'&':'?')+
 }
 
 (function bindLogsAndRefresh(){
-if($('refreshAppBtn'))$('refreshAppBtn').addEventListener('click',function(ev){
+if($('refreshAppBtn')){
+if(typeof ICON!=='undefined'&&ICON.refresh)$('refreshAppBtn').innerHTML=ICON.refresh;
+$('refreshAppBtn').addEventListener('click',function(ev){
 blurControl(ev.currentTarget||this);
 forceRefreshApp();
 });
+}
 if($('meLogsBtn'))$('meLogsBtn').addEventListener('click',function(){
-if(typeof switchTab==='function'){
-// 显示日志页
 var map=['pagePlayer','pagePlaylists','pageMe','pagePlaylistDetail'];
 map.forEach(function(id){var el=$(id);if(el){el.classList.remove('page-active');el.style.display='none';}});
 var logs=$('pageLogs');
-if(logs){logs.style.display='flex';logs.classList.add('page-active');}
-renderLogsPage();
+if(logs){
+logs.style.display='flex';
+logs.style.flexDirection='column';
+logs.style.flex='1';
+logs.style.minHeight='0';
+logs.classList.add('page-active');
 }
+if($('logsBack')&&!$('logsBack').innerHTML.trim()){
+$('logsBack').innerHTML='<svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>';
+}
+renderLogsPage();
+logAction('打开日志页');
 });
-if($('logsBack'))$('logsBack').addEventListener('click',function(){
+if($('logsBack')){
+$('logsBack').innerHTML='<svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>';
+$('logsBack').addEventListener('click',function(){
 var logs=$('pageLogs');
 if(logs){logs.style.display='none';logs.classList.remove('page-active');}
 if(typeof switchTab==='function')switchTab('me');
 });
+}
 if($('logsList'))$('logsList').addEventListener('click',function(e){
 var copy=e.target.closest('.log-copy');
 var del=e.target.closest('.log-del');

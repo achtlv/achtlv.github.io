@@ -34,8 +34,8 @@ text-overflow:ellipsis;color:var(--on-surface);max-width:100%}
 .meta p{font-size:13px;color:var(--on-surface-variant);white-space:nowrap;overflow:hidden;
 text-overflow:ellipsis;margin-top:2px;display:flex;align-items:center;gap:8px;justify-content:center;max-width:100%}
 .meta p .artist-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-#shareBtn{position:absolute;top:18px;left:0}
-#refreshAppBtn{position:absolute;top:18px;right:0}
+#refreshAppBtn{position:absolute;top:18px;left:0}
+#shareBtn{position:absolute;top:18px;right:0}
 .badge{display:inline-block;padding:1px 8px;border-radius:9px;font-size:11px;font-weight:500;
 background:color-mix(in srgb,var(--primary) 15%,transparent);color:var(--primary);
 vertical-align:middle;line-height:1.5;flex-shrink:0;white-space:nowrap}
@@ -495,8 +495,8 @@ padding-bottom:calc(48px + env(safe-area-inset-bottom));
 header{padding:2px 36px 4px 0}
 .meta h1{font-size:14px;line-height:1.25}
 .meta p{font-size:11px}
-#shareBtn{width:32px;height:32px}
-#shareBtn svg{width:18px;height:18px}
+#shareBtn,#refreshAppBtn{width:32px;height:32px}
+#shareBtn svg,#refreshAppBtn svg{width:18px;height:18px}
 #stage{min-height:0;flex:1 1 auto}
 .cover-box{
 max-height:min(42vh,200px);
@@ -543,13 +543,26 @@ max-width:100%;
 .add-src.active{background:color-mix(in srgb,var(--primary) 22%,transparent);border-color:color-mix(in srgb,var(--primary) 45%,transparent);color:var(--primary);font-weight:600}
 .add-head-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
 .add-head-row h2{margin:0;flex-shrink:0}
-.me-auth-actions{display:flex;gap:8px;margin-top:10px}
-.me-auth-actions .text-btn{flex:1;justify-content:center;padding:10px 6px;font-size:13px}
+.me-auth-actions{display:flex;gap:8px;margin-top:12px}
+.me-auth-actions .text-btn{
+flex:1;justify-content:center;padding:10px 8px;font-size:13px;font-weight:500;
+border-radius:20px;border:1px solid var(--outline-variant);
+background:var(--surface-container-high);color:var(--primary);
+box-shadow:none!important;filter:none;
+}
+.me-auth-actions .text-btn:active{background:var(--active)}
 .logs-list{flex:1;overflow:auto;padding:8px 0 24px}
 .logs-item{background:var(--surface-container);border-radius:12px;padding:12px;margin-bottom:10px}
 .logs-item-time{font-size:11px;color:var(--on-surface-variant);margin-bottom:6px}
 .logs-item-msg{font-size:13px;word-break:break-word;white-space:pre-wrap;max-height:120px;overflow:auto}
 .logs-item-actions{display:flex;gap:8px;margin-top:8px}
 .logs-empty{text-align:center;color:var(--on-surface-variant);padding:40px 12px;font-size:14px}
+#pageLogs{display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+#pageLogs.page-active{display:flex}
+.logs-list{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:8px 0 24px}
+.logs-item-msg{font-size:12px;word-break:break-word;white-space:pre-wrap;max-height:72px;overflow:hidden;cursor:pointer}
+.logs-item-msg.expanded{max-height:none}
+.logs-item-msg .logs-more{color:var(--primary);font-size:12px;margin-top:4px}
+#refreshAppBtn svg,#logsBack svg{width:20px;height:20px;fill:currentColor}
 </style>
 `;

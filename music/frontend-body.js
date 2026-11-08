@@ -1,4 +1,5 @@
-export const BODY_INNER = `<div class="app">
+export const BODY_INNER = `
+<div class="app">
 <div class="page page-active" id="pagePlayer">
 <header>
 <button class="icon-btn" id="shareBtn" title="分享" aria-label="分享"></button>
@@ -405,7 +406,7 @@ export const BODY_INNER = `<div class="app">
 <div class="scrim" id="logsScrim">
 <div class="dialog logs-dialog">
 <div class="logs-dialog-head">
-<button class="icon-btn" id="logsBack" type="button" aria-label="返回">
+<button class="icon-btn" id="logsBack" type="button" aria-label="返回" onclick="try{if(window.closeLogsPage)window.closeLogsPage();else{var s=document.getElementById('logsScrim');if(s){s.classList.remove('show');s.style.display='none';}}}catch(e){}">
 <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
 </button>
 <h2>日志</h2>
@@ -413,5 +414,5 @@ export const BODY_INNER = `<div class="app">
 <div class="logs-list" id="logsList"><div class="logs-empty">暂无日志</div></div>
 </div>
 </div>
-
+</div>
 `;

@@ -58,20 +58,36 @@ mediaCacheSave(store);
 
 // ==================== textdb 缓存封装 ====================
 async function cacheGetRaw(key){
+if(!key)return '';
+var k=String(key).replace(/[^a-zA-Z0-9_-]/g,'');
+for(var attempt=0;attempt<3;attempt++){
 try{
-var r=await post('/api/cacheGet',{key:key});
-if(r&&r.ok&&r.value)return r.value;
+var r=await post('/api/cacheGet',{key:k});
+if(r&&r.ok&&r.value!=null&&String(r.value).length>0)return String(r.value);
 }catch(e){}
+await new Promise(function(res){setTimeout(res,350+attempt*400);});
+}
 return '';
 }
 
 async function cacheSetRaw(key,value){
-if(!key||!value)return false;
+if(!key||value==null||value==='')return false;
+var k=String(key).replace(/[^a-zA-Z0-9_-]/g,'');
+var val=String(value);
 try{
-var r=await post('/api/cacheSet',{key:key,value:value});
-return !!(r&&r.ok);
-}catch(e){}
+var r=await post('/api/cacheSet',{key:k,value:val});
+if(!(r&&r.ok))return false;
+for(var attempt=0;attempt<4;attempt++){
+var got=await cacheGetRaw(k);
+if(!got){await new Promise(function(res){setTimeout(res,400+attempt*350);});continue;}
+var a=got.replace(/ /g,'+');
+var b=val.replace(/ /g,'+');
+if(a===b||got===val)return true;
+if(got.length===val.length&&got.substring(0,16)===val.substring(0,16))return true;
+await new Promise(function(res){setTimeout(res,400+attempt*350);});
+}
 return false;
+}catch(e){return false;}
 }
 
 function cacheEncodeValue(expireAt,url){

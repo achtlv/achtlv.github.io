@@ -1,5 +1,5 @@
 import { HTML } from './frontend.js';
-import { handleIcon, MANIFEST_JSON, SW_CODE } from './assets.js';
+import { MANIFEST_JSON, SW_CODE, handleIcon } from './assets.js';
 import { STATE_SCRIPT } from './frontend-js-state.js';
 import { UTILS_SCRIPT } from './frontend-js-utils.js';
 import { CACHE_SCRIPT } from './frontend-js-cache.js';
@@ -11,9 +11,7 @@ import { PLAYLISTS_SCRIPT } from './frontend-js-playlists.js';
 import { AUTH_SCRIPT } from './frontend-js-auth.js';
 import { APP_SCRIPT } from './frontend-js-app.js';
 import {
-  handleSearch, handleSearchKg, handleResolve, handleCheckAudio, handleCacheGet, handleCacheSet,
-  handleDownload, handleOfficialResolve, handleGetSongUrl, handleGetSongInfo,
-  handleGetSongLyric, proxy,
+  handleCacheGet, handleCacheSet, handleSearchKg,
 } from './handlers.js';
 
 const JS_HEADERS = { 'Content-Type': 'application/javascript;charset=UTF-8', 'Cache-Control': 'no-store, no-cache, must-revalidate' };
@@ -41,48 +39,35 @@ export default {
       }});
     }
     if (url.pathname === '/' || url.pathname === '/index.html') {
-      return new Response(HTML, { headers: { 'Content-Type': 'text/html;charset=UTF-8', 'Cache-Control': 'no-store, no-cache, must-revalidate' } });
+      return new Response(HTML, { headers: { 'Content-Type': 'text/html;charset=UTF-8', 'Cache-Control': 'no-store' } });
     }
     if (url.pathname === '/manifest.json') {
-      return new Response(JSON.stringify(MANIFEST_JSON), { headers: {
-        'Content-Type': 'application/manifest+json;charset=UTF-8', 'Cache-Control': 'no-cache, no-store, must-revalidate',
-      }});
+      return new Response(JSON.stringify(MANIFEST_JSON), { headers: { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'no-store' } });
     }
     if (url.pathname === '/sw.js') {
-      return new Response(SW_CODE, { headers: {
-        'Content-Type': 'application/javascript;charset=UTF-8', 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/',
-      }});
+      return new Response(SW_CODE, { headers: { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-store' } });
     }
     if (url.pathname === '/icon.png') return await handleIcon();
     if (url.pathname === '/api/version') {
-      return new Response(JSON.stringify({ version: '20261108.8' }), { headers: {
+      return new Response(JSON.stringify({ version: '20261108.10' }), { headers: {
         'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store'
       }});
     }
-    if (JS_ROUTES[url.pathname]) return new Response(JS_ROUTES[url.pathname], { headers: JS_HEADERS });
-    if (url.pathname === '/api/download') {
-      return await handleDownload(url.searchParams.get('u') || '', url.searchParams.get('name') || '', request);
+    if (JS_ROUTES[url.pathname]) {
+      return new Response(JS_ROUTES[url.pathname], { headers: JS_HEADERS });
     }
-    if (request.method !== 'POST') return new Response('Not Found', { status: 404 });
-    let body = {};
-    try { body = await request.json(); } catch (e) {}
-    const action = url.pathname.replace(/^\/api\//, '');
-    try {
-      if (action === 'search') return await handleSearch(body.word || '');
-      if (action === 'searchKg') return await handleSearchKg(body.word || '');
-      if (action === 'resolve') return await handleResolve(body.url || '');
-      if (action === 'checkAudio') return await handleCheckAudio(body.url || '');
-      if (action === 'cacheGet') return await handleCacheGet(body.key || '');
-      if (action === 'cacheSet') return await handleCacheSet(body.key || '', body.value || '');
-      if (action === 'officialResolve') return await handleOfficialResolve(body.id || '');
-      if (action === 'getSongInfo') return await handleGetSongInfo(body.id);
-      if (action === 'getSongUrl') return await handleGetSongUrl(body.id, body.level || 'exhigh');
-      if (action === 'getSongLyric') return await handleGetSongLyric(body.id);
-    } catch (e) {
-      return new Response(JSON.stringify({ code: 500, msg: e.message || 'Server Error' }), {
-        status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      });
+    if (url.pathname === '/api/cacheGet' && request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      return handleCacheGet(body.key);
+    }
+    if (url.pathname === '/api/cacheSet' && request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      return handleCacheSet(body.key, body.value);
+    }
+    if (url.pathname === '/api/searchKg' && request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      return handleSearchKg(body.word || body.keyword || '');
     }
     return new Response('Not Found', { status: 404 });
-  },
+  }
 };

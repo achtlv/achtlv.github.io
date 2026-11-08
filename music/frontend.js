@@ -12,7 +12,7 @@ const SCRIPT_TAGS = [
   '/frontend-js-playlists.js',
   '/frontend-js-auth.js',
   '/frontend-js-app.js',
-].map((src) => `<script src="${src}"></script>`).join('\n');
+].map(function(src){ return '<script src="'+src+'"></script>'; }).join('\n');
 
 export const HTML = `<!DOCTYPE html>
 <html lang="zh-CN">

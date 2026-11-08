@@ -532,22 +532,30 @@ var safeKey=String(key).replace(/[^a-zA-Z0-9_-]/g,'');
 if(!safeKey)return {ok:false,msg:'无效 key'};
 var meta=await textdbGetOne(safeKey);
 if(!meta.ok)return meta;
-var val=String(meta.value||'').trim();
-if(val.indexOf('{"v":2')===0){
+var val=String(meta.value||'');
+// textdb 有时会在 JSON 里加空格：{"v": 2, "n": 2}
+var trimmed=val.trim();
 try{
-var o=JSON.parse(val);
-if(o&&o.v===2&&o.n>1){
+if(trimmed.charAt(0)==='{'){
+var o=JSON.parse(trimmed);
+if(o&&Number(o.v)===2&&Number(o.n)>1){
 var parts=[];
-for(var i=0;i<o.n;i++){
+for(var i=0;i<Number(o.n);i++){
 var p=await textdbGetOne(safeKey+'_c'+i);
 if(!p.ok||p.value==null)return {ok:false,msg:'分片 '+i+' 缺失'};
 parts.push(String(p.value));
 }
 return {ok:true,value:parts.join('')};
 }
-}catch(e){}
 }
+}catch(e){}
+// 修复 gzip 里可能被变成空格的 +
+if(trimmed.indexOf('#GZIP')===0){
+val=trimmed.replace(/^#GZIP:?/, '#GZIP:').replace(/ /g,'+');
+// 若已是 base64url，不动；base64ToBytes 会兼容
 return {ok:true,value:val};
+}
+return {ok:true,value:trimmed};
 }
 async function localCacheSet(key,value){
 if(!key||value===undefined||value===null)return {ok:false,msg:'缺少参数'};
@@ -659,8 +667,15 @@ bin+=String.fromCharCode.apply(null,sub);
 }
 return btoa(bin);
 }
+// textdb 会把 + 变成空格，所以分享内容一律用 base64url（- _ 无 + /）
+function bytesToBase64Url(bytes){
+return bytesToBase64(bytes).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
 function base64ToBytes(b64){
-var bin=atob(b64);
+// 兼容标准 base64 与 base64url，并修复 textdb 把 + 变成空格
+var s=String(b64||'').replace(/ /g,'+').replace(/-/g,'+').replace(/_/g,'/');
+while(s.length%4)s+='=';
+var bin=atob(s);
 var bytes=new Uint8Array(bin.length);
 for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
 return bytes;
@@ -684,7 +699,7 @@ for(var i=0;i<chunks.length;i++)total+=chunks[i].length;
 var all=new Uint8Array(total);
 var off=0;
 for(var i=0;i<chunks.length;i++){all.set(chunks[i],off);off+=chunks[i].length;}
-return bytesToBase64(all);
+return bytesToBase64Url(all);
 }catch(e){return null;}
 }
 async function gzipDecompress(b64){
@@ -712,11 +727,14 @@ return new TextDecoder().decode(all);
 }
 async function decodeImportText(text){
 text=String(text||'').trim();
-if(!text)return null;
+if(!text)return '';
 if(text.indexOf('#GZIP')===0){
-var b64=text.substring(6).trim();
-var decoded=await gzipDecompress(b64);
-return decoded;
+var b64=text.replace(/^#GZIP:?/,'').replace(/ /g,'+').trim();
+try{
+var out=await gzipDecompress(b64);
+if(out)return out;
+}catch(e){}
+return '';
 }
 return text;
 }
@@ -859,22 +877,24 @@ var lastId='';
 try{
 if(state.current>=0&&state.playlist[state.current])lastId=String(state.playlist[state.current].id||'');
 }catch(e){}
-var payload=JSON.stringify({v:1,list:data,current:state.current,lastId:lastId});
+var payload=JSON.stringify({v:1,list:data,current:state.current,lastId:lastId,ts:Date.now()});
 localStorage.setItem(COOKIE_NAME,payload);
 try{localStorage.setItem(COOKIE_NAME+'_bak',payload);}catch(e3){}
+try{sessionStorage.setItem(COOKIE_NAME,payload);}catch(e4){}
 try{
 var encoded=encodeURIComponent(JSON.stringify(data));
 if(encoded.length<=COOKIE_MAX)setCookieRaw(COOKIE_NAME,encoded);
 }catch(e2){}
 }catch(e){
 console.error('savePlaylist',e);
-try{if(typeof logError==='function')logError('保存播放列表失败',e);}catch(e4){}
+try{if(typeof logError==='function')logError('保存播放列表失败',e);}catch(e5){}
 }
 }
 function restorePlaylist(){
 try{
 var raw=localStorage.getItem(COOKIE_NAME);
 if(!raw){try{raw=localStorage.getItem(COOKIE_NAME+'_bak');}catch(e){}}
+if(!raw){try{raw=sessionStorage.getItem(COOKIE_NAME);}catch(e){}}
 if(raw){
 try{
 var obj=JSON.parse(raw);

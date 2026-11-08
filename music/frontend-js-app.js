@@ -947,121 +947,44 @@ return false;
 return true;
 }
 
+
 async function checkAllLevels(id){
-// 只关心无损/极高/标准；官方永不主动探测
+// 兼容旧调用：一次性返回（内部仍走本地→TextDB→API）
 var levels=['lossless','exhigh','standard'];
 var result={lossless:false,exhigh:false,standard:false,official:false};
-var t0=Date.now();
-try{logAction('下载音质检测开始','id='+id);}catch(e){}
-// 1) 纯本地（同步级速度）
 for(var i=0;i<levels.length;i++){
-var lv=levels[i];
 try{
-var loc=await getLocalAudioUrlOnly(id,lv,10);
-if(loc&&loc.url){result[lv]=true;try{logAction('下载命中本地',lv);}catch(e){}}
+var r=await tryGetLevelWithCache(id,levels[i],10);
+if(r&&r.url)result[levels[i]]=true;
 }catch(e){}
 }
-if(result.lossless&&result.exhigh&&result.standard){
-try{logAction('下载音质本地齐','id='+id+' ms='+(Date.now()-t0));}catch(e){}
-return result;
-}
-// 2) 仅 TextDB（不打解析 API）
-await Promise.all(levels.map(async function(lv){
-if(result[lv])return;
-try{
-if(typeof getTextdbAudioUrlOnly==='function'){
-var db=await getTextdbAudioUrlOnly(id,lv,10);
-if(db&&db.url){
-result[lv]=true;
-// 回填本地
-try{await saveAudioUrlToCache(id,lv,db.url,Math.max(60,Math.floor((db.expireAt-Date.now())/1000)));}catch(e){}
-try{logAction('下载命中TextDB',lv);}catch(e){}
-}
-}
-}catch(e){}
-}));
-if(result.lossless&&result.exhigh&&result.standard){
-try{logAction('下载音质缓存齐','id='+id+' ms='+(Date.now()-t0));}catch(e){}
-return result;
-}
-// 3) 缺的档位才打解析 API（并发，超时 10s），不碰官方
-function withTimeout(p,ms){
-return Promise.race([p,new Promise(function(res){setTimeout(function(){res(null);},ms);})]);
-}
-await Promise.all(levels.map(async function(lv){
-if(result[lv])return;
-try{
-var r=await withTimeout(tryGetLevelWithCache(id,lv,10),10000);
-if(r&&r.url){
-result[lv]=true;
-try{await saveAudioUrlToCache(id,lv,r.url,r.expi||DEFAULT_EXPI);}catch(e){}
-try{logAction('下载命中API',lv);}catch(e){}
-}
-}catch(e){try{logError('下载音质检测失败 '+lv,e);}catch(e2){}}
-}));
-try{logAction('下载音质检测结束','id='+id+' result='+JSON.stringify(result)+' ms='+(Date.now()-t0));}catch(e){}
 return result;
 }
 
-async function runQualityDetection(song){
-var token=++downloadDetectToken;
+function renderDownloadQualityList(availability,song,currentQuality,loadingMap){
 var listEl=$('qualityList');
-var btn=$('downloadRetryBtn');
-listEl.innerHTML='<div class="quality-loading"><div class="quality-spinner"></div><div>正在检测可用音质...</div></div>';
-btn.disabled=true;
-btn.classList.add('spinning');
-
-var availability=await checkAllLevels(song.id);
-
-if(token!==downloadDetectToken)return;
-if(!$('downloadScrim').classList.contains('show'))return;
-if(pendingDownloadSong!==song)return;
-
-btn.disabled=false;
-btn.classList.remove('spinning');
-
-var currentIsThisSong=(state.current>=0&&state.playlist[state.current]===song);
-var currentQuality=currentIsThisSong?state.quality:'';
-if(currentQuality&&availability[currentQuality]!==undefined){
-availability[currentQuality]=true;
-}
-
-renderDownloadQualityList(availability,song,currentQuality);
-}
-
-function openDownloadDialog(song){
-try{blurControl(document.activeElement);}catch(e){}
-
-pendingDownloadSong=song;
-$('downloadSongName').textContent=(song.name||'未知歌曲')+' - '+(song.artist||'');
-closeOtherScrims('downloadScrim');
-showScrim('downloadScrim');
-runQualityDetection(song);
-}
-
-function renderDownloadQualityList(availability,song,currentQuality){
-var listEl=$('qualityList');
-var anyAvailable=false;
-for(var i=0;i<DOWNLOAD_LEVELS.length;i++){
-if(availability[DOWNLOAD_LEVELS[i].key]){anyAvailable=true;break}
-}
-if(!anyAvailable){
-listEl.innerHTML='<div class="quality-loading">没有可用音质</div>';
-return;
-}
-
+if(!listEl)return;
+loadingMap=loadingMap||{};
 var html='<div class="quality-list">';
 for(var i=0;i<DOWNLOAD_LEVELS.length;i++){
 var lv=DOWNLOAD_LEVELS[i];
+// 官方：仅当三档都失败且不在 loading 时才显示为可点；否则显示为不可用/加载中
+var isOfficial=lv.key==='official';
 var isCurrent=lv.key===currentQuality;
-var avail=availability[lv.key]||isCurrent;
+var avail=!!availability[lv.key];
+var loading=!!loadingMap[lv.key];
 var cls='quality-item';
-if(!avail)cls+=' disabled';
+if(!avail&&!loading)cls+=' disabled';
 if(isCurrent)cls+=' current';
-var dis=avail?'':' disabled';
-html+='<button class="'+cls+'" data-level="'+lv.key+'"'+dis+'>';
+if(loading)cls+=' loading';
+var dis=(avail&&!loading)?'':' disabled';
+// 已获取：可点；加载中/失败：不可点
+if(avail)dis='';
+html+='<button class="'+cls+'" data-level="'+lv.key+'"'+(avail?'':' disabled')+'>';
 html+='<span class="quality-label">'+lv.label+'</span>';
-if(isCurrent){
+if(loading){
+html+='<span class="quality-tag unavailable"><span class="quality-inline-spin"></span></span>';
+}else if(isCurrent&&avail){
 html+='<span class="quality-tag">当前</span>';
 }else if(!avail){
 html+='<span class="quality-tag unavailable">不可用</span>';
@@ -1070,16 +993,103 @@ html+='</button>';
 }
 html+='</div>';
 listEl.innerHTML=html;
-
 var buttons=listEl.querySelectorAll('.quality-item');
 for(var j=0;j<buttons.length;j++){
 buttons[j].addEventListener('click',function(){
 if(this.disabled)return;
 var level=this.getAttribute('data-level');
+if(!availability[level])return;
 hideScrim('downloadScrim');
 doDownload(pendingDownloadSong,level);
 });
 }
+}
+
+async function runQualityDetection(song){
+var token=++downloadDetectToken;
+var btn=$('downloadRetryBtn');
+if(btn){btn.disabled=true;btn.classList.add('spinning');}
+
+var availability={lossless:false,exhigh:false,standard:false,official:false};
+var loading={lossless:true,exhigh:true,standard:true,official:false};
+var currentIsThisSong=(state.current>=0&&state.playlist[state.current]===song);
+var currentQuality=currentIsThisSong?state.quality:'';
+
+// 立刻画出 4 个音质
+renderDownloadQualityList(availability,song,currentQuality,loading);
+
+var levels=['lossless','exhigh','standard'];
+var t0=Date.now();
+try{logAction('下载音质检测开始','id='+song.id);}catch(e){}
+
+// 1) 本地瞬时命中
+for(var i=0;i<levels.length;i++){
+var lv=levels[i];
+try{
+var loc=await getLocalAudioUrlOnly(song.id,lv,10);
+if(loc&&loc.url){
+availability[lv]=true;
+loading[lv]=false;
+try{logAction('下载命中本地',lv+' id='+song.id);}catch(e){}
+}
+}catch(e){}
+}
+if(token===downloadDetectToken)renderDownloadQualityList(availability,song,currentQuality,loading);
+
+if(availability.lossless&&availability.exhigh&&availability.standard){
+loading.lossless=loading.exhigh=loading.standard=false;
+if(token===downloadDetectToken){
+renderDownloadQualityList(availability,song,currentQuality,loading);
+if(btn){btn.disabled=false;btn.classList.remove('spinning');}
+}
+try{logAction('下载音质本地齐','id='+song.id+' ms='+(Date.now()-t0));}catch(e){}
+return;
+}
+
+// 2) 缺的档位：TextDB + API（tryGetLevelWithCache 已是 本地→DB→API）
+await Promise.all(levels.map(async function(lv){
+if(availability[lv]){loading[lv]=false;return;}
+try{
+var r=await tryGetLevelWithCache(song.id,lv,10);
+if(token!==downloadDetectToken)return;
+if(r&&r.url){
+availability[lv]=true;
+// 再保险写缓存
+try{await saveAudioUrlToCache(song.id,lv,r.url,r.expi||DEFAULT_EXPI);}catch(e){}
+try{logAction('下载命中',lv+(r.fromLocal?' local':(r.fromCache?' db':' api')));}catch(e){}
+}
+}catch(e){try{logError('下载音质失败 '+lv,e);}catch(e2){}}
+loading[lv]=false;
+if(token===downloadDetectToken)renderDownloadQualityList(availability,song,currentQuality,loading);
+}));
+
+// 3) 仅当三档全无时才探测官方
+if(!availability.lossless&&!availability.exhigh&&!availability.standard){
+loading.official=true;
+if(token===downloadDetectToken)renderDownloadQualityList(availability,song,currentQuality,loading);
+try{
+var off=await probeOfficialLocal(song.id,30);
+if(off&&off.url){
+availability.official=true;
+try{await saveAudioUrlToCache(song.id,'official',off.url,off.expi||DEFAULT_EXPI);}catch(e){}
+}
+}catch(e){}
+loading.official=false;
+}
+
+if(token!==downloadDetectToken)return;
+if(btn){btn.disabled=false;btn.classList.remove('spinning');}
+renderDownloadQualityList(availability,song,currentQuality,loading);
+try{logAction('下载音质检测结束','id='+song.id+' result='+JSON.stringify(availability)+' ms='+(Date.now()-t0));}catch(e){}
+}
+
+function openDownloadDialog(song){
+try{blurControl(document.activeElement);}catch(e){}
+pendingDownloadSong=song;
+try{$('downloadSongName').textContent=(song.name||'未知歌曲')+' - '+(song.artist||'');}catch(e){}
+try{closeOtherScrims('downloadScrim');}catch(e){}
+try{showScrim('downloadScrim');}catch(e){}
+runQualityDetection(song);
 }
 
 async function doDownload(song,level){
@@ -1087,8 +1097,13 @@ if(!song)return;
 toast('获取下载链接...');
 var url='';
 try{
-url=await fetchPlayUrlLevel(song.id,level,30);
+// 强制本地→DB→API，并缓存
+var r=await tryGetLevelWithCache(song.id,level,10);
+if(r&&r.url)url=r.url;
 }catch(e){}
+if(!url){
+try{url=await fetchPlayUrlLevel(song.id,level,10);}catch(e){}
+}
 if(!url){
 if(level==='official'){
 url=await probeOfficialLocal(song.id);

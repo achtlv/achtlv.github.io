@@ -355,7 +355,9 @@ return null;
 try{
 var hit=await raceFirstOk(tasks);
 if(hit&&hit.url){
-return {code:200,data:{url:ensureHttps(hit.url),expi:hit.expi||0,respQuality:hit.quality||q}};
+var finalUrl=ensureHttps(hit.url);
+try{if(typeof saveAudioUrlToCache==='function')await saveAudioUrlToCache(songId,level,finalUrl,hit.expi||0);}catch(e){}
+return {code:200,data:{url:finalUrl,expi:hit.expi||0,respQuality:hit.quality||q}};
 }
 }catch(e){}
 }

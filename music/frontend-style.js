@@ -579,5 +579,11 @@ box-shadow:none!important;filter:none;
 .logs-dialog .logs-list{flex:1;overflow:auto;max-height:60dvh;min-height:160px;-webkit-overflow-scrolling:touch}
 
 
+.quality-item.loading{opacity:.75}
+.quality-inline-spin{display:inline-block;width:12px;height:12px;border-radius:50%;
+border:2px solid color-mix(in srgb,var(--outline) 50%,transparent);
+border-top-color:var(--on-surface-variant);
+animation:retry-spin .8s linear infinite;vertical-align:middle}
+.quality-item:not([disabled]){cursor:pointer}
 </style>
 `;

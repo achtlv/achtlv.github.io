@@ -37,26 +37,30 @@ return null;
 }
 
 async function tryGetLevelWithCache(id,level,minRemainSec){
-// 1) 仅本地缓存
+// 1) 仅本地
 var local=await getLocalAudioUrlOnly(id,level,minRemainSec);
 if(local){
 var expiL=Math.max(1,Math.floor((local.expireAt-Date.now())/1000));
+try{if(typeof logAction==='function')logAction('取链命中本地',level+' id='+id);}catch(e){}
 return {url:upgradeMediaUrl(local.url),level:level,expi:expiL,fromCache:true,fromLocal:true};
 }
-// 2) 各 API 各请求一次（DETECT_TIMES=1）
+// 2) TextDB（再回填本地）
+var remote=await getTextdbAudioUrlOnly(id,level,minRemainSec);
+if(remote&&remote.url){
+var expiR=Math.max(1,Math.floor((remote.expireAt-Date.now())/1000));
+try{await saveAudioUrlToCache(id,level,remote.url,expiR);}catch(e){}
+try{if(typeof logAction==='function')logAction('取链命中TextDB',level+' id='+id);}catch(e){}
+return {url:upgradeMediaUrl(remote.url),level:level,expi:expiR,fromCache:true};
+}
+// 3) 解析 API（一次）
 try{
 var r=await fetchPlayUrlLevelOnce(id,level);
 if(r&&r.url){
-await saveAudioUrlToCache(id,level,r.url,r.expi||DEFAULT_EXPI);
+try{await saveAudioUrlToCache(id,level,r.url,r.expi||DEFAULT_EXPI);}catch(e){}
+try{if(typeof logAction==='function')logAction('取链命中API',level+' id='+id);}catch(e){}
 return {url:upgradeMediaUrl(r.url),level:level,expi:r.expi||DEFAULT_EXPI};
 }
 }catch(e){}
-// 3) textdb 兜底
-var remote=await getTextdbAudioUrlOnly(id,level,minRemainSec);
-if(remote){
-var expiR=Math.max(1,Math.floor((remote.expireAt-Date.now())/1000));
-return {url:upgradeMediaUrl(remote.url),level:level,expi:expiR,fromCache:true};
-}
 return null;
 }
 

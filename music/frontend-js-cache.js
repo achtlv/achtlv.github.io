@@ -162,14 +162,26 @@ return null;
 }
 async function getTextdbAudioUrlOnly(id,level,minRemainSec){
 if(level==='external')return null;
-var key=level+String(id);
-var text=await cacheGetRaw(key);
+var keys=typeof audioCacheKeys==='function'?audioCacheKeys(id,level):[level+String(id)];
+for(var i=0;i<keys.length;i++){
+try{
+var text=await cacheGetRaw(keys[i]);
 var data=cacheDecodeValue(text);
-if(!data)return null;
+if(!data||!data.url)continue;
 var remainSec=(data.expireAt-Date.now())/1000;
-if(remainSec<minRemainSec)return null;
-try{mediaCacheSetEntry(key,data.url,data.expireAt,'audio');}catch(e){}
-return data;
+if(remainSec<(minRemainSec||0))continue;
+// 回填本地所有别名
+try{
+if(typeof saveAudioUrlToCache==='function'){
+await saveAudioUrlToCache(id,level,data.url,Math.max(60,Math.floor(remainSec)));
+}else{
+mediaCacheSetEntry(keys[i],data.url,data.expireAt,'audio');
+}
+}catch(e){}
+return {expireAt:data.expireAt,url:data.url};
+}catch(e){}
+}
+return null;
 }
 
 async function getCachedAudioUrl(id,level,minRemainSec){
@@ -196,16 +208,27 @@ async function saveAudioUrlToCache(id,level,url,expi){
 if(level==='external')return;
 if(!url)return;
 url=(typeof ensureHttps==='function'?ensureHttps(url):String(url).replace(/^http:\/\//i,'https://'));
-var ttl=typeof expi==='number'&&expi>0?expi:DEFAULT_EXPI;
-if(ttl>DEFAULT_EXPI)ttl=DEFAULT_EXPI;
+var ttl=typeof expi==='number'&&expi>0?expi:(typeof DEFAULT_EXPI==='number'?DEFAULT_EXPI:1200);
+if(typeof DEFAULT_EXPI==='number'&&ttl>DEFAULT_EXPI)ttl=DEFAULT_EXPI;
+if(ttl<60)ttl=60;
 var expireAt=Date.now()+ttl*1000;
 var value=cacheEncodeValue(expireAt,url);
-var keys=audioCacheKeys(id,level);
+var keys=typeof audioCacheKeys==='function'?audioCacheKeys(id,level):[String(level)+String(id)];
+// 先写本地（同步），保证立刻可命中
 for(var i=0;i<keys.length;i++){
-mediaCacheSetEntry(keys[i],url,expireAt,'audio');
+try{mediaCacheSetEntry(keys[i],url,expireAt,'audio');}catch(e){}
 }
-// textdb 只写主 key，避免爆炸
-try{await cacheSetRaw(keys[0],value);}catch(e){}
+// 再写 textdb（异步，不阻塞）
+try{cacheSetRaw(keys[0],value).catch(function(){});}catch(e){}
+// 主 key 再写一次 canonical
+try{
+var canon=String(level).toLowerCase();
+if(canon==='flac'||canon==='hires')canon='lossless';
+if(canon==='320k'||canon==='higher')canon='exhigh';
+if(canon==='128k')canon='standard';
+var ck=canon+String(id);
+if(keys.indexOf(ck)===-1){try{mediaCacheSetEntry(ck,url,expireAt,'audio');}catch(e){}}
+}catch(e){}
 }
 
 function getLocalCoverOnly(id){

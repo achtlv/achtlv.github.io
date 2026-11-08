@@ -41,6 +41,7 @@ var entry=getPreloadEntry(song.id);
 if(!entry||entry.picDone)return;
 
 if(song.pic){
+song.pic=(typeof ensureHttps==='function'?ensureHttps(song.pic):song.pic);
 entry.pic=song.pic;
 entry.picDone=true;
 preloadCover(song.pic);

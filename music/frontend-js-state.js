@@ -47,6 +47,35 @@ editingOrder:false,
 _lastLyricKey:null,_lastMediaKey:null,_lyricScrollTimer:null
 };
 
+
+// 尽早恢复播放列表（不依赖 utils），解决首屏空白
+(function(){
+try{
+var raw=null;
+try{raw=localStorage.getItem('m3_playlist');}catch(e){}
+if(!raw){try{raw=localStorage.getItem('m3_playlist_bak');}catch(e){}}
+if(!raw){try{raw=sessionStorage.getItem('m3_playlist');}catch(e){}}
+if(!raw)return;
+var obj=JSON.parse(raw);
+var list=Array.isArray(obj)?obj:(obj&&obj.list);
+if(!Array.isArray(list)||!list.length)return;
+state.playlist=list.map(function(s){
+var o={id:String(s.id||''),name:s.name||'未知歌曲',artist:s.artist||'未知歌手',pic:s.pic||'',duration:0};
+if(s.ext){o.external=true;o.url=String(s.url||'');o.srcUrl=String(s.srcUrl||'');o.format=String(s.format||'');}
+if(s.source)o.source=s.source;
+if(o.pic&&o.pic.indexOf('http://')===0)o.pic=o.pic.replace(/^http:\/\//i,'https://');
+return o;
+}).filter(function(s){return !!s.id&&(!s.external||!!s.url);});
+var restored=-1;
+if(obj&&obj.lastId){
+var lid=String(obj.lastId);
+for(var i=0;i<state.playlist.length;i++){if(String(state.playlist[i].id)===lid){restored=i;break;}}
+}
+if(restored<0&&obj&&typeof obj.current==='number'&&obj.current>=0&&obj.current<state.playlist.length)restored=obj.current;
+state.current=restored>=0?restored:(state.playlist.length?0:-1);
+state.playing=false;
+}catch(e){}
+})();
 var audio=document.createElement('video');
 audio.style.position='absolute';
 audio.style.left='-9999px';

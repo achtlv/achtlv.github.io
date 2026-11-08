@@ -2692,8 +2692,16 @@ try{restoreListHistory();}catch(e){}
 try{restoreAuthLocal();}catch(e){}
 try{if(typeof restoreSyncMetaLocal==='function')restoreSyncMetaLocal();}catch(e){}
 try{restorePlaylist();}catch(e){}
+// 再读一次，防止早先恢复失败
+try{
+if(!state.playlist||!state.playlist.length){
+var raw=localStorage.getItem(COOKIE_NAME)||localStorage.getItem(COOKIE_NAME+'_bak')||sessionStorage.getItem(COOKIE_NAME);
+if(raw)restorePlaylist();
+}
+}catch(e){}
 try{state.playing=false;state.audioUrl='';state.quality='';state.showLyric=false;}catch(e){}
 try{if(typeof savePlaylist==='function'&&state.playlist&&state.playlist.length)savePlaylist();}catch(e){}
+try{if(typeof logAction==='function')logAction('启动恢复列表','count='+(state.playlist?state.playlist.length:0)+' current='+state.current);}catch(e){}
 try{render();}catch(e){console.error('render',e);}
 try{
 // 恢复后若有歌，预取当前曲链接（不自动播放）

@@ -172,8 +172,9 @@ return data;
 async function saveAudioUrlToCache(id,level,url,expi){
 if(level==='external')return;
 if(!url)return;
+url=(typeof ensureHttps==='function'?ensureHttps(url):String(url).replace(/^http:\/\//i,'https://'));
 var ttl=typeof expi==='number'&&expi>0?expi:DEFAULT_EXPI;
-if(ttl>DEFAULT_EXPI)ttl=DEFAULT_EXPI; // 播放链接最多 20 分钟
+if(ttl>DEFAULT_EXPI)ttl=DEFAULT_EXPI;
 var expireAt=Date.now()+ttl*1000;
 var key=level+String(id);
 mediaCacheSetEntry(key,url,expireAt,'audio');
@@ -184,13 +185,14 @@ await cacheSetRaw(key,value);
 async function getCachedCover(id){
 var key='cover'+String(id);
 var local=mediaCacheGetEntry(key);
-if(local&&local.url)return local.url;
+if(local&&local.url)return (typeof ensureHttps==='function'?ensureHttps(local.url):local.url);
 var text=await cacheGetRaw(key);
 var data=cacheDecodeValue(text);
 if(!data)return '';
 if(data.expireAt<Date.now())return '';
-try{mediaCacheSetEntry(key,data.url,data.expireAt,'cover');}catch(e){}
-return data.url;
+var u=(typeof ensureHttps==='function'?ensureHttps(data.url):data.url);
+try{mediaCacheSetEntry(key,u,data.expireAt,'cover');}catch(e){}
+return u;
 }
 
 async function saveCoverToCache(id,picUrl){

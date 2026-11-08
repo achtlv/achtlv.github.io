@@ -176,9 +176,38 @@ return url.replace(/^http:\/\/(([a-z0-9.-]+)\.music\.126\.net)\//i,'https://$1/'
 function upgradeMediaUrl(url){
 if(!url||typeof url!=='string')return url;
 var u=String(url).trim();
-// HTTPS 页面禁止任何 http 媒体，一律升为 https（解决混合内容拦截）
 if(/^http:\/\//i.test(u))u=u.replace(/^http:\/\//i,'https://');
 return u;
+}
+function ensureHttps(u){
+if(!u||typeof u!=='string')return u;
+return upgradeMediaUrl(u);
+}
+function ensureHttpsInText(text){
+// 把文本中的 http:// 媒体链升为 https://（歌词内嵌图等）
+if(!text||typeof text!=='string')return text;
+return text.replace(/http:\/\//gi,'https://');
+}
+// 并发竞速：第一个成功结果即返回（其余忽略）
+function raceFirstOk(taskFns){
+return new Promise(function(resolve,reject){
+var list=taskFns||[];
+var pending=list.length;
+var settled=false;
+if(!pending){reject(new Error('empty'));return;}
+list.forEach(function(fn){
+Promise.resolve().then(function(){return fn();}).then(function(r){
+if(settled)return;
+if(r){settled=true;resolve(r);return;}
+pending--;
+if(pending<=0)reject(new Error('all failed'));
+}).catch(function(){
+if(settled)return;
+pending--;
+if(pending<=0)reject(new Error('all failed'));
+});
+});
+});
 }
 function qualitiesForLevel(level){
 var lv=String(level||'').toLowerCase();
@@ -233,21 +262,12 @@ await saveAudioUrlToCache(String(id),'standard',u,ttl);
 async function localGetSongUrl(id,level){
 var songId=String(id||'').trim();
 if(!songId)return {code:400,msg:'无效歌曲 ID'};
-// 酷狗：id 形如 kg + hash
 if(/^kg[a-fA-F0-9]{32}$/i.test(songId)||(songId.indexOf('kg')===0&&songId.length>10)){
 return localGetKgSongUrl(songId,level);
 }
 if(!/^\d+$/.test(songId))return {code:400,msg:'无效歌曲 ID'};
 var qualities=qualitiesForLevel(level);
-var errors=[];
 var backends=[
-{name:'星海',run:async function(q){
-var url='https://yy.zddyr.top/lx/api/?source=wy&songmid='+encodeURIComponent(songId)+'&quality='+encodeURIComponent(q);
-var r=await localFetchJson(url,{method:'GET'});
-var u=(r.data&&(r.data.url||(r.data.data&&r.data.data.url)))||'';
-if(u)return {url:u,quality:(r.data&&r.data.quality)||q,expi:(r.data&&r.data.expi)||0};
-throw new Error((r.data&&(r.data.msg||r.data.message))||'星海无结果');
-}},
 {name:'GD',run:async function(q){
 var br=q==='flac'?'740':(q==='320k'?'320':'128');
 var url='https://music-api.gdstudio.xyz/api.php?types=url&source=netease&id='+encodeURIComponent(songId)+'&br='+br;
@@ -257,16 +277,22 @@ var gotBr=(r.data&&r.data.br)||0;
 var gq=q;
 if(gotBr&&gotBr>0&&gotBr<=160)gq='128k';
 else if(gotBr&&gotBr<=400)gq='320k';
-if(u)return {url:u,quality:gq,expi:0};
+if(u)return {url:ensureHttps(u),quality:gq,expi:0};
 throw new Error('GD无结果');
+}},
+{name:'星海',run:async function(q){
+var url='https://yy.zddyr.top/lx/api/?source=wy&songmid='+encodeURIComponent(songId)+'&quality='+encodeURIComponent(q);
+var r=await localFetchJson(url,{method:'GET'});
+var u=(r.data&&(r.data.url||(r.data.data&&r.data.data.url)))||'';
+if(u)return {url:ensureHttps(u),quality:(r.data&&r.data.quality)||q,expi:(r.data&&r.data.expi)||0};
+throw new Error((r.data&&(r.data.msg||r.data.message))||'星海无结果');
 }},
 {name:'ikun',run:async function(q){
 var r=await localFetchJson('https://c.wwwweb.top/music/url',{
-method:'POST',
-headers:{'Content-Type':'application/json'},
+method:'POST',headers:{'Content-Type':'application/json'},
 body:JSON.stringify({source:'wy',musicId:songId,quality:q})
 });
-if(r.data&&Number(r.data.code)===200&&r.data.url)return {url:r.data.url,quality:r.data.quality||q,expi:0};
+if(r.data&&Number(r.data.code)===200&&r.data.url)return {url:ensureHttps(r.data.url),quality:r.data.quality||q,expi:0};
 throw new Error((r.data&&r.data.message)||'ikun无结果');
 }},
 {name:'Huibq',run:async function(q){
@@ -275,7 +301,7 @@ var url='https://lxmusicapi.onrender.com/url/wy/'+encodeURIComponent(songId)+'/'
 var r=await localFetchJson(url,{method:'GET',headers:{'X-Request-Key':'share-v3','User-Agent':'lx-music-desktop/2.10.0'}});
 if(r.data&&Number(r.data.code)===0&&r.data.url){
 var rq=(r.data.extra&&r.data.extra.quality&&r.data.extra.quality.result)||q;
-return {url:r.data.url,quality:rq,expi:0};
+return {url:ensureHttps(r.data.url),quality:rq,expi:0};
 }
 throw new Error((r.data&&r.data.msg)||'Huibq无结果');
 }},
@@ -283,40 +309,57 @@ throw new Error((r.data&&r.data.msg)||'Huibq无结果');
 var r=await localFetchJson('https://oiapi.net/api/Music_163?id='+encodeURIComponent(songId),{method:'GET'});
 var u='';
 if(r.data&&r.data.data&&r.data.data[0])u=r.data.data[0].url||'';
-if(u)return {url:u,quality:q,expi:0};
+if(u)return {url:ensureHttps(u),quality:q,expi:0};
 throw new Error('oiapi无结果');
 }}
 ];
+// 并发：textdb 缓存 + 各解析接口，先到先得
 for(var qi=0;qi<qualities.length;qi++){
 var q=qualities[qi];
-try{backends.sort(function(a,b){if(a.name==='GD')return -1;if(b.name==='GD')return 1;return 0;});}catch(e){}
-for(var bi=0;bi<backends.length;bi++){
+var tasks=[];
+// textdb 缓存（带过期）
+tasks.push(async function(){
 try{
-var got=await backends[bi].run(q);
-var url=got&&got.url?got.url:got;
-var gotQ=(got&&got.quality)?String(got.quality):q;
-url=upgradeNeteaseUrl(url);
-if(url&&/^https?:\/\//i.test(url)){
-var ttl=DEFAULT_EXPI||1200;
-// 请求极高过程中若实际拿到标准，写入标准缓存（比本地更晚才覆盖）
-var gq=gotQ.toLowerCase();
-// 仅当明确返回 128k 时侧写标准缓存，并继续冲更高；不要因字段名含糊就丢弃可用链接
-if((q==='320k'||q==='flac')&&(gq==='128k'||gq==='128'||gq==='lq')){
-try{await maybeCacheSideStandard(songId,url,ttl);}catch(e){}
-errors.push(backends[bi].name+'/'+q+': got 128k, continue');
-continue;
+if(typeof getTextdbAudioUrlOnly==='function'){
+var db=await getTextdbAudioUrlOnly(songId,level,30);
+if(db&&db.url)return {url:ensureHttps(db.url),quality:q,expi:Math.max(1,Math.floor((db.expireAt-Date.now())/1000)),fromCache:true};
 }
-// 内部统一用 exhigh/standard，避免和 LEVELS 对不上
-var outLevel=q;
-if(q==='320k'||q==='higher')outLevel='exhigh';
-else if(q==='128k'||q==='l')outLevel='standard';
-else if(q==='flac'||q==='hires')outLevel='lossless';
-return {code:200,data:{url:url,expi:ttl,level:outLevel,br:q==='flac'?999000:(q==='320k'?320000:128000),respQuality:gotQ}};
-}
-}catch(e){errors.push(backends[bi].name+'/'+q+': '+(e.message||e));}
+// 兼容直接读
+if(typeof cacheGetRaw==='function'){
+var key=level+String(songId);
+var text=await cacheGetRaw(key);
+if(text&&typeof cacheDecodeValue==='function'){
+var data=cacheDecodeValue(text);
+if(data&&data.url&&data.expireAt>Date.now()+30000){
+return {url:ensureHttps(data.url),quality:q,expi:Math.max(1,Math.floor((data.expireAt-Date.now())/1000)),fromCache:true};
 }
 }
-return {code:404,msg:'暂无可用音源',debug:errors.slice(0,8)};
+}
+}catch(e){}
+return null;
+});
+backends.forEach(function(b){
+tasks.push(async function(){
+try{
+var r=await b.run(q);
+if(r&&r.url){
+r.url=ensureHttps(r.url);
+// 拿到即上传 textdb
+try{if(typeof saveAudioUrlToCache==='function')await saveAudioUrlToCache(songId,level,r.url,r.expi||0);}catch(e){}
+return r;
+}
+}catch(e){}
+return null;
+});
+});
+try{
+var hit=await raceFirstOk(tasks);
+if(hit&&hit.url){
+return {code:200,data:{url:ensureHttps(hit.url),expi:hit.expi||0,respQuality:hit.quality||q}};
+}
+}catch(e){}
+}
+return {code:404,msg:'无法获取播放链接'};
 }
 async function localGetKgSongUrl(id,level){
 var raw=String(id||'');
@@ -415,89 +458,123 @@ async function localGetSongInfo(id){
 var songId=String(id||'').trim();
 if(!songId||!/^\d+$/.test(songId))return {code:400,msg:'无效歌曲 ID'};
 if(_songInfoMem[songId])return _songInfoMem[songId];
+// 封面缓存
 try{
-var r=await localFetchJson('https://api.paugram.com/netease/?id='+encodeURIComponent(songId),{method:'GET'},10000);
-var d=r.data;
-if(d&&(d.title||d.name||d.cover||d.artist)){
-var name=d.title||d.name||'';
-var artist=d.artist||d.singer||'';
-var pic=d.cover||d.pic||d.picUrl||'';
-if(pic&&/music\.126\.net/i.test(pic)){
-// 强制高清，覆盖已有小图 param
-pic=pic.replace(/([?&])param=[^&]*/g,'').replace(/\?&/,'?').replace(/[?&]$/,'');
-pic=pic+(pic.indexOf('?')===-1?'?':'&')+'param=500y500';
-}
-var out={code:200,data:{songs:[{id:Number(songId)||songId,name:name,ar:[{name:artist}],al:{picUrl:pic},dt:0}]}};
+if(typeof getCachedCover==='function'){
+var cp=await getCachedCover(songId);
+if(cp){
+var out={code:200,data:{songs:[{id:Number(songId)||songId,name:'',ar:[{name:''}],al:{picUrl:ensureHttps(cp)}}]}};
 _songInfoMem[songId]=out;
 return out;
 }
-}catch(e){}
-try{
-var r2=await localFetchJson('https://api.injahow.cn/meting/?server=netease&type=song&id='+encodeURIComponent(songId),{method:'GET'},10000);
-var arr=r2.data;
-var item=Array.isArray(arr)?arr[0]:arr;
-if(item&&(item.name||item.pic||item.artist)){
-var out2={code:200,data:{songs:[{id:Number(songId)||songId,name:item.name||'',ar:[{name:item.artist||''}],al:{picUrl:item.pic||''},dt:0}]}};
-_songInfoMem[songId]=out2;
-return out2;
 }
 }catch(e){}
-var empty={code:200,data:{songs:[{id:Number(songId)||songId,name:'',ar:[{name:''}],al:{picUrl:''},dt:0}]}};
-_songInfoMem[songId]=empty;
-return empty;
+var tasks=[];
+tasks.push(async function(){
+try{
+var r=await localFetchJson('https://api.paugram.com/netease/?id='+encodeURIComponent(songId),{method:'GET'},10000);
+var d=r.data;
+if(d&&(d.title||d.name||d.cover||d.pic)){
+var pic=ensureHttps(d.cover||d.pic||d.picUrl||'');
+var name=d.title||d.name||'';
+var artist=d.artist||d.singer||'';
+if(pic&&typeof saveCoverToCache==='function'){try{await saveCoverToCache(songId,pic);}catch(e){}}
+return {code:200,data:{songs:[{id:Number(songId)||songId,name:name,ar:[{name:artist}],al:{picUrl:pic}}]}};
+}
+}catch(e){}
+return null;
+});
+tasks.push(async function(){
+try{
+var r=await localFetchJson('https://music-api.gdstudio.xyz/api.php?types=song&source=netease&id='+encodeURIComponent(songId),{method:'GET'});
+var d=r.data;
+var item=(d&&d.songs&&d.songs[0])||d;
+if(item&&(item.name||item.pic||item.picUrl)){
+var pic=ensureHttps((item.al&&item.al.picUrl)||item.picUrl||item.pic||'');
+if(pic&&typeof saveCoverToCache==='function'){try{await saveCoverToCache(songId,pic);}catch(e){}}
+return {code:200,data:{songs:[{id:Number(songId)||songId,name:item.name||'',ar:item.ar||[{name:item.artist||''}],al:{picUrl:pic}}]}};
+}
+}catch(e){}
+return null;
+});
+try{
+var hit=await raceFirstOk(tasks);
+if(hit){_songInfoMem[songId]=hit;return hit;}
+}catch(e){}
+return {code:404,msg:'无信息'};
 }
 async function localGetSongLyric(id){
 var songId=String(id||'').trim();
 if(!songId)return {code:400,msg:'无效歌曲 ID'};
-// 酷狗歌词：走 Worker 代理（krcs 有 CORS）
+// 酷狗歌词仍走可工作的路径
 if(/^kg/i.test(songId)||/^[a-fA-F0-9]{32}$/.test(songId)){
 var hash=songId.indexOf('kg')===0?songId.substring(2):songId;
 hash=String(hash).toLowerCase().replace(/[^a-f0-9]/g,'');
 if(hash.length===32){
 try{
-var url=toAbsoluteApiUrl('/api/getSongLyric');
-var res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:'kg'+hash})});
-var data=await res.json();
-if(data&&data.code===200)return data;
-}catch(e){}
-}
-return {code:200,data:{lrc:{lyric:''},tlyric:{lyric:''},romalrc:{lyric:''}}};
-}
-if(!/^\d+$/.test(songId))return {code:400,msg:'无效歌曲 ID'};
-// 优先 vkeys：同时有原文/翻译/音译
-try{
-var r=await localFetchJson('https://api.vkeys.cn/v2/music/netease/lyric?id='+encodeURIComponent(songId),{method:'GET'});
-var d=r.data&&r.data.data;
-if(d&&(d.lrc||d.trans||d.roma)){
+var rk=await localFetchJson(toAbsoluteApiUrl('/api/kgLyric'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({hash:hash})},15000);
+if(rk.data&&rk.data.code===200&&rk.data.data){
+var L=rk.data.data;
 return {code:200,data:{
-lrc:{lyric:d.lrc||''},
-tlyric:{lyric:d.trans||''},
-romalrc:{lyric:d.roma||''}
+lrc:{lyric:ensureHttpsInText(L.lrc&&L.lrc.lyric||L.lyric||'')},
+tlyric:{lyric:ensureHttpsInText(L.tlyric&&L.tlyric.lyric||L.trans||'')},
+romalrc:{lyric:ensureHttpsInText(L.romalrc&&L.romalrc.lyric||L.roma||'')}
 }};
 }
 }catch(e){}
-// 备用 GD Studio 歌词
+}
+}
+// 网易：textdb 歌词缓存 + 多接口并发
+var tasks=[];
+tasks.push(async function(){
+try{
+if(typeof getCachedLyric==='function'){
+var c=await getCachedLyric(songId);
+if(c&&(c.main||c.trans||c.roma)){
+return {code:200,data:{
+lrc:{lyric:ensureHttpsInText(c.main||'')},
+tlyric:{lyric:ensureHttpsInText(c.trans||'')},
+romalrc:{lyric:ensureHttpsInText(c.roma||'')}
+}};
+}
+}
+}catch(e){}
+return null;
+});
+tasks.push(async function(){
 try{
 var rg=await localFetchJson('https://music-api.gdstudio.xyz/api.php?types=lyric&source=netease&id='+encodeURIComponent(songId),{method:'GET'});
 if(rg.data&&rg.data.lyric){
-return {code:200,data:{
-lrc:{lyric:rg.data.lyric||''},
-tlyric:{lyric:rg.data.tlyric||rg.data.trans||''},
+var out={code:200,data:{
+lrc:{lyric:ensureHttpsInText(rg.data.lyric||'')},
+tlyric:{lyric:ensureHttpsInText(rg.data.tlyric||rg.data.trans||'')},
 romalrc:{lyric:''}
 }};
+try{if(typeof saveLyricToCache==='function')await saveLyricToCache(songId,out.data.lrc.lyric,out.data.tlyric.lyric,'');}catch(e){}
+return out;
 }
 }catch(e){}
-// 备用 paugram：翻译在 sub_lyric
+return null;
+});
+tasks.push(async function(){
 try{
 var r0=await localFetchJson('https://api.paugram.com/netease/?id='+encodeURIComponent(songId),{method:'GET'},10000);
 var d0=r0.data;
 if(d0&&(d0.lyric||d0.sub_lyric)){
-return {code:200,data:{
-lrc:{lyric:d0.lyric||''},
-tlyric:{lyric:d0.sub_lyric||d0.tlyric||d0.trans||''},
+var out={code:200,data:{
+lrc:{lyric:ensureHttpsInText(d0.lyric||'')},
+tlyric:{lyric:ensureHttpsInText(d0.sub_lyric||d0.tlyric||d0.trans||'')},
 romalrc:{lyric:''}
 }};
+try{if(typeof saveLyricToCache==='function')await saveLyricToCache(songId,out.data.lrc.lyric,out.data.tlyric.lyric,'');}catch(e){}
+return out;
 }
+}catch(e){}
+return null;
+});
+try{
+var hit=await raceFirstOk(tasks);
+if(hit)return hit;
 }catch(e){}
 return {code:200,data:{lrc:{lyric:''},tlyric:{lyric:''},romalrc:{lyric:''}}};
 }

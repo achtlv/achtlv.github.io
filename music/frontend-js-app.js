@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261108.6';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261108.7';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -2557,9 +2557,13 @@ if(typeof switchTab==='function')switchTab('me');
 });
 }
 }
+if(typeof logAction==='function')logAction('打开日志页','ok');
 if(typeof renderLogsPage==='function')renderLogsPage();
-if(typeof logAction==='function')logAction('打开日志页');
-}catch(e){try{toast('打开日志失败');}catch(e2){}}
+var box=$('logsList');
+if(box&&box.innerHTML.indexOf('logs-empty')!==-1){
+box.innerHTML='<div class="logs-empty">暂无日志。添加歌曲、导出、播放失败等操作会出现在这里。</div>';
+}
+}catch(e){try{toast('打开日志失败:'+(e&&e.message||e));}catch(e2){}}
 }
 window.openLogsPage=openLogsPage;
 

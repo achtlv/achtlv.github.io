@@ -415,7 +415,7 @@ dot.classList.toggle('active',dot.getAttribute('data-theme')===(state.theme||'gr
 });
 }
 
-function switchTab(tab){
+function switchTab(tab){window.switchTab=switchTab;
 if(window.__pendingTab){var p=window.__pendingTab;window.__pendingTab=null;if(!tab)tab=p;}
 
 if(!tab)return;

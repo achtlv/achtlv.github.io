@@ -558,7 +558,12 @@ box-shadow:none!important;filter:none;
 .logs-item-actions{display:flex;gap:8px;margin-top:8px}
 .logs-empty{text-align:center;color:var(--on-surface-variant);padding:40px 12px;font-size:14px}
 #pageLogs{display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden}
-#pageLogs.page-active{display:flex}
+#pageLogs.page-active{display:flex!important}
+#pageLogs .page-head{display:flex;align-items:center;gap:8px;padding:12px 4px 8px;flex-shrink:0}
+#pageLogs .page-head h1{font-size:20px;font-weight:500;flex:1}
+#pageLogs #logsBack{display:flex!important;align-items:center;justify-content:center;width:40px;height:40px;color:var(--on-surface)}
+#pageLogs #logsBack svg{display:block;width:22px;height:22px;fill:currentColor}
+#pageLogs .logs-list{flex:1;overflow:auto;min-height:120px}
 .logs-list{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:8px 0 24px}
 .logs-item-msg{font-size:12px;word-break:break-word;white-space:pre-wrap;max-height:72px;overflow:hidden;cursor:pointer}
 .logs-item-msg.expanded{max-height:none}

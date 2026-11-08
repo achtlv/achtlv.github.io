@@ -120,10 +120,12 @@ export const BODY_INNER = `<div class="app">
 </div>
 <div class="page" id="pageLogs">
 <div class="page-head">
-<button class="icon-btn" id="logsBack" aria-label="返回"></button>
+<button class="icon-btn" id="logsBack" aria-label="返回" type="button" onclick="try{var l=document.getElementById('pageLogs');if(l){l.style.display='none';l.classList.remove('page-active');}if(window.switchTab)window.switchTab('me');else if(document.getElementById('pageMe')){document.getElementById('pageMe').style.display='flex';document.getElementById('pageMe').classList.add('page-active');}}catch(e){}">
+<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+</button>
 <h1>日志</h1>
 </div>
-<div class="logs-list" id="logsList"><div class="logs-empty">暂无日志</div></div>
+<div class="logs-list" id="logsList"><div class="logs-empty">暂无日志（操作与错误会显示在这里）</div></div>
 </div>
 
 <nav class="tabbar" id="tabbar">

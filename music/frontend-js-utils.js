@@ -294,6 +294,7 @@ throw new Error('oiapi无结果');
 ];
 for(var qi=0;qi<qualities.length;qi++){
 var q=qualities[qi];
+try{backends.sort(function(a,b){if(a.name==='GD')return -1;if(b.name==='GD')return 1;return 0;});}catch(e){}
 for(var bi=0;bi<backends.length;bi++){
 try{
 var got=await backends[bi].run(q);
@@ -506,25 +507,28 @@ romalrc:{lyric:''}
 return {code:200,data:{lrc:{lyric:''},tlyric:{lyric:''},romalrc:{lyric:''}}};
 }
 async function textdbPutOne(safeKey,val){
-// 浏览器直连 textdb（与旧版一致，不走 Worker）
+// 浏览器直连 textdb（不走 Worker）
 var v=String(val);
-// GET URL 过长会失败，调用方应分片
 var url='https://textdb.online/update/?key='+encodeURIComponent(safeKey)+'&value='+encodeURIComponent(v);
 try{
-var r=await localFetchJson(url,{method:'GET'},25000);
-if(r.status===0)return {ok:false,msg:r.error||'网络错误'};
-// textdb 成功时通常 200
+var r=await localFetchJson(url,{method:'GET'},30000);
+if(r.status===0)return {ok:false,msg:r.error||'网络错误(CORS/超时)'};
+if(!r.ok)return {ok:false,msg:'HTTP '+r.status};
+// textdb 成功: {status:1,...}
+if(r.data&&typeof r.data==='object'&&r.data.status!=null&&Number(r.data.status)!==1){
+return {ok:false,msg:'textdb status='+r.data.status};
+}
 return {ok:true};
 }catch(e){return {ok:false,msg:String(e.message||e)};}
 }
 async function textdbGetOne(safeKey){
 try{
 var r=await localFetchJson('https://textdb.online/'+encodeURIComponent(safeKey),{method:'GET'},20000);
+if(r.status===0)return {ok:false,msg:r.error||'网络错误'};
 if(!r.ok)return {ok:false,msg:'HTTP '+r.status};
-var val='';
-if(r.text!=null)val=String(r.text);
-else if(r.data!=null)val=typeof r.data==='string'?r.data:JSON.stringify(r.data);
-return {ok:true,value:String(val).trim()};
+var val=r.text!=null?String(r.text):'';
+// 空内容也算成功读到（可能未写入）
+return {ok:true,value:val};
 }catch(e){return {ok:false,msg:String(e.message||e)};}
 }
 async function localCacheGet(key){
@@ -853,22 +857,29 @@ var data=state.playlist.map(function(s){
 var obj={id:s.id,name:s.name||'',artist:s.artist||''};
 if(s.external){obj.ext=true;obj.url=s.url||'';obj.srcUrl=s.srcUrl||'';obj.format=s.format||'';}
 if(s.pic)obj.pic=s.pic;
+if(s.source)obj.source=s.source;
 return obj;
 });
 var lastId='';
 try{
 if(state.current>=0&&state.playlist[state.current])lastId=String(state.playlist[state.current].id||'');
 }catch(e){}
-localStorage.setItem(COOKIE_NAME,JSON.stringify({v:1,list:data,current:state.current,lastId:lastId}));
+var payload=JSON.stringify({v:1,list:data,current:state.current,lastId:lastId});
+localStorage.setItem(COOKIE_NAME,payload);
+try{localStorage.setItem(COOKIE_NAME+'_bak',payload);}catch(e3){}
 try{
 var encoded=encodeURIComponent(JSON.stringify(data));
 if(encoded.length<=COOKIE_MAX)setCookieRaw(COOKIE_NAME,encoded);
 }catch(e2){}
-}catch(e){console.error('savePlaylist',e);}
+}catch(e){
+console.error('savePlaylist',e);
+try{if(typeof logError==='function')logError('保存播放列表失败',e);}catch(e4){}
+}
 }
 function restorePlaylist(){
 try{
 var raw=localStorage.getItem(COOKIE_NAME);
+if(!raw){try{raw=localStorage.getItem(COOKIE_NAME+'_bak');}catch(e){}}
 if(raw){
 try{
 var obj=JSON.parse(raw);

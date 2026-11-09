@@ -1,4 +1,17 @@
-export const LYRIC_SCRIPT = String.raw`// ==================== 歌词解析 ====================
+export const LYRIC_SCRIPT = String.raw`function ensureLyricCenterPadding(){
+try{
+var outer=$('lyricScroll')||$('lyricBox');
+var box=$('lyricText');
+if(!outer||!box)return;
+var h=outer.clientHeight||0;
+if(h<40)h=Math.floor((window.innerHeight||600)*0.35);
+var half=Math.max(48,Math.floor(h/2));
+box.style.paddingTop=half+'px';
+box.style.paddingBottom=half+'px';
+box.style.boxSizing='border-box';
+}catch(e){}
+}
+// ==================== 歌词解析 ====================
 function parseRichLyric(raw){
 if(!raw||typeof raw!=='string')return '';
 if(raw.indexOf('{"t":')===-1&&raw.indexOf('"c":[')===-1)return raw;

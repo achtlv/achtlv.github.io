@@ -379,13 +379,27 @@ result={url:song.url,level:'external',expi:0};
 var u=await fetchPlayUrlLevel(song.id,forcedQuality,(song.duration||360)+URL_SAFETY_BUFFER);
 if(!u)throw new Error('音源加载失败');
 result={url:u,level:forcedQuality,expi:0};
-}else if(pe&&pe.url&&isHttpUrl(pe.url)&&pe.quality==='exhigh'){
-// 预加载已是极高才直接用；否则走完整取链以优先冲极高
-result={url:(typeof upgradeMediaUrl==='function'?upgradeMediaUrl(pe.url):pe.url),level:pe.quality,expi:0};
+}else if(pe&&pe.url&&isHttpUrl(pe.url)&&(pe.quality==='exhigh'||pe.quality==='320k'||pe.quality==='higher')){
+result={url:(typeof upgradeMediaUrl==='function'?upgradeMediaUrl(pe.url):pe.url),level:'exhigh',expi:0};
+}else if(pe&&pe.url&&isHttpUrl(pe.url)&&(pe.quality==='standard'||pe.quality==='128k')){
+// 预加载仅有标准也先用，避免闪「无法加载」
+result={url:(typeof upgradeMediaUrl==='function'?upgradeMediaUrl(pe.url):pe.url),level:'standard',expi:0};
 }else{
 result=await fetchPlayUrl(song.id,song.duration);
 }
 if(token!==playToken)return;
+if(!result||!result.url){
+// 再试一次本地（极宽松）
+try{
+if(typeof getLocalAudioUrlOnly==='function'){
+var loc=await getLocalAudioUrlOnly(song.id,'exhigh',5);
+if(!loc)loc=await getLocalAudioUrlOnly(song.id,'standard',5);
+if(!loc)loc=await getLocalAudioUrlOnly(song.id,'lossless',5);
+if(loc&&loc.url)result={url:upgradeMediaUrl(loc.url),level:'exhigh',expi:30,fromLocal:true};
+}
+}catch(e){}
+}
+if(!result||!result.url)throw new Error('音源无法加载');
 state.audioUrl=result.url;
 state.quality=result.level;
 if(!song.external&&result.level!=='external'){
@@ -1897,25 +1911,32 @@ return;
 if(addValue){
 toast('正在解析分享内容...');
 try{
-// URL 分享默认按网易云 ID/链接解析，避免停留在酷狗模式导致失败
+var song=null;
+if(typeof resolveShareAdd==='function'){
+song=await resolveShareAdd(String(addValue).trim());
+}else{
 var prevSrc=typeof ADD_SOURCE!=='undefined'?ADD_SOURCE:'wy';
 try{ADD_SOURCE='wy';}catch(e){}
-var song=null;
-try{
-song=await resolveInput(String(addValue).trim());
-}finally{
-try{ADD_SOURCE=prevSrc;}catch(e){}
+try{song=await resolveInput(String(addValue).trim());}finally{try{ADD_SOURCE=prevSrc;}catch(e){}}
 }
 if(!song)throw new Error('未解析到歌曲');
+// 直接弹确认窗（不依赖音质探测成功）
 showSongConfirm(song,true);
-// 再兜底显示一次，防止其它逻辑关掉弹窗
+try{
+var scr=$('addScrim');
+if(scr){
+scr.classList.add('show');
+scr.style.display='flex';
+}
+$('addStage1').style.display='none';
+$('addStage2').style.display='block';
+}catch(e){}
 setTimeout(function(){
 try{
-if(pendingSong&&$('addScrim')&&!$('addScrim').classList.contains('show')){
-showScrim('addScrim');
-}
+var scr2=$('addScrim');
+if(scr2){scr2.classList.add('show');scr2.style.display='flex';}
 }catch(e){}
-},50);
+},100);
 }catch(e){
 try{logEvent('error','URL添加失败',String(e&&e.message||e));}catch(e2){}
 toast('解析失败: '+(e.message||'未知错误'));
@@ -3070,14 +3091,17 @@ try{if(typeof switchTab==='function')switchTab('player');}catch(e){}
 if(state.user){
 try{syncAndMaybeRefreshKey().catch(function(){});}catch(e){}
 }
-setTimeout(function(){
+function _runHandleUrlParams(){
 try{
 var p=handleUrlParams();
 if(p&&typeof p.then==='function')p.catch(function(err){
+try{logEvent('error','链接参数',String(err&&err.message||err));}catch(e){}
 try{toast('链接参数处理失败: '+(err&&err.message||err));}catch(e){}
 });
 }catch(e){}
-},400);
+}
+setTimeout(_runHandleUrlParams,200);
+setTimeout(_runHandleUrlParams,800); // handleUrlParams late 兜底
 
 // 确保歌单/我的页按钮一定有事件（防前面脚本中断）
 

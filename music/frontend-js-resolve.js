@@ -66,9 +66,27 @@ return null;
 
 async function fetchPlayUrl(id,durationHint){
 var durSec=(durationHint&&durationHint>0)?durationHint:360;
-var needRemain=durSec+URL_SAFETY_BUFFER;
+// 播放取链：本地缓存只要还剩一段时间就可用（不必强求覆盖整首歌时长）
+// 过严会导致「本地有缓存却提示音源无法加载」，点刷新又立刻命中
+var needRemain=45;
 
 // 播放只考虑：极高 > 标准 > 官方（不含无损）
+// 0) 本地任意可用缓存先用（避免误报无法加载）
+try{
+var levelsTry=['exhigh','standard','lossless'];
+for(var li=0;li<levelsTry.length;li++){
+var loc0=await getLocalAudioUrlOnly(id,levelsTry[li],10);
+if(loc0&&loc0.url){
+return {
+url:upgradeMediaUrl(loc0.url),
+level:levelsTry[li]==='lossless'?'exhigh':levelsTry[li],
+expi:Math.max(1,Math.floor((loc0.expireAt-Date.now())/1000)),
+fromCache:true,
+fromLocal:true
+};
+}
+}
+}catch(e){}
 // 1) 优先整条链路冲极高：本地 → API(各源一次) → TextDB；任一步拿到极高立即返回
 var hi=await tryGetLevelWithCache(id,'exhigh',needRemain);
 if(hi&&hi.url){
@@ -142,6 +160,93 @@ if(level==='official')return '';
 if(typeof minRemainSec!=='number')minRemainSec=300;
 var got=await tryGetLevelWithCache(id,level,minRemainSec);
 return got&&got.url?got.url:'';
+}
+
+
+// URL ?add= 专用解析：不依赖当前 ADD_SOURCE 标签
+async function resolveShareAdd(text){
+text=String(text||'').trim();
+if(!text)throw new Error('空的分享内容');
+
+// 1) 酷狗：kg 开头且不含点
+if(/^kg/i.test(text)&&text.indexOf('.')===-1){
+var kid=normalizeKgId(text);
+var metaK={id:kid,name:'酷狗歌曲',artist:'',pic:'',duration:0,source:'kg',quality:'exhigh'};
+try{
+var info=await fetchMetaById(kid).catch(function(){return null;});
+if(info){
+if(info.name)metaK.name=info.name;
+if(info.artist)metaK.artist=info.artist;
+if(info.pic)metaK.pic=info.pic;
+if(info.duration)metaK.duration=info.duration;
+}
+}catch(e){}
+return metaK;
+}
+
+// 2) 纯数字：网易云 ID
+if(isSongId(text)||(/^\d{5,}$/.test(text))){
+var id=String(text).replace(/\D/g,'')||text;
+var meta={id:id,name:'网易云歌曲',artist:'',pic:'',duration:0,source:'wy'};
+try{
+var m=await fetchMetaById(id);
+if(m){
+meta.name=m.name||meta.name;
+meta.artist=m.artist||'';
+meta.pic=m.pic||'';
+meta.duration=m.duration||0;
+}
+}catch(e){}
+// 不因音质探测失败而拒绝弹窗
+try{
+var q=await detectNeteaseQuality(id,meta.duration||0);
+if(q)meta.quality=q;
+else meta.quality='exhigh';
+}catch(e){meta.quality='exhigh';}
+return meta;
+}
+
+// 3) 链接 / 域名：一律第三方；补全 https
+var link=text;
+// 去掉包裹引号
+if((link[0]==='"'&&link.slice(-1)==='"')||(link[0]==="'"&&link.slice(-1)==="'"))link=link.slice(1,-1);
+// 从文本抽 URL
+var urls=typeof extractAllUrlsFromText==='function'?extractAllUrlsFromText(link):[];
+if(urls&&urls.length)link=urls[0];
+// 域名开头无协议
+if(!/^https?:\/\//i.test(link)&&!/^\/\//.test(link)&&/^[a-z0-9.-]+\.[a-z]{2,}/i.test(link)){
+link='https://'+link;
+}
+if(/^\/\//.test(link))link='https:'+link;
+if(/^http:\/\//i.test(link))link=link.replace(/^http:\/\//i,'https://');
+if(typeof upgradeMediaUrl==='function')link=upgradeMediaUrl(link);
+if(!/^https?:\/\//i.test(link))throw new Error('无法识别的分享内容');
+
+// 网易链接仍走网易解析
+if(typeof isNeteaseUrl==='function'&&isNeteaseUrl(link)){
+try{
+var nm=await tryNeteaseLink(link);
+if(nm)return nm;
+}catch(e){}
+}
+// 第三方直链
+try{
+var em=await tryThirdPartyLink(link);
+if(em)return em;
+}catch(e){}
+// 即使探测失败，也给出可添加的外部项
+return {
+id:'ext_'+Date.now(),
+name:link.split('/').pop()||'外部音频',
+artist:'外部音源',
+pic:'',
+duration:0,
+external:true,
+url:link,
+srcUrl:link,
+format:(link.match(/\.([a-z0-9]+)(?:\?|$)/i)||[])[1]||'',
+quality:'external'
+};
 }
 
 // ==================== 解析输入 ====================

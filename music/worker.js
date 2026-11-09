@@ -49,7 +49,7 @@ export default {
     }
     if (url.pathname === '/icon.png') return await handleIcon();
     if (url.pathname === '/api/version') {
-      return new Response(JSON.stringify({ version: '20261109.08' }), { headers: {
+      return new Response(JSON.stringify({ version: '20261109.09' }), { headers: {
         'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store'
       }});
     }

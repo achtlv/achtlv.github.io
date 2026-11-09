@@ -257,6 +257,7 @@ attachText(mainLines,romaLines,'roma');
 state.lyricLines=mainLines;
 state.lyricHasTime=parsed.hasTime;
 state.lyricCurrent=-1;
+try{ensureLyricCenterPadding();}catch(e){}
 state.lyricUserScrolled=false;
 if(state._lyricScrollTimer){clearTimeout(state._lyricScrollTimer);state._lyricScrollTimer=null;}
 
@@ -429,6 +430,7 @@ if(state._lyricScrollTimer)clearTimeout(state._lyricScrollTimer);
 state._lyricScrollTimer=setTimeout(function(){
 state._lyricScrollTimer=null;
 state.lyricUserScrolled=false;
+try{ensureLyricCenterPadding();}catch(e){}
 updateLyricScroll(true);
 },LYRIC_RESUME_DELAY);
 }

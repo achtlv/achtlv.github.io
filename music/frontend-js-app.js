@@ -156,7 +156,7 @@ if(state.playlist&&state.playlist.length&&state.current<0)state.current=0;
 var song=(state.current>=0)?state.playlist[state.current]:null;
 var hasSongs=!!(state.playlist&&state.playlist.length>0);
 
-$('title').textContent=song?(song.name||'未知歌曲'):'未在播放';
+$('title').textContent=song?(song.name||'未知歌曲'):(state.playlistLoading?'加载中':'未在播放');
 $('artist').textContent=song?(song.artist||'未知歌手'):'—';
 
 var qlabel=song?getQualityText(song,state.quality):'';
@@ -586,6 +586,9 @@ playIndex(n,null,null,{play:keepPlay});
 function prevSong(){
 if(!state.playlist.length)return;
 var keepPlay=!!state.playing;
+pendingSeekFromUser=false;
+pendingSeekRatio=null;
+try{resetProgressUI();}catch(e){}
 var n=state.current;
 if(state.mode==='shuffle'){
 if(state.playlist.length===1){n=0}
@@ -744,7 +747,6 @@ try{audio.pause();}catch(e){}
 toast('音源即将过期，正在重新获取...');
 var myToken=++refreshToken;
 refreshingUrl=true;
-state.playing=true;
 render();
 var fresh=null;
 try{fresh=await fetchPlayUrlFresh(song.id);}catch(e){fresh=null;}
@@ -777,32 +779,46 @@ toast(e.message||'跳转失败');
 
 if($('seek'))$('seek').addEventListener('input',function(){
 isSeeking=true;
-if(state.loadingUrl||!state.audioUrl){
+// 拖动中只更新 UI，松手后再真正 seek
 try{pendingSeekRatio=Number(this.value)/1000;pendingSeekFromUser=true;}catch(e){}
-}
 var pct=parseFloat(this.value)/10;
 updateSeekBg(pct);
 if(audio.duration&&isFinite(audio.duration)){
 var t=(parseFloat(this.value)/1000)*audio.duration;
 $('curTime').textContent=fmt(t);
-try{audio.currentTime=t;}catch(e){}
 }
 });
 function finishSeek(){
 if(!isSeeking)return;
 isSeeking=false;
-// 取链中：只记录目标比例，拿到链接后再跳
-if(state.loadingUrl||!state.audioUrl){
-try{
-pendingSeekRatio=Number($('seek').value)/1000;
+var ratio=0;
+try{ratio=Number($('seek').value)/1000;}catch(e){ratio=0;}
+if(!isFinite(ratio))ratio=0;
+ratio=Math.max(0,Math.min(1,ratio));
+pendingSeekRatio=ratio;
 pendingSeekFromUser=true;
-}catch(e){pendingSeekRatio=null;pendingSeekFromUser=false;}
+// 取链中：只记比例
+if(state.loadingUrl||!state.audioUrl){
 return;
 }
-if(audio.duration&&isFinite(audio.duration)){
-var t=(parseFloat($('seek').value)/1000)*audio.duration;
-seekWithUrlCheck(t);
+if(!(audio.duration&&isFinite(audio.duration)&&audio.duration>0))return;
+var t=ratio*audio.duration;
+// 拖到末尾：仅播放中才切下一首
+if(ratio>=0.995||t>=audio.duration-0.25){
+if(state.playing){
+try{nextSong(true);}catch(e){}
+}else{
+try{audio.currentTime=Math.max(0,audio.duration-0.05);}catch(e){}
+updateSeekBg(100);
+$('curTime').textContent=fmt(audio.duration||0);
 }
+pendingSeekFromUser=false;
+pendingSeekRatio=null;
+return;
+}
+seekWithUrlCheck(t);
+pendingSeekFromUser=false;
+pendingSeekRatio=null;
 }
 if($('seek'))$('seek').addEventListener('change',finishSeek);
 if($('seek'))$('seek').addEventListener('pointerup',finishSeek);
@@ -2896,6 +2912,7 @@ try{restoreListHistory();}catch(e){}
 try{restoreAuthLocal();}catch(e){}
 try{if(typeof restoreSyncMetaLocal==='function')restoreSyncMetaLocal();}catch(e){}
 try{restorePlaylist();}catch(e){}
+try{state.playing=false;}catch(e){} // boot: reset button to pause
 try{
 if(state.playlist&&state.playlist.length){
 state.playlistLoading=false;

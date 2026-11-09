@@ -14,8 +14,8 @@ function hideScrim(id){
 var el=typeof id==='string'?$(id):id;
 if(!el)return;
 el.classList.remove('show');
-// 关键：打开时若写过 style.display=flex，只去 class 关不掉
 el.style.display='none';
+try{el.style.removeProperty&&el.style.removeProperty('display');el.style.display='none';}catch(e){}
 }
 function clearUrlShareParams(){
 try{
@@ -1466,10 +1466,18 @@ setTimeout(openAdd,180);
 });
 if($('addScrim'))$('addScrim').addEventListener('click',function(e){if(e.target===this)closeAdd()});
 if($('listScrim'))$('listScrim').addEventListener('click',function(e){
-if(e.target===this){
-try{hideScrim('listScrim');}catch(err){}
-try{this.classList.remove('show');this.style.display='none';}catch(err){}
+// 点在底部 sheet 外的遮罩区域才关闭（不要用严格 e.target===this，兼容子节点/文本节点）
+try{
+if(e.target.closest&&e.target.closest('.sheet'))return;
+}catch(err){
+if(e.target!==e.currentTarget&&e.target!==this)return;
 }
+try{hideScrim('listScrim');}catch(err){}
+try{
+var ls=e.currentTarget||this;
+ls.classList.remove('show');
+ls.style.display='none';
+}catch(err){}
 });
 
 function showSongConfirm(song,fromUrl){
@@ -1660,24 +1668,42 @@ var exportGenerating=false;
 var pendingSeekRatio=null;
 var pendingSeekFromUser=false;;
 
-if($('sheetExport'))$('sheetExport').addEventListener('click',async function(ev){
-blurControl(ev.currentTarget||this);
-if(!state.playlist.length){toast('播放列表为空');return}
-hideScrim('listScrim');
-if(exportGenerating)return;
-exportGenerating=true;
 
+function exportListText(){
+var list=state.playlist||[];
+return list.map(function(s){
+var name=(s.name||'').split('|').join(' ');
+var artist=(s.artist||'').split('|').join(' ');
+var pic=(s.pic||'').split('|').join(' ');
+if(s.external)return (s.url||'')+'|'+name+'|'+artist+'|'+(s.srcUrl||'');
+return String(s.id||'')+'|'+name+'|'+artist+(pic?'|'+pic:'');
+}).join(String.fromCharCode(10));
+}
+
+if($('sheetExport'))$('sheetExport').addEventListener('click',async function(ev){
+try{blurControl(ev.currentTarget||this);}catch(e){}
+if(!state.playlist.length){toast('播放列表为空');return}
+try{hideScrim('listScrim');}catch(e){}
+if(exportGenerating){toast('正在导出，请稍候');return;}
+exportGenerating=true;
+try{
 $('exportKey').value='';
 $('exportKey').placeholder='正在上传...';
 $('exportCopy').disabled=true;
 $('exportHint').textContent='正在将歌单上传到网络...';
-closeOtherScrims('exportScrim');
+try{closeOtherScrims('exportScrim');}catch(e){}
 showScrim('exportScrim');
 
-var raw=exportListText();
-var compressed=await gzipCompress(raw);
+var raw='';
+try{raw=exportListText()||'';}catch(e){raw='';}
+if(!raw){
+$('exportKey').placeholder='导出失败';
+$('exportHint').textContent='列表为空或序列化失败';
+return;
+}
+var compressed=null;
+try{compressed=await gzipCompress(raw);}catch(e){compressed=null;}
 var toUpload=raw;
-// 小歌单优先明文（避免 base64 编码问题）；大歌单用 base64url gzip
 if(raw.length>1200&&compressed&&('#GZIP:'+compressed).length<raw.length){
 toUpload='#GZIP:'+compressed;
 }
@@ -1685,10 +1711,17 @@ toUpload='#GZIP:'+compressed;
 var key=genShareKey();
 var detail='songs='+state.playlist.length+' bytes='+toUpload.length+' key='+key;
 try{if(typeof logAction==='function')logAction('导出播放列表',detail);}catch(e){}
-// cacheSetRaw：写入 textdb 并强制读回校验（无本地密钥备份）
 var ok=false;
-try{ok=await cacheSetRaw(key,toUpload);}catch(e){ok=false;}
-exportGenerating=false;
+try{
+// 超时保护，避免一直停在上传中
+ok=await Promise.race([
+cacheSetRaw(key,toUpload),
+new Promise(function(res){setTimeout(function(){res(false);},15000);})
+]);
+}catch(e){
+ok=false;
+try{if(typeof logError==='function')logError('导出异常',String(e&&e.message||e));}catch(e2){}
+}
 if(ok){
 $('exportKey').value=key;
 $('exportKey').placeholder='';
@@ -1701,6 +1734,9 @@ $('exportKey').placeholder='上传失败';
 $('exportCopy').disabled=true;
 $('exportHint').textContent='上传失败：无法写入或校验 textdb，请重试';
 try{if(typeof logError==='function')logError('导出失败',detail);}catch(e){}
+}
+}finally{
+exportGenerating=false;
 }
 });
 if($('exportClose'))$('exportClose').addEventListener('click',function(){hideScrim('exportScrim')});

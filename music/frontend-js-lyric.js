@@ -299,12 +299,12 @@ var msg='';
 if(mainLines.length)msg=mainLines[0].text||'';
 else msg=state.lyric||'';
 if(isPlaceholderText(msg)){
-// 列表里有歌但还没真正播放取词
-if(state.playlist&&state.playlist.length&&!state.audioUrl){
-msg='播放以获取歌词';
+if(state.lyricLoading){
+msg='歌词加载中…';
+}else if(state.playlist&&state.playlist.length){
+msg='暂无歌词';
 }else{
 msg=msg||'暂无歌词';
-if(msg==='暂无歌词'||!msg)msg='暂无歌词';
 }
 }
 dm.textContent=msg;

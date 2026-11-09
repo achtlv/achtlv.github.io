@@ -63,6 +63,7 @@ function forceDone(){
 try{if(typeof restorePlaylist==='function')restorePlaylist();}catch(e){}
 try{if(window.state){state.playlistLoading=false;if(state.playlist&&state.playlist.length&&state.current<0)state.current=0;}}catch(e){}
 try{if(typeof render==='function')render();}catch(e){}
+try{if(typeof triggerPreloadNeighbors==='function')triggerPreloadNeighbors();}catch(e){}
 try{if(typeof resetProgressUI==='function'&&window.state&&!state.playing)resetProgressUI();}catch(e){}
 try{
 var loading=document.getElementById('emptyLoading');

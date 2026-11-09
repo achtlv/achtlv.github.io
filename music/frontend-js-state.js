@@ -236,7 +236,19 @@ function closeOtherScrims(exceptId){
 for(var i=0;i<ALL_SCRIMS.length;i++){
 if(ALL_SCRIMS[i]===exceptId)continue;
 var el=$(ALL_SCRIMS[i]);
-if(el)el.classList.remove('show');
+if(!el)continue;
+el.classList.remove('show');
+// 必须清 inline display：showScrim 写过 display:flex，只去 class 无法回到 CSS 的 display:none
+// 否则会留下全屏透明遮罩，挡住播放列表空白处点击
+el.style.display='none';
+}
+}
+function hideAllScrims(){
+for(var i=0;i<ALL_SCRIMS.length;i++){
+var el=$(ALL_SCRIMS[i]);
+if(!el)continue;
+el.classList.remove('show');
+el.style.display='none';
 }
 }
 

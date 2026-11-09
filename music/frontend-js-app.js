@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261110.06';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261110.08';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -1341,8 +1341,10 @@ hideScrim('downloadScrim');
 if($('downloadScrim'))$('downloadScrim').addEventListener('click',function(e){
 if(e.target===this){
 pendingDownloadSong=null;
-downloadDetectToken++;
+try{downloadDetectToken++;}catch(err){}
+try{hideScrim('downloadScrim');}catch(err){}
 this.classList.remove('show');
+this.style.display='none';
 }
 });
 if($('downloadRetryBtn'))$('downloadRetryBtn').addEventListener('click',function(){
@@ -1687,6 +1689,120 @@ var pendingSeekRatio=null;
 var pendingSeekFromUser=false;;
 
 
+
+function parseListText(text){
+text=String(text||'').replace(/^\uFEFF/,'').trim();
+if(!text)return [];
+var lines=text.split(/\r?\n/);
+var out=[];
+var seen={};
+for(var i=0;i<lines.length;i++){
+var line=String(lines[i]||'').trim();
+if(!line)continue;
+// 跳过注释/标题
+if(line.charAt(0)==='#'&&line.indexOf('#GZIP')!==0)continue;
+var parts=line.split('|');
+if(parts.length<2)continue;
+var a=String(parts[0]||'').trim();
+var name=String(parts[1]||'').trim()||'未知歌曲';
+var artist=String(parts[2]||'').trim()||'未知歌手';
+var fourth=String(parts[3]||'').trim();
+var song=null;
+// 外链：第一列是 URL
+if(/^https?:\/\//i.test(a)||a.indexOf('//')===0){
+var url=a;
+if(url.indexOf('//')===0)url='https:'+url;
+song={
+id:url,
+name:name,
+artist:artist,
+pic:'',
+duration:0,
+external:true,
+url:url,
+srcUrl:fourth||url,
+format:'',
+source:'ext'
+};
+}else if(/^kg/i.test(a)||/^[a-fA-F0-9]{32}$/.test(a)){
+// 酷狗
+var kid=a;
+if(kid.indexOf('kg')!==0)kid='kg'+kid.toLowerCase();
+else kid='kg'+kid.slice(2).toLowerCase();
+song={
+id:kid,
+name:name,
+artist:artist,
+pic:fourth||'',
+duration:0,
+external:false,
+source:'kg',
+quality:'exhigh'
+};
+}else if(/^\d+$/.test(a)){
+// 网易云
+song={
+id:a,
+name:name,
+artist:artist,
+pic:fourth||'',
+duration:0,
+external:false,
+source:'wy',
+quality:'exhigh'
+};
+}else{
+// 其它：当外链或跳过
+if(a.indexOf('.')!==-1&&a.indexOf(' ')===-1){
+var u2=a;
+if(!/^https?:\/\//i.test(u2))u2='https://'+u2;
+song={
+id:u2,name:name,artist:artist,pic:'',duration:0,
+external:true,url:u2,srcUrl:fourth||u2,format:'',source:'ext'
+};
+}else continue;
+}
+if(!song)continue;
+var k='';
+try{k=songKey(song);}catch(e){k=String(song.id||'');}
+if(!k||seen[k])continue;
+seen[k]=true;
+out.push(song);
+}
+return out;
+}
+
+function applyImport(imported,mode){
+imported=imported||[];
+mode=mode||'merge';
+var added=0;
+if(mode==='replace'||mode==='new'){
+state.playlist=imported.slice();
+state.current=imported.length?0:-1;
+added=imported.length;
+try{savePlaylist(true);}catch(e){try{savePlaylist();}catch(e2){}}
+return added;
+}
+// merge
+var exist={};
+for(var i=0;i<state.playlist.length;i++){
+try{exist[songKey(state.playlist[i])]=true;}catch(e){}
+}
+for(var j=0;j<imported.length;j++){
+var s=imported[j];
+var k='';
+try{k=songKey(s);}catch(e){k=String(s.id||'');}
+if(!k||exist[k])continue;
+exist[k]=true;
+state.playlist.push(s);
+added++;
+}
+if(state.current<0&&state.playlist.length)state.current=0;
+try{savePlaylist();}catch(e){}
+return added;
+}
+
+
 function exportListText(){
 var list=state.playlist||[];
 return list.map(function(s){
@@ -1914,9 +2030,15 @@ render();
 hideScrim('importScrim');
 hideScrim('listScrim');
 
-if(mode==='replace'){
-toast('已覆盖为 '+after+' 首歌曲');
-logAction('导入播放列表','mode=replace count='+after);
+if(mode==='replace'||mode==='new'){
+// new/replace 都已整体替换列表，停掉当前播放避免指到旧曲
+state.playing=false;
+state.loadingUrl=false;
+state.audioUrl='';state.quality='';
+try{stopAudio();}catch(e){}
+try{resetProgressUI();}catch(e){}
+toast(mode==='new'?('已导入 '+after+' 首歌曲'):('已覆盖为 '+after+' 首歌曲'));
+logAction('导入播放列表','mode='+mode+' count='+after);
 }else{
 toast('新增 '+added+' 首，共 '+after+' 首');
 logAction('导入播放列表','mode='+mode+' added='+added+' total='+after);
@@ -2176,7 +2298,9 @@ function anyScrimOpen(){
 function closeAllScrimsUI(){
   for(var i=0;i<ALL_SCRIMS.length;i++){
     var el=$(ALL_SCRIMS[i]);
-    if(el)el.classList.remove('show');
+    if(!el)continue;
+    el.classList.remove('show');
+    el.style.display='none';
   }
 }
 function guardHistory(){
@@ -3118,6 +3242,7 @@ toast('已删除');
 
 function openLogsPage(){
 try{
+try{if(typeof closeOtherScrims==='function')closeOtherScrims('logsScrim');}catch(e){}
 if(typeof renderLogsPage==='function')renderLogsPage();
 try{bindLogsListClicks();}catch(e){}
 var box=$('logsList');

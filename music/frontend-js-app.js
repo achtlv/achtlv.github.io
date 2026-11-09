@@ -306,10 +306,20 @@ opts=opts||{};
 var wantPlay=(opts.play!=null)?!!opts.play:true;
 var token=++playToken;
 
+// 先锁定播放意图，再 stopAudio
+state.playing=wantPlay;
+// loadingUrl 仅表示「因要播放而等待链接」，暂停切歌后台预取不占 loading
+state.loadingUrl=!!wantPlay;
+
+try{state._ignorePause=true;}catch(e){}
 stopAudio();
+setTimeout(function(){try{state._ignorePause=false;}catch(e){}},80);
+
 // 换歌时清空「用户在取链中拖动」的标记（除非显式带了 startPos）
+if(!(typeof startPos==='number'&&startPos>0)){
 pendingSeekFromUser=false;
 pendingSeekRatio=null;
+}
 resetProgressUI();
 
 state.current=i;
@@ -317,8 +327,9 @@ try{savePlaylist();}catch(e){}
 if(typeof updateFavBtn==='function')updateFavBtn();
 state.showLyric=false;
 state.audioUrl='';state.quality='';
+// 再次确认，防止 stopAudio 期间被改掉
 state.playing=wantPlay;
-state.loadingUrl=true;
+state.loadingUrl=!!wantPlay;
 
 var song=state.playlist[i];
 var pe=preloadCache[song.id];
@@ -348,6 +359,13 @@ if(pe&&pe.pic&&!song.pic){
 song.pic=pe.pic;
 preloadCover(pe.pic);
 }
+
+// 切歌即取歌词/封面（与预加载邻居）
+try{
+if(typeof preloadSongLyric==='function')preloadSongLyric(song);
+if(typeof preloadSongPic==='function')preloadSongPic(song);
+if(typeof triggerPreloadNeighbors==='function')triggerPreloadNeighbors();
+}catch(e){}
 
 render();
 
@@ -574,8 +592,10 @@ triggerPreloadNeighbors();
 
 function nextSong(forcePlay){
 if(!state.playlist.length)return;
-// 只看播放意图，不看 loadingUrl（避免暂停连点下一首被当成要播放）
 var keepPlay=(forcePlay===true)?true:!!state.playing;
+pendingSeekFromUser=false;
+pendingSeekRatio=null;
+try{resetProgressUI();}catch(e){}
 var n=state.current;
 if(state.mode==='shuffle'){
 if(state.playlist.length===1){n=0}
@@ -602,7 +622,7 @@ var song=state.playlist[state.current];
 if(!song)return;
 var myToken=++refreshToken;
 refreshingUrl=true;
-state.playing=true;
+// 保持当前播放意图，不强制改成播放
 render();
 var fresh;
 try{fresh=await fetchPlayUrlFresh(song.id);}catch(e){fresh=null;}
@@ -640,11 +660,13 @@ audio.play().catch(function(){});
 }
 
 async function togglePlay(){
-// 根本修复：用户手势时再尝试恢复（解决进入页时 storage 未就绪）
 try{if(!state.playlist||!state.playlist.length)restorePlaylist();}catch(e){}
 try{state.playlistLoading=false;}catch(e){}
-// 正在获取下一首链接时，点击=取消获取
-if(state.loadingUrl){
+if(!state.playlist.length){openAdd();return}
+if(state.current<0){playIndex(0);return}
+
+// 1) 播放意图下正在取链 → 取消
+if(state.loadingUrl&&state.playing){
 try{playToken++;}catch(e){}
 state.loadingUrl=false;
 state.playing=false;
@@ -653,10 +675,8 @@ try{toast('已取消获取');}catch(e){}
 render();
 return;
 }
-if(!state.playlist.length){openAdd();return}
-if(state.current<0){playIndex(0);return}
-
-if(refreshingUrl){
+// 2) 刷新音源中且正在播 → 取消刷新
+if(refreshingUrl&&state.playing){
 refreshToken++;
 refreshingUrl=false;
 state.playing=false;
@@ -665,19 +685,25 @@ render();
 toast('已取消重新获取');
 return;
 }
-
-if(state.playing&&!state.audioUrl){
-playToken++;
+// 3) 已在播 → 暂停（必须同步改 state.playing）
+if(state.playing){
 state.playing=false;
-state.lyricLoading=false;
-stopAudio();
-resetProgressUI();
+state.loadingUrl=false;
+try{state._ignorePause=true;}catch(e){}
+try{audio.pause();}catch(e){}
+setTimeout(function(){try{state._ignorePause=false;}catch(e){}},50);
 render();
-toast('已取消获取音源');
 return;
 }
-
-if(state.playing){audio.pause();return;}
+// 4) 当前是暂停：开始播放（若后台已在取链则改为播放意图继续等）
+if(state.loadingUrl&&!state.playing){
+state.playing=true;
+render();
+if(state.audioUrl){
+try{var p0=audio.play();if(p0&&p0.catch)p0.catch(function(){});}catch(e){}
+}
+return;
+}
 
 var song=state.playlist[state.current];
 // 打开网站后列表已恢复但尚未取链：必须走 playIndex，不能只 audio.play()
@@ -755,7 +781,8 @@ refreshingUrl=false;
 if(!fresh||!fresh.url){
 toast('重新获取音源失败');
 render();
-try{audio.currentTime=targetTime;audio.play().catch(function(){});}catch(e){}
+try{audio.currentTime=targetTime;}catch(e){}
+if(state.playing){try{audio.play().catch(function(){});}catch(e){}}
 return;
 }
 var entry=getPreloadEntry(song.id);
@@ -770,7 +797,11 @@ render();
 try{
 await setAudioSource(fresh.url,song.format);
 try{audio.currentTime=targetTime;}catch(e){}
-audio.play().catch(function(){});
+if(state.playing){
+try{var _sp=audio.play();if(_sp&&_sp.catch)_sp.catch(function(){});}catch(e){}
+}else{
+try{audio.pause();}catch(e){}
+}
 if(state.showLyric&&state.lyricHasTime)setTimeout(function(){updateLyricScroll(true);},50);
 }catch(e){
 toast(e.message||'跳转失败');
@@ -825,6 +856,9 @@ if($('seek'))$('seek').addEventListener('pointerup',finishSeek);
 if($('seek'))$('seek').addEventListener('touchend',finishSeek);
 
 function onTimeUpdate(){
+// 切歌取链中不要用旧音频进度覆盖已重置的进度条
+if(state.loadingUrl||isSeeking)return;
+if(!state.audioUrl&&!state.playing)return;
 var d=audio.duration||0;
 var c=audio.currentTime||0;
 if(d>0&&isFinite(d)){
@@ -857,15 +891,27 @@ onTimeUpdate();
 });
 audio.addEventListener('durationchange',onTimeUpdate);
 audio.addEventListener('play',function(){
-state.playing=true;
-render();
-updateMediaSessionPlaybackState();
-updateMediaSessionMetadata();
+// 不强制改写用户暂停意图；仅在已是播放意图时同步
+if(state.playing){
+try{if(typeof updateMediaSessionPlaybackState==='function')updateMediaSessionPlaybackState();}catch(e){}
+try{if(typeof updateMediaSessionMetadata==='function')updateMediaSessionMetadata();}catch(e){}
+}
 });
 audio.addEventListener('pause',function(){
-state.playing=false;
-render();
-updateMediaSessionPlaybackState();
+// 播放意图只由按钮/切歌逻辑控制，audio.pause 事件不得清掉 playing
+// （切歌 stopAudio、取链、刷新都会 pause，否则会立刻变成暂停按钮）
+if(state._ignorePause||state.loadingUrl)return;
+try{if(audio.ended)return;}catch(e){}
+try{
+if(audio.duration&&isFinite(audio.duration)&&audio.duration>0&&audio.currentTime>=audio.duration-0.3)return;
+}catch(e){}
+// 仅当用户意图已是暂停时同步 UI
+if(!state.playing){
+try{if(typeof updateMediaSessionPlaybackState==='function')updateMediaSessionPlaybackState();}catch(e){}
+return;
+}
+// 不在这里设置 state.playing=false
+try{if(typeof updateMediaSessionPlaybackState==='function')updateMediaSessionPlaybackState();}catch(e){}
 });
 audio.addEventListener('ended',function(){
 // 自然结束：明确保持播放意图，避免 pause 事件先把 playing 清掉
@@ -2716,8 +2762,8 @@ if(ci>=0&&state.playlist[ci]&&!state.playlist[ci].external){
 var token=++playToken;
 state.audioUrl='';
 state.quality='';
-state.loadingUrl=true;
 state.playing=wasPlaying;
+state.loadingUrl=!!wasPlaying;
 render();
 (async function(){
 try{

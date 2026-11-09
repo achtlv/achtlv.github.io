@@ -267,7 +267,7 @@ box.innerHTML='';
 function isPlaceholderText(t){
 if(!t)return true;
 var s=String(t).trim();
-return s===''||s==='暂无歌词'||s==='播放以获取歌词'||s==='正在加载歌词...'||s==='外部音源，暂无歌词'||s==='视频音源，暂无歌词';
+return s===''||s==='暂无歌词'||s==='正在加载歌词...'||s==='外部音源，暂无歌词'||s==='视频音源，暂无歌词';
 }
 
 var showEmpty=!mainLines.length||state.lyricLoading||(!parsed.hasTime&&mainLines.length===1&&isPlaceholderText(mainLines[0].text));

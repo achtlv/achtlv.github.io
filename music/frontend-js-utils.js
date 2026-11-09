@@ -993,6 +993,17 @@ catch(e){resolve('');}
 
 function savePlaylist(){
 try{
+// 防止瞬时空列表覆盖已有完整列表
+if((!state.playlist||!state.playlist.length)){
+try{
+var exist=localStorage.getItem(COOKIE_NAME)||localStorage.getItem(COOKIE_NAME+'_bak');
+if(exist){
+var eo=JSON.parse(exist);
+var el=Array.isArray(eo)?eo:(eo&&eo.list);
+if(Array.isArray(el)&&el.length>0)return;
+}
+}catch(e){}
+}
 var data=state.playlist.map(function(s){
 var obj={id:s.id,name:s.name||'',artist:s.artist||''};
 if(s.external){obj.ext=true;obj.url=s.url||'';obj.srcUrl=s.srcUrl||'';obj.format=s.format||'';}

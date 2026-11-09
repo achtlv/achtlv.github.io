@@ -93,21 +93,25 @@ return;
 
 try{
 var cached=await getCachedLyric(song.id);
-if(cached&&cached.trans){
-entry.lyric=cached.main;
-entry.lyricTrans=cached.trans;
-entry.lyricRoma=cached.roma;
+if(cached&&(cached.main||cached.trans||cached.roma)){
+entry.lyric=cached.main||'';
+entry.lyricTrans=cached.trans||'';
+entry.lyricRoma=cached.roma||'';
+// 有原文即可先展示；若无翻译稍后仍可再请求补全
+var hasMain=!!(cached.main&&String(cached.main).trim());
+if(hasMain){
 entry.lyricDone=true;
+}
 var cur0=state.playlist[state.current];
-if(cur0===song){
+if(cur0===song||(cur0&&String(cur0.id)===String(song.id))){
 state.lyric=cached.main||'暂无歌词';
-state.lyricTrans=cached.trans;
-state.lyricRoma=cached.roma;
-state.lyricLoading=false;
+state.lyricTrans=cached.trans||'';
+state.lyricRoma=cached.roma||'';
+state.lyricLoading=!hasMain;
 state._lastLyricKey=null;
 render();
 }
-return;
+if(hasMain&&cached.trans)return;
 }
 }catch(e){}
 
@@ -183,18 +187,24 @@ function triggerPreloadNeighbors(){
 var len=state.playlist.length;
 var curIdx=state.current;
 if(curIdx<0||len<1)return;
+var curSong=state.playlist[curIdx];
+// 当前歌曲：立刻取封面+歌词（不等人点播放）
+if(curSong){
+try{preloadSongPic(curSong);}catch(e){}
+try{preloadSongLyric(curSong);}catch(e){}
+}
 var scheduledIdx=curIdx;
 setTimeout(function(){
 if(state.current!==scheduledIdx)return;
-var curSong=state.playlist[curIdx];
-if(!curSong)return;
+var curSong2=state.playlist[curIdx];
+if(!curSong2)return;
 var prevIdx=(curIdx-1+len)%len;
 var nextIdx=(curIdx+1)%len;
 var targets=[];
 var prevSong=state.playlist[prevIdx];
 var nextSong=state.playlist[nextIdx];
-if(prevSong&&prevSong!==curSong)targets.push(prevSong);
-if(nextSong&&nextSong!==curSong&&nextSong!==prevSong)targets.push(nextSong);
+if(prevSong&&prevSong!==curSong2)targets.push(prevSong);
+if(nextSong&&nextSong!==curSong2&&nextSong!==prevSong)targets.push(nextSong);
 for(var i=0;i<targets.length;i++){
 preloadSongPic(targets[i]);
 preloadSongLyric(targets[i]);

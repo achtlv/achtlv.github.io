@@ -106,6 +106,7 @@ var cur0=state.playlist[state.current];
 if(cur0===song||(cur0&&String(cur0.id)===String(song.id))){
 state.lyric=cached.main||'暂无歌词';
 state.lyricTrans=cached.trans||'';
+if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;
 state.lyricRoma=cached.roma||'';
 state.lyricLoading=!hasMain;
 state._lastLyricKey=null;
@@ -129,6 +130,7 @@ var cur=state.playlist[state.current];
 if(cur===song){
 state.lyric=entry.lyric||'暂无歌词';
 state.lyricTrans=entry.lyricTrans;
+if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;
 state.lyricRoma=entry.lyricRoma;
 state.lyricLoading=false;
 state._lastLyricKey=null;

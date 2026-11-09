@@ -379,14 +379,21 @@ var hasRoma=hasMeaningfulLyricText(state.lyricRoma);
 var tb=$('transBtn');
 var rb=$('romaBtn');
 if(tb){
-if(hasTrans)tb.classList.remove('hidden');else tb.classList.add('hidden');
-if(hasTrans&&state.transEnabled)tb.classList.add('on');else tb.classList.remove('on');
+if(hasTrans){
+tb.classList.remove('hidden');
+// 有翻译时默认开启显示（用户手动关掉后用 state._transUserSet 记住）
+if(!state._transUserSet){state.transEnabled=true;}
+if(state.transEnabled)tb.classList.add('on');else tb.classList.remove('on');
+}else{
+tb.classList.add('hidden');
+tb.classList.remove('on');
+}
 }
 if(rb){
 if(hasRoma)rb.classList.remove('hidden');else rb.classList.add('hidden');
 if(hasRoma&&state.romaEnabled)rb.classList.add('on');else rb.classList.remove('on');
 }
-if(!hasTrans)state.transEnabled=false;
+// 加载过程中可能暂无翻译，不要把默认开翻译关掉
 if(!hasRoma)state.romaEnabled=false;
 }
 

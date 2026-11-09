@@ -346,11 +346,13 @@ pe.urlExpireAt=0;
 if(pe&&pe.lyricDone){
 state.lyric=pe.lyric||'暂无歌词';
 state.lyricTrans=pe.lyricTrans||'';
+if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;
 state.lyricRoma=pe.lyricRoma||'';
 state.lyricLoading=false;
 state._lastLyricKey=null;
 }else{
-state.lyric='';state.lyricTrans='';state.lyricRoma='';
+state.lyric='';state.lyricTrans='';
+if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;state.lyricRoma='';
 state.lyricLoading=true;
 state._lastLyricKey=null;
 }
@@ -495,6 +497,7 @@ if(cachedLyric&&cachedLyric.trans){
 // 缓存含翻译才直接用；否则继续请求，避免旧缓存缺翻译
 state.lyric=cachedLyric.main||'暂无歌词';
 state.lyricTrans=cachedLyric.trans||'';
+if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;
 if(state.lyricTrans&&String(state.lyricTrans).trim())state.transEnabled=true;
 state.lyricRoma=cachedLyric.roma||'';
 state.lyricLoading=false;
@@ -510,6 +513,7 @@ render();
 // 先显示原文，后台补翻译
 state.lyric=cachedLyric.main||'暂无歌词';
 state.lyricTrans='';
+if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;
 state.lyricRoma=cachedLyric.roma||'';
 state.lyricLoading=false;
 render();
@@ -519,6 +523,7 @@ if(token!==playToken)return;
 var mFix=extractLyricMulti(lrFix);
 if(mFix.main)state.lyric=mFix.main;
 state.lyricTrans=mFix.trans||'';
+if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;
 state.lyricRoma=mFix.roma||state.lyricRoma||'';
 var eFix=getPreloadEntry(song.id);
 if(eFix){
@@ -537,6 +542,7 @@ if(token!==playToken)return;
 var m=extractLyricMulti(lr);
 state.lyric=m.main||'暂无歌词';
 state.lyricTrans=m.trans||'';
+if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;
 if(state.lyricTrans&&String(state.lyricTrans).trim())state.transEnabled=true;
 state.lyricRoma=m.roma||'';
 state.lyricLoading=false;
@@ -552,7 +558,8 @@ render();
 }catch(e){
 if(token!==playToken)return;
 state.lyric='暂无歌词';
-state.lyricTrans='';state.lyricRoma='';
+state.lyricTrans='';
+if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;state.lyricRoma='';
 state.lyricLoading=false;
 render();
 }
@@ -714,7 +721,9 @@ else if(!audio||!audio.src)needLoad=true;
 else if(String(audio.src).indexOf('blob:')!==0&&String(audio.src).indexOf('http')!==0)needLoad=true;
 }catch(e){needLoad=true;}
 if(needLoad){
-await playIndex(state.current);
+state.playing=true;
+render();
+await playIndex(state.current,null,null,{play:true});
 return;
 }
 
@@ -724,12 +733,25 @@ var dur=audio.duration||0;
 var cur=audio.currentTime||0;
 var remaining=(isFinite(dur)&&dur>0)?(dur-cur):0;
 if(remaining>0&&shouldRefreshUrlResume(pe,remaining)){
+state.playing=true;
+render();
 toast('链接已过期，正在重新获取');
 await resumeWithRefresh(cur);
 return;
 }
 }
-audio.play().catch(function(){});
+// 关键：先改状态再 play，避免按钮停在暂停图标且再也点不动
+state.playing=true;
+state.loadingUrl=false;
+render();
+try{
+var pPlay=audio.play();
+if(pPlay&&pPlay.catch)pPlay.catch(function(err){
+try{logEvent('error','audio.play失败',String(err&&err.message||err));}catch(e){}
+});
+}catch(e){
+try{logEvent('error','audio.play异常',String(e&&e.message||e));}catch(e2){}
+}
 }
 
 // ==================== 进度条 ====================
@@ -970,6 +992,7 @@ sc.addEventListener('pointerdown',markLyricUserScrolled,{passive:true});
 
 if($('transBtn'))$('transBtn').addEventListener('click',function(e){
 e.stopPropagation();
+state._transUserSet=true;
 state.transEnabled=!state.transEnabled;
 state._lastLyricKey=null;
 render();
@@ -1508,7 +1531,8 @@ if($('clearConfirm'))$('clearConfirm').addEventListener('click',function(){
 state.playlist=[];
 state.current=-1;
 state.playing=false;
-state.lyric='';state.lyricTrans='';state.lyricRoma='';
+state.lyric='';state.lyricTrans='';
+if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;state.lyricRoma='';
 state.lyricLoading=false;
 state.audioUrl='';state.quality='';
 state.retrying=false;
@@ -1727,7 +1751,8 @@ var after=state.playlist.length;
 if(mode==='replace'){
 state.playing=false;
 state.audioUrl='';state.quality='';
-state.lyric='';state.lyricTrans='';state.lyricRoma='';
+state.lyric='';state.lyricTrans='';
+if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;state.lyricRoma='';
 state.lyricLoading=false;
 state.retrying=false;
 state.editingOrder=false;
@@ -1782,7 +1807,8 @@ delete preloadTimers[removed.id];
 state.playlist.splice(idx,1);
 if(state.playlist.length===0){
 state.current=-1;state.playing=false;
-state.lyric='';state.lyricTrans='';state.lyricRoma='';
+state.lyric='';state.lyricTrans='';
+if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;state.lyricRoma='';
 state.lyricLoading=false;
 state.audioUrl='';state.quality='';
 state.retrying=false;
@@ -1871,9 +1897,27 @@ return;
 if(addValue){
 toast('正在解析分享内容...');
 try{
-var song=await resolveInput(addValue);
+// URL 分享默认按网易云 ID/链接解析，避免停留在酷狗模式导致失败
+var prevSrc=typeof ADD_SOURCE!=='undefined'?ADD_SOURCE:'wy';
+try{ADD_SOURCE='wy';}catch(e){}
+var song=null;
+try{
+song=await resolveInput(String(addValue).trim());
+}finally{
+try{ADD_SOURCE=prevSrc;}catch(e){}
+}
+if(!song)throw new Error('未解析到歌曲');
 showSongConfirm(song,true);
+// 再兜底显示一次，防止其它逻辑关掉弹窗
+setTimeout(function(){
+try{
+if(pendingSong&&$('addScrim')&&!$('addScrim').classList.contains('show')){
+showScrim('addScrim');
+}
+}catch(e){}
+},50);
 }catch(e){
+try{logEvent('error','URL添加失败',String(e&&e.message||e));}catch(e2){}
 toast('解析失败: '+(e.message||'未知错误'));
 }
 }
@@ -3026,7 +3070,14 @@ try{if(typeof switchTab==='function')switchTab('player');}catch(e){}
 if(state.user){
 try{syncAndMaybeRefreshKey().catch(function(){});}catch(e){}
 }
-setTimeout(function(){try{handleUrlParams();}catch(e){}},300);
+setTimeout(function(){
+try{
+var p=handleUrlParams();
+if(p&&typeof p.then==='function')p.catch(function(err){
+try{toast('链接参数处理失败: '+(err&&err.message||err));}catch(e){}
+});
+}catch(e){}
+},400);
 
 // 确保歌单/我的页按钮一定有事件（防前面脚本中断）
 

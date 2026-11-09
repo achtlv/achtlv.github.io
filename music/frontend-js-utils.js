@@ -26,7 +26,8 @@ return str;
 }
 function isHttpUrl(u){
 if(!u)return false;
-var s=String(u).toLowerCase();
+var s=String(u).toLowerCase().trim();
+if(s.indexOf('//')===0)return true; // 协议相对，后续会补 https
 return s.indexOf('http://')===0||s.indexOf('https://')===0;
 }
 function isNeteaseUrl(u){
@@ -176,6 +177,10 @@ return url.replace(/^http:\/\/(([a-z0-9.-]+)\.music\.126\.net)\//i,'https://$1/'
 function upgradeMediaUrl(url){
 if(!url||typeof url!=='string')return url;
 var u=String(url).trim();
+// 协议相对 //host/path
+if(u.indexOf('//')===0)u='https:'+u;
+// 裸域名媒体（极少见）
+if(/^([a-z0-9.-]+\.(?:music\.126\.net|netease\.com|kugou\.com|kt\.com))\//i.test(u))u='https://'+u;
 if(/^http:\/\//i.test(u))u=u.replace(/^http:\/\//i,'https://');
 return u;
 }
@@ -724,9 +729,12 @@ setTimeout(function(){t.remove()},320);
 }
 function extractUrl(r){
 if(!r)return '';
-if(r.data&&r.data.url)return r.data.url;
-if(r.data&&r.data[0]&&r.data[0].url)return r.data[0].url;
-return r.url||'';
+var u='';
+if(r.data&&r.data.url)u=r.data.url;
+else if(r.data&&r.data[0]&&r.data[0].url)u=r.data[0].url;
+else u=r.url||'';
+if(u&&typeof upgradeMediaUrl==='function')u=upgradeMediaUrl(u);
+return u||'';
 }
 function extractExpi(r){
 if(r&&r.data&&typeof r.data.expi==='number')return r.data.expi;

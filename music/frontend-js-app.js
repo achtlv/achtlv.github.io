@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261108.8';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261110.06';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -2952,17 +2952,16 @@ delete preloadTimers[t];
 }catch(e){}
 try{if(typeof logAction==='function')logAction('刷新：已清理媒体缓存');}catch(e){}
 
-var remoteVer='',localVer='';
-try{localVer=localStorage.getItem('m3_app_version')||'';}catch(e){}
+var remoteVer='';
+var bundleVer=(typeof APP_VERSION!=='undefined'&&APP_VERSION)?String(APP_VERSION):'';
 try{
 var r=await fetch(toAbsoluteApiUrl('/api/version')+'?t='+Date.now(),{cache:'no-store'});
 var d=await r.json();
 remoteVer=d&&d.version?String(d.version):'';
 }catch(e){}
-if(remoteVer){
+// 与当前前端包版本比较，不要用 localStorage（启动时会被旧 APP_VERSION 覆盖导致每次都「有新版本」）
+if(remoteVer&&bundleVer&&remoteVer!==bundleVer){
 try{localStorage.setItem('m3_app_version',remoteVer);}catch(e){}
-}
-if(remoteVer&&localVer&&remoteVer!==localVer){
 try{toast('发现新版本，正在更新…');}catch(e){}
 try{
 if('serviceWorker' in navigator){
@@ -2972,8 +2971,19 @@ try{await regs[i].update();}catch(e){}
 }
 }
 }catch(e){}
-setTimeout(function(){try{location.reload();}catch(e){}},200);
+// 清掉可能缓存旧包的 Cache Storage
+try{
+if(window.caches&&caches.keys){
+var keys=await caches.keys();
+for(var ci=0;ci<keys.length;ci++){try{await caches.delete(keys[ci]);}catch(e){}}
+}
+}catch(e){}
+setTimeout(function(){try{location.reload(true);}catch(e){try{location.reload();}catch(e2){}}},250);
 return;
+}
+// 版本一致：同步写入 localStorage
+if(remoteVer||bundleVer){
+try{localStorage.setItem('m3_app_version',remoteVer||bundleVer);}catch(e){}
 }
 try{toast('媒体缓存已清理');}catch(e){}
 try{if(typeof restorePlaylist==='function')restorePlaylist();}catch(e){}
@@ -3320,7 +3330,7 @@ try{window.handleUrlParams=handleUrlParams;window._runHandleUrlParams=_runHandle
 
 // 确保歌单/我的页按钮一定有事件（防前面脚本中断）
 
-try{if(typeof APP_VERSION!=='undefined')localStorage.setItem('m3_app_version',APP_VERSION);}catch(e){}
+try{if(typeof APP_VERSION!=='undefined'&&APP_VERSION){var _sv=localStorage.getItem('m3_app_version')||'';if(!_sv)_sv=APP_VERSION;localStorage.setItem('m3_app_version',APP_VERSION);}}catch(e){}
 try{
 window.addEventListener('beforeunload',function(){
 try{if(typeof savePlaylist==='function')savePlaylist();}catch(e){}

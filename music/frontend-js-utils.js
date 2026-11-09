@@ -999,10 +999,17 @@ catch(e){resolve('');}
 }).catch(function(){return '';});
 }
 
-function savePlaylist(){
+function clearPlaylistCookie(){
+try{localStorage.removeItem(COOKIE_NAME);}catch(e){}
+try{localStorage.removeItem(COOKIE_NAME+'_bak');}catch(e){}
+try{sessionStorage.removeItem(COOKIE_NAME);}catch(e){}
+try{if(typeof idbSetPlaylist==='function')idbSetPlaylist('');}catch(e){}
+try{if(typeof idbSetPlaylist==='function')idbSetPlaylist(JSON.stringify({v:1,list:[],current:-1,ts:Date.now()}));}catch(e){}
+}
+function savePlaylist(forceEmpty){
 try{
-// 防止瞬时空列表覆盖已有完整列表
-if((!state.playlist||!state.playlist.length)){
+// 防止瞬时空列表覆盖已有完整列表（除非明确清空）
+if(!forceEmpty&&(!state.playlist||!state.playlist.length)){
 try{
 var exist=localStorage.getItem(COOKIE_NAME)||localStorage.getItem(COOKIE_NAME+'_bak');
 if(exist){

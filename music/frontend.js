@@ -27,6 +27,17 @@ ${STYLE}
 </head>
 <body>
 <script>
+(function(){
+try{
+var p=new URLSearchParams(location.search||'');
+var a=p.get('add');var k=p.get('key');
+if(a)sessionStorage.setItem('m3_pending_add',a);
+if(k)sessionStorage.setItem('m3_pending_key',k);
+}catch(e){}
+})();
+</script>
+
+<script>
 /* 先加载列表，再渲染首页：在任何业务脚本之前同步读取 storage */
 (function(){
 try{

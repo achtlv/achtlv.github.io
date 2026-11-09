@@ -1534,40 +1534,46 @@ render();
 
 // ==================== 清空列表 ====================
 if($('sheetClear'))$('sheetClear').addEventListener('click',function(ev){
-blurControl(ev.currentTarget||this);
+try{blurControl(ev.currentTarget||this);}catch(e){}
 if(!state.playlist.length){toast('播放列表已为空');return}
-closeOtherScrims('clearScrim');
-showScrim('clearScrim');
+try{closeOtherScrims('clearScrim');}catch(e){}
+try{
+var sc=$('clearScrim');
+if(sc){sc.classList.add('show');sc.style.display='flex';}
+}catch(e){}
+try{showScrim('clearScrim');}catch(e){}
 });
 if($('clearCancel'))$('clearCancel').addEventListener('click',function(){hideScrim('clearScrim')});
 if($('clearScrim'))$('clearScrim').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show')});
 if($('clearConfirm'))$('clearConfirm').addEventListener('click',function(){
+try{
 state.playlist=[];
 state.current=-1;
 state.playing=false;
-state.lyric='';state.lyricTrans='';
-if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;state.lyricRoma='';
+state.lyric='';state.lyricTrans='';state.lyricRoma='';
 state.lyricLoading=false;
 state.audioUrl='';state.quality='';
 state.retrying=false;
 state.editingOrder=false;
-if($('sheetEdit')){
-$('sheetEdit').innerHTML='<svg viewBox="0 0 24 24"><path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/></svg>';
-$('sheetEdit').classList.remove('active');
-}
-stopAudio();
-resetProgressUI();
-clearPlaylistCookie();
+try{if($('sheetEdit')){$('sheetEdit').innerHTML='<svg viewBox="0 0 24 24"><path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/></svg>';$('sheetEdit').classList.remove('active');}}catch(e){}
+try{stopAudio();}catch(e){}
+try{resetProgressUI();}catch(e){}
+try{clearPlaylistCookie();}catch(e){}
+try{savePlaylist(true);}catch(e){}
 preloadCache={};
 preloadTimers={};
 state._lastMediaKey=null;
-render();
-if(typeof updateFavBtn==='function')updateFavBtn();
-updateMediaSessionMetadata();
-updateMediaSessionPlaybackState();
-hideScrim('clearScrim');
-hideScrim('listScrim');
+try{render();}catch(e){}
+try{if(typeof updateFavBtn==='function')updateFavBtn();}catch(e){}
+try{updateMediaSessionMetadata();}catch(e){}
+try{updateMediaSessionPlaybackState();}catch(e){}
+try{hideScrim('clearScrim');}catch(e){}
+try{hideScrim('listScrim');}catch(e){}
 toast('播放列表已清空');
+}catch(err){
+try{logEvent('error','清空列表失败',String(err&&err.message||err));}catch(e){}
+toast('清空失败');
+}
 });
 
 // ==================== 编辑顺序 ====================
@@ -1821,31 +1827,33 @@ delete preloadTimers[removed.id];
 state.playlist.splice(idx,1);
 if(state.playlist.length===0){
 state.current=-1;state.playing=false;
-state.lyric='';state.lyricTrans='';
-if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;state.lyricRoma='';
+state.lyric='';state.lyricTrans='';state.lyricRoma='';
 state.lyricLoading=false;
 state.audioUrl='';state.quality='';
 state.retrying=false;
 state.editingOrder=false;
-$('sheetEdit').innerHTML='<svg viewBox="0 0 24 24"><path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/></svg>';
-$('sheetEdit').classList.remove('active');
-stopAudio();
-resetProgressUI();
-clearPlaylistCookie();
+try{if($('sheetEdit')){$('sheetEdit').innerHTML='<svg viewBox="0 0 24 24"><path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/></svg>';$('sheetEdit').classList.remove('active');}}catch(e){}
+try{stopAudio();}catch(e){}
+try{resetProgressUI();}catch(e){}
+try{clearPlaylistCookie();}catch(e){}
+try{savePlaylist(true);}catch(e){}
 state._lastMediaKey=null;
-updateMediaSessionMetadata();
-updateMediaSessionPlaybackState();
+try{updateMediaSessionMetadata();}catch(e){}
+try{updateMediaSessionPlaybackState();}catch(e){}
 render();
+toast('已删除');
 return;
 }else if(idx===state.current){
 if(idx>=state.playlist.length)state.current=state.playlist.length-1;
-savePlaylist();
-playIndex(state.current);
+try{savePlaylist();}catch(e){}
+var keep=!!state.playing;
+playIndex(state.current,null,null,{play:keep});
 }else{
 if(idx<state.current)state.current--;
-savePlaylist();
+try{savePlaylist();}catch(e){}
 }
 render();
+toast('已删除');
 return;
 }
 
@@ -1893,14 +1901,23 @@ hideScrim('listScrim');
 
 // ==================== URL 参数处理 ====================
 async function handleUrlParams(){
+// 防止二次调用时 search 已被清掉：优先读缓存
+var keyValue='',addValue='';
+try{
+keyValue=sessionStorage.getItem('m3_pending_key')||'';
+addValue=sessionStorage.getItem('m3_pending_add')||'';
+}catch(e){}
 var params=null;
-try{params=new URLSearchParams(location.search)}catch(e){return}
-if(!params)return;
-
-var keyValue=params.get('key');
-var addValue=params.get('add');
+try{params=new URLSearchParams(location.search)}catch(e){}
+if(params){
+if(params.get('key'))keyValue=params.get('key');
+if(params.get('add'))addValue=params.get('add');
+}
 if(!keyValue&&!addValue)return;
-
+try{
+if(keyValue)sessionStorage.setItem('m3_pending_key',String(keyValue));
+if(addValue)sessionStorage.setItem('m3_pending_add',String(addValue));
+}catch(e){}
 try{history.replaceState(null,'',location.pathname)}catch(e){}
 
 if(keyValue){
@@ -1920,23 +1937,26 @@ try{ADD_SOURCE='wy';}catch(e){}
 try{song=await resolveInput(String(addValue).trim());}finally{try{ADD_SOURCE=prevSrc;}catch(e){}}
 }
 if(!song)throw new Error('未解析到歌曲');
-// 直接弹确认窗（不依赖音质探测成功）
 showSongConfirm(song,true);
+try{sessionStorage.removeItem('m3_pending_add');}catch(e){}
 try{
 var scr=$('addScrim');
-if(scr){
-scr.classList.add('show');
-scr.style.display='flex';
-}
-$('addStage1').style.display='none';
-$('addStage2').style.display='block';
+if(scr){scr.classList.add('show');scr.style.display='flex';}
+if($('addStage1'))$('addStage1').style.display='none';
+if($('addStage2'))$('addStage2').style.display='block';
 }catch(e){}
 setTimeout(function(){
 try{
 var scr2=$('addScrim');
 if(scr2){scr2.classList.add('show');scr2.style.display='flex';}
 }catch(e){}
-},100);
+},80);
+setTimeout(function(){
+try{
+var scr3=$('addScrim');
+if(scr3&&!scr3.classList.contains('show')){scr3.classList.add('show');scr3.style.display='flex';}
+}catch(e){}
+},400);
 }catch(e){
 try{logEvent('error','URL添加失败',String(e&&e.message||e));}catch(e2){}
 toast('解析失败: '+(e.message||'未知错误'));
@@ -2765,7 +2785,6 @@ var body='<b>['+type+'] '+safeMsg+'</b>'+(safeDetail?('\n'+safeDetail):'');
 return '<div class="logs-item" data-log="'+realIdx+'"><div class="logs-item-time">'+time+'</div><div class="logs-item-msg'+(long?' collapsed':'')+'">'+body+(long?'<div class="logs-more">点击展开</div>':'')+'</div><div class="logs-item-actions"><button class="text-btn log-copy" type="button">复制</button><button class="text-btn log-del" type="button">删除</button></div></div>';
 }).join('');
 }
- 中的失败信息也可记录关键错误
 var _origToast=typeof toast==='function'?toast:null;
 
 // ==================== 强制刷新（先同步，再版本检测） ====================
@@ -2895,9 +2914,58 @@ try{if(typeof render==='function')render();}catch(e){}
 window.__forceRefresh=forceRefreshApp;
 window.forceRefreshApp=forceRefreshApp;
 
+
+function bindLogsListClicks(){
+var box=$('logsList');
+if(!box||box._logsBound)return;
+box._logsBound=true;
+box.addEventListener('click',function(e){
+try{
+var t=e.target;
+var copy=t.closest&&t.closest('.log-copy');
+var del=t.closest&&t.closest('.log-del');
+var msgEl=t.closest&&t.closest('.logs-item-msg');
+if(msgEl&&!copy&&!del){
+msgEl.classList.toggle('expanded');
+msgEl.classList.toggle('collapsed');
+var more=msgEl.querySelector('.logs-more');
+if(more)more.textContent=msgEl.classList.contains('expanded')?'点击收起':'点击展开';
+return;
+}
+var item=t.closest&&t.closest('.logs-item');
+if(!item)return;
+var idx=parseInt(item.getAttribute('data-log'),10);
+var list=loadErrorLogs();
+if(copy){
+var row=list[idx];
+var text=(row&&('['+(row.type||'')+'] '+(row.msg||'')+'\n'+(row.detail||'')))||'';
+try{
+if(navigator.clipboard&&navigator.clipboard.writeText){
+navigator.clipboard.writeText(text).then(function(){toast('已复制');}).catch(function(){
+var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();
+document.execCommand('copy');ta.remove();toast('已复制');
+});
+}else{
+var ta2=document.createElement('textarea');ta2.value=text;document.body.appendChild(ta2);ta2.select();
+document.execCommand('copy');ta2.remove();toast('已复制');
+}
+}catch(err){toast('复制失败');}
+return;
+}
+if(del){
+list.splice(idx,1);
+saveErrorLogs(list);
+renderLogsPage();
+toast('已删除');
+}
+}catch(err){try{toast('日志操作失败');}catch(e){}}
+});
+}
+
 function openLogsPage(){
 try{
 if(typeof renderLogsPage==='function')renderLogsPage();
+try{bindLogsListClicks();}catch(e){}
 var box=$('logsList');
 if(box&&(!box.innerHTML||box.innerHTML.indexOf('logs-empty')!==-1)){
 var n=(typeof loadErrorLogs==='function'?loadErrorLogs().length:0);
@@ -3101,7 +3169,9 @@ try{toast('链接参数处理失败: '+(err&&err.message||err));}catch(e){}
 }catch(e){}
 }
 setTimeout(_runHandleUrlParams,200);
-setTimeout(_runHandleUrlParams,800); // handleUrlParams late 兜底
+setTimeout(_runHandleUrlParams,600);
+setTimeout(_runHandleUrlParams,1500);
+try{window.handleUrlParams=handleUrlParams;window._runHandleUrlParams=_runHandleUrlParams;}catch(e){}
 
 // 确保歌单/我的页按钮一定有事件（防前面脚本中断）
 

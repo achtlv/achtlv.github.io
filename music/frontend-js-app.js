@@ -6,12 +6,30 @@ try{if(document.activeElement&&document.activeElement!==document.body)document.a
 function showScrim(id){
 var el=typeof id==='string'?$(id):id;
 if(!el)return;
+// 必须清掉可能残留的 display:none，并与 .show 同步
+el.style.display='flex';
 requestAnimationFrame(function(){el.classList.add('show');});
 }
 function hideScrim(id){
 var el=typeof id==='string'?$(id):id;
 if(!el)return;
 el.classList.remove('show');
+// 关键：打开时若写过 style.display=flex，只去 class 关不掉
+el.style.display='none';
+}
+function clearUrlShareParams(){
+try{
+var u=new URL(location.href);
+u.searchParams.delete('add');
+u.searchParams.delete('key');
+var q=u.searchParams.toString();
+history.replaceState(null,'',u.pathname+(q?('?'+q):'')+u.hash);
+}catch(e){
+try{history.replaceState(null,'',location.pathname);}catch(e2){}
+}
+try{sessionStorage.removeItem('m3_pending_add');}catch(e){}
+try{sessionStorage.removeItem('m3_pending_key');}catch(e){}
+window._urlShareHandled=true;
 }
 // ==================== Media Session ====================
 function bindMediaSessionActions(){
@@ -1399,8 +1417,19 @@ showScrim('addScrim');
 setTimeout(function(){$('addInput').focus()},120);
 }
 function closeAdd(){
-hideScrim('addScrim');
-$('addInput').blur();
+try{hideScrim('addScrim');}catch(e){}
+try{
+var scr=$('addScrim');
+if(scr){scr.classList.remove('show');scr.style.display='none';}
+}catch(e){}
+try{
+if($('addStage2'))$('addStage2').style.display='none';
+if($('addStage1'))$('addStage1').style.display='block';
+if($('addHint'))$('addHint').textContent='是否将此歌曲加入播放列表？';
+if($('addInput'))$('addInput').blur();
+}catch(e){}
+pendingSong=null;
+try{clearUrlShareParams();}catch(e){}
 }
 function openImportDialog(){
 try{blurControl(document.activeElement);}catch(e){}
@@ -1463,6 +1492,10 @@ $('foundMeta').innerHTML=metaHtml;
 $('addHint').textContent=fromUrl?'来自分享链接，是否添加到列表并播放？':'是否将此歌曲加入播放列表？';
 closeOtherScrims('addScrim');
 showScrim('addScrim');
+try{
+var scr=$('addScrim');
+if(scr){scr.style.display='flex';scr.classList.add('show');}
+}catch(e){}
 }
 
 async function doResolve(){
@@ -1484,11 +1517,20 @@ if($('addInput'))$('addInput').addEventListener('keydown',function(e){
 if(e.key==='Enter'){e.preventDefault();doResolve()}
 });
 if($('addCancel'))$('addCancel').addEventListener('click',function(){
+// 分享链接进来的确认页：取消直接关弹窗，不要退回输入页
+var fromShare=pendingSong&&pendingSong._fromUrl;
 pendingSong=null;
+try{clearUrlShareParams();}catch(e){}
+if(fromShare){
+closeAdd();
+return;
+}
+try{
 $('addStage2').style.display='none';
 $('addStage1').style.display='block';
 $('addHint').textContent='是否将此歌曲加入播放列表？';
-setTimeout(function(){$('addInput').focus()},100);
+}catch(e){}
+setTimeout(function(){try{$('addInput').focus();}catch(e){}},100);
 });
 if($('addConfirm'))$('addConfirm').addEventListener('click',function(){
 if(!pendingSong)return;
@@ -1543,8 +1585,16 @@ if(sc){sc.classList.add('show');sc.style.display='flex';}
 }catch(e){}
 try{showScrim('clearScrim');}catch(e){}
 });
-if($('clearCancel'))$('clearCancel').addEventListener('click',function(){hideScrim('clearScrim')});
-if($('clearScrim'))$('clearScrim').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show')});
+if($('clearCancel'))$('clearCancel').addEventListener('click',function(){
+try{hideScrim('clearScrim');}catch(e){}
+try{var sc=$('clearScrim');if(sc){sc.classList.remove('show');sc.style.display='none';}}catch(e){}
+});
+if($('clearScrim'))$('clearScrim').addEventListener('click',function(e){
+if(e.target===this){
+this.classList.remove('show');
+this.style.display='none';
+}
+});
 if($('clearConfirm'))$('clearConfirm').addEventListener('click',function(){
 try{
 state.playlist=[];
@@ -1568,10 +1618,15 @@ try{if(typeof updateFavBtn==='function')updateFavBtn();}catch(e){}
 try{updateMediaSessionMetadata();}catch(e){}
 try{updateMediaSessionPlaybackState();}catch(e){}
 try{hideScrim('clearScrim');}catch(e){}
+try{var sc=$('clearScrim');if(sc){sc.classList.remove('show');sc.style.display='none';}}catch(e){}
 try{hideScrim('listScrim');}catch(e){}
+try{var ls=$('listScrim');if(ls){ls.classList.remove('show');ls.style.display='none';}}catch(e){}
 toast('播放列表已清空');
 }catch(err){
 try{logEvent('error','清空列表失败',String(err&&err.message||err));}catch(e){}
+// 即使清空逻辑出错也要关掉弹窗
+try{hideScrim('clearScrim');}catch(e){}
+try{var sc2=$('clearScrim');if(sc2){sc2.classList.remove('show');sc2.style.display='none';}}catch(e){}
 toast('清空失败');
 }
 });
@@ -1901,7 +1956,7 @@ hideScrim('listScrim');
 
 // ==================== URL 参数处理 ====================
 async function handleUrlParams(){
-// 防止二次调用时 search 已被清掉：优先读缓存
+if(window._urlShareHandled)return;
 var keyValue='',addValue='';
 try{
 keyValue=sessionStorage.getItem('m3_pending_key')||'';
@@ -1914,11 +1969,14 @@ if(params.get('key'))keyValue=params.get('key');
 if(params.get('add'))addValue=params.get('add');
 }
 if(!keyValue&&!addValue)return;
-try{
-if(keyValue)sessionStorage.setItem('m3_pending_key',String(keyValue));
-if(addValue)sessionStorage.setItem('m3_pending_add',String(addValue));
-}catch(e){}
-try{history.replaceState(null,'',location.pathname)}catch(e){}
+
+// 立刻清 URL + session，避免刷新重复弹；解析失败也不再弹
+window._urlShareHandled=true;
+try{clearUrlShareParams();}catch(e){
+try{history.replaceState(null,'',location.pathname);}catch(e2){}
+try{sessionStorage.removeItem('m3_pending_add');}catch(e3){}
+try{sessionStorage.removeItem('m3_pending_key');}catch(e4){}
+}
 
 if(keyValue){
 await handleKeyFromUrl(String(keyValue).trim());
@@ -1938,28 +1996,10 @@ try{song=await resolveInput(String(addValue).trim());}finally{try{ADD_SOURCE=pre
 }
 if(!song)throw new Error('未解析到歌曲');
 showSongConfirm(song,true);
-try{sessionStorage.removeItem('m3_pending_add');}catch(e){}
-try{
-var scr=$('addScrim');
-if(scr){scr.classList.add('show');scr.style.display='flex';}
-if($('addStage1'))$('addStage1').style.display='none';
-if($('addStage2'))$('addStage2').style.display='block';
-}catch(e){}
-setTimeout(function(){
-try{
-var scr2=$('addScrim');
-if(scr2){scr2.classList.add('show');scr2.style.display='flex';}
-}catch(e){}
-},80);
-setTimeout(function(){
-try{
-var scr3=$('addScrim');
-if(scr3&&!scr3.classList.contains('show')){scr3.classList.add('show');scr3.style.display='flex';}
-}catch(e){}
-},400);
 }catch(e){
 try{logEvent('error','URL添加失败',String(e&&e.message||e));}catch(e2){}
 toast('解析失败: '+(e.message||'未知错误'));
+try{hideScrim('addScrim');}catch(e3){}
 }
 }
 }

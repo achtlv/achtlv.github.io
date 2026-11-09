@@ -1,4 +1,4 @@
-export const BODY_HTML = String.raw`<div class="app">
+export const BODY_INNER = String.raw`<div class="app">
 <div class="page page-active" id="pagePlayer">
 <header>
 <button class="icon-btn" id="shareBtn" title="分享" aria-label="分享"></button>

@@ -92,7 +92,20 @@ export async function handleSearchKg(word) {
         source: "kg",
       };
     }).filter((s) => s.id && s.id.length > 4);
-    return json({ code: 200, data: { songs } });
+    const first = songs[0] || null;
+    if (first) {
+      return json({
+        code: 200,
+        id: first.id,
+        name: first.name,
+        artist: first.artist,
+        pic: first.pic || "",
+        duration: first.duration || 0,
+        source: "kg",
+        data: { songs },
+      });
+    }
+    return json({ code: 404, msg: "未找到酷狗歌曲" });
   } catch (e) {
     return json({ code: 500, msg: String(e.message || e) }, 500);
   }

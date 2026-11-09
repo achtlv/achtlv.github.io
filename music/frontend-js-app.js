@@ -1521,16 +1521,23 @@ if(scr){scr.style.display='flex';scr.classList.add('show');}
 async function doResolve(){
 var text=$('addInput').value.trim();
 if(!text)return;
+if($('addGo').disabled)return;
 $('addGo').disabled=true;
 $('addGo').innerHTML='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>';
 try{
-var song=await resolveInput(text);
-showSongConfirm(song,false);
+var song=await Promise.race([
+resolveInput(text),
+new Promise(function(_,rej){setTimeout(function(){rej(new Error('解析超时，请重试'));},15000);})
+]);
+if(song)showSongConfirm(song,false);
+else toast('未找到歌曲');
 }catch(e){
+try{if(typeof logError==='function')logError('添加解析失败',String(e&&e.message||e));}catch(e2){}
 toast(e.message||'解析失败');
-}
+}finally{
 $('addGo').disabled=false;
-$('addGo').innerHTML=ICON.arrow;
+try{$('addGo').innerHTML=(typeof ICON!=='undefined'&&ICON.arrow)?ICON.arrow:'→';}catch(e){}
+}
 }
 if($('addGo'))$('addGo').addEventListener('click',doResolve);
 if($('addInput'))$('addInput').addEventListener('keydown',function(e){

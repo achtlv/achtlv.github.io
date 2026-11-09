@@ -398,55 +398,65 @@ if(eme)return eme;
 throw new Error('直链不可用');
 }
 
-// 酷狗模式
+// 酷狗模式：只搜元数据，音质留给播放时探测（避免添加卡住）
 if(src==='kg'){
-if(isKgId(text)){
+if(typeof isKgId==='function'&&isKgId(text)){
 var kid=normalizeKgId(text);
-var metaK={id:kid,name:'酷狗歌曲',artist:'',pic:'',duration:0,source:'kg'};
-var qk=await detectNeteaseQuality(kid,0);
-if(!qk)throw new Error('该酷狗歌曲暂无可用音源');
-metaK.quality=qk;
-return metaK;
+return {id:kid,name:'酷狗歌曲',artist:'',pic:'',duration:0,source:'kg',quality:'exhigh'};
 }
-var rsk=await localSearchKg(text);
+var rsk=null;
+try{
+rsk=await Promise.race([
+localSearchKg(text),
+new Promise(function(res){setTimeout(function(){res({code:408,msg:'搜索超时'});},12000);})
+]);
+}catch(e){rsk={code:500,msg:String(e&&e.message||e)};}
 if(rsk&&rsk.id){
-var meta4={id:String(rsk.id),name:rsk.name||text,artist:rsk.artist||'未知歌手',pic:rsk.pic||'',duration:rsk.duration||0,source:'kg'};
+var meta4={id:String(rsk.id),name:rsk.name||text,artist:rsk.artist||'未知歌手',pic:rsk.pic||'',duration:rsk.duration||0,source:'kg',quality:'exhigh'};
+if(meta4.id.indexOf('kg')!==0&&/^[a-fA-F0-9]{32}$/.test(meta4.id))meta4.id='kg'+meta4.id.toLowerCase();
 if(meta4.pic){try{await saveCoverToCache(meta4.id,meta4.pic);}catch(e){}}
-var q4=await detectNeteaseQuality(meta4.id,meta4.duration);
-if(!q4)throw new Error('该酷狗歌曲暂无可用音源');
-meta4.quality=q4;
 return meta4;
 }
 throw new Error((rsk&&rsk.msg)||'未找到酷狗歌曲');
 }
 
-// 默认网易云
-if(isSongId(text)){
-var meta=await fetchMetaById(text);
-var q=await detectNeteaseQuality(text,meta.duration);
-if(!q)throw new Error('该歌曲暂无可用音源');
-meta.quality=q;
+// 默认网易云：拿到 ID/元数据即可添加，音质在播放时再确认
+if(typeof isSongId==='function'&&isSongId(text)){
+var meta=null;
+try{
+meta=await Promise.race([
+fetchMetaById(text),
+new Promise(function(res){setTimeout(function(){res(null);},8000);})
+]);
+}catch(e){meta=null;}
+if(!meta)meta={id:String(text),name:'网易云歌曲',artist:'',pic:'',duration:0};
+meta.id=String(meta.id||text);
+meta.source=meta.source||'wy';
+meta.quality=meta.quality||'exhigh';
 return meta;
 }
 
 var urls=extractAllUrlsFromText(text);
 if(urls.length>0){
 for(var i=0;i<urls.length;i++){
-if(!isNeteaseUrl(urls[i]))continue;
+if(typeof isNeteaseUrl==='function'&&!isNeteaseUrl(urls[i]))continue;
 try{
 var nm=await tryNeteaseLink(urls[i]);
-if(nm)return nm;
+if(nm){nm.quality=nm.quality||'exhigh';return nm;}
 }catch(e){}
 }
-// 网易模式下不再自动匹配第三方直链
 }
 
-var rs=await post('/api/search',{word:text});
+var rs=null;
+try{
+rs=await Promise.race([
+post('/api/search',{word:text}),
+new Promise(function(res){setTimeout(function(){res({code:408,msg:'搜索超时'});},12000);})
+]);
+}catch(e){rs={code:500,msg:String(e&&e.message||e)};}
 if(rs&&rs.id){
-var meta3={id:String(rs.id),name:rs.name||text,artist:rs.artist||'未知歌手',pic:rs.pic||'',duration:0};
-var q3=await detectNeteaseQuality(meta3.id,meta3.duration);
-if(!q3)throw new Error('该歌曲暂无可用音源');
-meta3.quality=q3;
+var meta3={id:String(rs.id),name:rs.name||text,artist:rs.artist||'未知歌手',pic:rs.pic||'',duration:rs.duration||0,source:'wy',quality:'exhigh'};
+if(meta3.pic){try{await saveCoverToCache(meta3.id,meta3.pic);}catch(e){}}
 return meta3;
 }
 throw new Error((rs&&rs.msg)||(urls.length?'网易云链接不可用，且未搜索到歌曲':'未找到歌曲'));

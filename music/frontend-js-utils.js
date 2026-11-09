@@ -426,7 +426,25 @@ headers:{'Content-Type':'application/json'},
 body:JSON.stringify({word:String(word)})
 });
 var data=await res.json();
-if(data&&Number(data.code)===200&&data.id)return data;
+// Worker 返回 {code:200,data:{songs:[{id,name,...}]}} 或扁平 {code:200,id,...}
+if(data&&Number(data.code)===200){
+if(data.id)return data;
+var songs=(data.data&&data.data.songs)||data.songs||[];
+if(songs&&songs[0]&&songs[0].id){
+var s0=songs[0];
+var id0=String(s0.id);
+if(id0.indexOf('kg')!==0&&/^[a-fA-F0-9]{32}$/.test(id0))id0='kg'+id0.toLowerCase();
+return {
+code:200,
+id:id0,
+name:s0.name||word,
+artist:s0.artist||'未知歌手',
+pic:s0.pic||'',
+duration:s0.duration||0,
+source:'kg'
+};
+}
+}
 }catch(e){}
 // 直连兜底
 try{
@@ -442,15 +460,19 @@ return {code:404,msg:'未找到酷狗歌曲'};
 }
 async function localSearch(word){
 if(!word)return {code:400,msg:'缺少搜索关键词'};
-var r=await localFetchJson('https://api.vkeys.cn/v2/music/netease?word='+encodeURIComponent(word),{method:'GET'});
-var data=r.data||{};
-var d=data.data;
+var r=null;
+try{
+r=await localFetchJson('https://api.vkeys.cn/v2/music/netease?word='+encodeURIComponent(word),{method:'GET'});
+}catch(e){return {code:500,msg:'搜索请求失败'};}
+var data=(r&&r.data!==undefined)?r.data:r;
+var d=(data&&data.data!==undefined)?data.data:data;
 var item=null;
 if(Array.isArray(d))item=d[0];
 else if(d&&Array.isArray(d.list))item=d.list[0];
 else if(d&&Array.isArray(d.songs))item=d.songs[0];
-else if(d&&(d.id||d.songId))item=d;
+else if(d&&(d.id||d.songId||d.songid))item=d;
 else if(d&&d.data&&(d.data.id||d.data.songId))item=d.data;
+else if(Array.isArray(data))item=data[0];
 if(!item)return {code:404,msg:'未找到歌曲'};
 var id=item.id||item.songId||item.song_id;
 var name=item.name||item.song||item.title||item.songName||word;

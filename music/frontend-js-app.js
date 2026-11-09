@@ -504,12 +504,16 @@ try{audio.currentTime=startPos;}catch(e){}
 }
 }catch(e){
 if(token!==playToken)return;
+// 解析失败：停在当前曲，不自动切下一首
 state.playing=false;
+state.loadingUrl=false;
 state.lyricLoading=false;
+state.audioUrl='';
 state.quality='unavailable';
-toast(e.message||'播放失败');
-logError('播放失败 id='+(song&&song.id),e);
-render();
+try{stopAudio();}catch(e2){}
+try{toast(e.message||'播放失败');}catch(e3){}
+try{logError('播放失败 id='+(song&&song.id),e);}catch(e4){}
+try{render();}catch(e5){}
 return;
 }
 
@@ -968,6 +972,13 @@ return;
 try{if(typeof updateMediaSessionPlaybackState==='function')updateMediaSessionPlaybackState();}catch(e){}
 });
 audio.addEventListener('ended',function(){
+// 没有有效音源时 ended 也可能误触发，不要当成播完切歌
+if(!state.audioUrl||state.loadingUrl||state.quality==='unavailable'){
+state.playing=false;
+state.loadingUrl=false;
+try{render();}catch(e){}
+return;
+}
 // 自然结束：明确保持播放意图，避免 pause 事件先把 playing 清掉
 state.playing=true;
 if(state.mode==='single'||state.mode==='loop'){
@@ -2229,26 +2240,59 @@ if(!song){toast('没有可收藏的歌曲');return;}
 try{openFavDialog(song);}catch(err){toast('收藏失败');console.error(err);}
 });
 function openFavDialog(song){
+if(!song)return;
+window._favDialogSong=song;
+function paintFavList(){
 var box=$('favPlList');
 if(!box)return;
 box.innerHTML='';
-var k=songKey(song);
-(state.playlists||[]).forEach(function(pl){
+var cur=window._favDialogSong||song;
+var k=songKey(cur);
+var list=state.playlists||[];
+if(!list.length){
+box.innerHTML='<p class="hint">暂无歌单，可新建后收藏</p>';
+return;
+}
+list.forEach(function(pl){
 var btn=document.createElement('button');
+btn.type='button';
 btn.className='fav-pl-item';
-var on=(pl.songs||[]).some(function(s){return songKey(s)===k;});
+// 每次绘制时重新判断，避免闭包里的 on 过期
+var on=false;
+try{
+var plNow=typeof getPlaylist==='function'?getPlaylist(pl.id):pl;
+on=((plNow&&plNow.songs)||pl.songs||[]).some(function(s){return songKey(s)===k;});
+}catch(e){
+on=(pl.songs||[]).some(function(s){return songKey(s)===k;});
+}
 if(on)btn.classList.add('on');
-btn.textContent=(on?'★ ':'☆ ')+(pl.name||'未命名')+'（'+(pl.songs?pl.songs.length:0)+'）';
-btn.addEventListener('click',function(){
-if(on){removeSongFromPlaylist(pl.id,song);toast('已从歌单移除');}
-else{addSongToPlaylist(pl.id,song,true);toast('已收藏到「'+pl.name+'」');}
-closeAllScrimsUI();
+else btn.classList.remove('on');
+var cnt=(pl.songs&&pl.songs.length)||0;
+try{var p2=getPlaylist(pl.id);if(p2&&p2.songs)cnt=p2.songs.length;}catch(e){}
+btn.textContent=(on?'★ ':'☆ ')+(pl.name||'未命名')+'（'+cnt+'）';
+btn.addEventListener('click',function(ev){
+try{ev.preventDefault();ev.stopPropagation();}catch(e){}
+var plId=pl.id;
+var nowOn=false;
+try{
+var plLive=getPlaylist(plId);
+nowOn=((plLive&&plLive.songs)||[]).some(function(s){return songKey(s)===k;});
+}catch(e){}
+if(nowOn){
+removeSongFromPlaylist(plId,cur);
+toast('已从「'+(pl.name||'歌单')+'」移出');
+}else{
+addSongToPlaylist(plId,cur,true);
+toast('已收藏到「'+(pl.name||'歌单')+'」');
+}
+try{if(typeof updateFavBtn==='function')updateFavBtn();}catch(e){}
+// 不关闭弹窗，立即重绘星标
+paintFavList();
 });
 box.appendChild(btn);
 });
-if(!(state.playlists||[]).length){
-box.innerHTML='<p class="hint">暂无歌单，可新建后收藏</p>';
 }
+paintFavList();
 showScrim('favScrim');
 }
 if($('favCancel'))$('favCancel').addEventListener('click',function(){hideScrim('favScrim');});
@@ -2300,6 +2344,8 @@ var pl2=createPlaylist(name||null,[window._plNameSong]);
 toast('已新建「'+pl2.name+'」并收藏');
 if(typeof updateFavBtn==='function')updateFavBtn();
 renderPlaylistsPage();
+// 回到收藏弹窗并刷新星标
+try{openFavDialog(window._plNameSong);}catch(e){}
 }
 });
 if($('plSortBtn'))$('plSortBtn').addEventListener('click',function(e){if(e)e.stopImmediatePropagation();if(typeof togglePlaylistSort==='function')togglePlaylistSort();});

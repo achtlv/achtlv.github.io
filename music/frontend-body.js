@@ -1,4 +1,4 @@
-export const BODY_INNER = String.raw`<div class="app">
+export const BODY_HTML = String.raw`<div class="app">
 <div class="page page-active" id="pagePlayer">
 <header>
 <button class="icon-btn" id="shareBtn" title="分享" aria-label="分享"></button>
@@ -283,7 +283,7 @@ export const BODY_INNER = String.raw`<div class="app">
 <div id="favPlList" class="fav-pl-list"></div>
 <div class="dlg-actions">
 <button class="text-btn" id="favNewPl">新建歌单并收藏</button>
-<button class="text-btn" id="favCancel">取消</button>
+<button class="text-btn" id="favCancel">完成</button>
 </div>
 </div>
 </div>

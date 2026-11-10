@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261110.10';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261110.11';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -35,14 +35,14 @@ window._urlShareHandled=true;
 function bindMediaSessionActions(){
 if(!('mediaSession' in navigator))return;
 try{
-// 通知栏 play/pause 与网页内播放按钮同一套逻辑（状态继承、取链中点击取消）
+// 通知栏点击 = 点击网页播放按钮，再跟随网页按钮状态
 navigator.mediaSession.setActionHandler('play',function(){
-if(typeof togglePlay==='function')togglePlay();
-try{updateMediaSessionPlaybackState();}catch(e){}
+try{if(typeof togglePlay==='function')togglePlay();}catch(e){}
+try{syncMediaSessionFromUi();}catch(e){}
 });
 navigator.mediaSession.setActionHandler('pause',function(){
-if(typeof togglePlay==='function')togglePlay();
-try{updateMediaSessionPlaybackState();}catch(e){}
+try{if(typeof togglePlay==='function')togglePlay();}catch(e){}
+try{syncMediaSessionFromUi();}catch(e){}
 });
 navigator.mediaSession.setActionHandler('previoustrack',function(){if(typeof prevSong==='function')prevSong();});
 navigator.mediaSession.setActionHandler('nexttrack',function(){if(typeof nextSong==='function')nextSong();});
@@ -52,7 +52,7 @@ state.playing=false;
 state.loadingUrl=false;
 try{playToken++;}catch(e){}
 try{audio.pause();audio.currentTime=0;}catch(e){}
-try{updateMediaSessionPlaybackState();}catch(e){}
+try{syncMediaSessionFromUi();}catch(e){}
 try{render();}catch(e){}
 });
 }catch(e){}
@@ -93,8 +93,7 @@ artwork:artwork
 function updateMediaSessionPlaybackState(){
 if(!('mediaSession' in navigator))return;
 try{
-// 与网页内播放按钮完全一致：只跟 state.playing（含取链中）
-// playing → 通知显示暂停键；paused → 通知显示播放键
+// 严格跟随网页播放按钮：state.playing
 navigator.mediaSession.playbackState=state.playing?'playing':'paused';
 try{
 if(audio&&audio.duration&&isFinite(audio.duration)&&audio.duration>0){
@@ -106,6 +105,14 @@ position:Math.max(0,Math.min(audio.currentTime||0,audio.duration))
 }
 }catch(e2){}
 }catch(e){}
+}
+// 多次延迟同步，抵消 Android 系统在 action 回调后自动改回的状态
+function syncMediaSessionFromUi(){
+try{updateMediaSessionPlaybackState();}catch(e){}
+setTimeout(function(){try{updateMediaSessionPlaybackState();}catch(e){}},0);
+setTimeout(function(){try{updateMediaSessionPlaybackState();}catch(e){}},50);
+setTimeout(function(){try{updateMediaSessionPlaybackState();}catch(e){}},150);
+setTimeout(function(){try{updateMediaSessionPlaybackState();}catch(e){}},400);
 }
 
 function setupMediaSession(){
@@ -744,7 +751,7 @@ state.loadingUrl=false;
 state.playing=false;
 try{stopAudio();}catch(e){}
 try{toast('已取消获取');}catch(e){}
-render();
+render();try{syncMediaSessionFromUi();}catch(e){}
 return;
 }
 // 2) 刷新音源中且正在播 → 取消刷新
@@ -768,7 +775,7 @@ var pr=audio.play();
 if(pr&&pr.catch)pr.catch(function(){});
 }catch(e){}
 try{updateMediaSessionPlaybackState();}catch(e){}
-render();
+render();try{syncMediaSessionFromUi();}catch(e){}
 return;
 }
 state.playing=false;
@@ -777,7 +784,7 @@ try{state._ignorePause=true;}catch(e){}
 try{audio.pause();}catch(e){}
 setTimeout(function(){try{state._ignorePause=false;}catch(e){}},50);
 try{updateMediaSessionPlaybackState();}catch(e){}
-render();
+render();try{syncMediaSessionFromUi();}catch(e){}
 return;
 }
 // 4) 当前是暂停：开始播放（若后台已在取链则改为播放意图继续等）
@@ -1075,15 +1082,13 @@ render();
 if($('coverBox'))$('coverBox').addEventListener('click',function(){
 if(!state.playlist.length)return;
 state.showLyric=true;
+try{state.lyricUserScrolled=false;}catch(e){}
 render();
-// 切到歌词后自动回正到当前句
-function recenterLyric(){
-try{if(typeof ensureLyricCenterPadding==='function')ensureLyricCenterPadding();}catch(e){}
-try{if(typeof updateLyricScroll==='function')updateLyricScroll(true);}catch(e){}
-}
-try{requestAnimationFrame(function(){recenterLyric();requestAnimationFrame(recenterLyric);});}catch(e){}
-setTimeout(recenterLyric,80);
-setTimeout(recenterLyric,220);
+try{if(typeof recenterCurrentLyric==='function')recenterCurrentLyric();
+else{
+var run=function(){try{ensureLyricCenterPadding();}catch(e){}try{updateLyricScroll(true);}catch(e){};};
+setTimeout(run,30);setTimeout(run,120);setTimeout(run,300);
+}}catch(e){}
 });
 if($('lyricBox'))$('lyricBox').addEventListener('click',function(e){
 if(e.target.closest&&e.target.closest('#lyricToolbar'))return;

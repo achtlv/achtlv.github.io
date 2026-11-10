@@ -1,4 +1,20 @@
-export const LYRIC_SCRIPT = String.raw`function ensureLyricCenterPadding(){
+export const LYRIC_SCRIPT = String.raw`function recenterCurrentLyric(){
+try{
+state.lyricUserScrolled=false;
+ensureLyricCenterPadding();
+// 布局完成后再滚
+var run=function(){
+try{ensureLyricCenterPadding();}catch(e){}
+try{updateLyricScroll(true);}catch(e){}
+};
+run();
+try{requestAnimationFrame(function(){run();requestAnimationFrame(run);});}catch(e){}
+setTimeout(run,60);
+setTimeout(run,180);
+setTimeout(run,360);
+}catch(e){}
+}
+function ensureLyricCenterPadding(){
 try{
 var outer=$('lyricScroll')||$('lyricBox');
 var box=$('lyricText');
@@ -431,7 +447,9 @@ if(i===cur)lines[i].classList.add('current');
 else lines[i].classList.remove('current');
 }
 if(cur<0)return;
-if(state.lyricUserScrolled)return;
+// force 时强制回正（切换到歌词页），忽略用户滚动锁
+if(state.lyricUserScrolled&&!force)return;
+if(force)state.lyricUserScrolled=false;
 var el=lines[cur];
 if(!el)return;
 var outer=$('lyricScroll')||$('lyricBox');

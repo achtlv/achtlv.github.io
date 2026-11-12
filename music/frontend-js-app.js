@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261110.12';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261113.02';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -1661,15 +1661,21 @@ var toAdd=pendingSong;
 var fromUrl=toAdd._fromUrl===true;
 delete toAdd._fromUrl;
 var wasEmpty=!state.playlist.length;
+var isPlaying=!!state.playing;
 
 var dupIdx=findDuplicateIndex(toAdd,state.playlist);
 if(dupIdx>=0){
 pendingSong=null;
 closeAdd();
 $('addHint').textContent='是否将此歌曲加入播放列表？';
-// 仅切换到该曲，不自动播放
+// 暂停中：跳到已有曲目且不播放；播放中：不跳转
+if(!isPlaying){
 playIndex(dupIdx,null,null,{play:false});
 toast('歌曲已在列表中，已切换');
+}else{
+toast('歌曲已在列表中');
+try{render();}catch(e){}
+}
 return;
 }
 
@@ -1677,11 +1683,11 @@ var insertAt=0;
 if(state.playlist.length===0){
 insertAt=0;
 state.playlist.push(toAdd);
-state.current=0;
 }else if(state.current<0){
 state.playlist.push(toAdd);
 insertAt=state.playlist.length-1;
 }else{
+// 添加到下一首位置
 insertAt=state.current+1;
 state.playlist.splice(insertAt,0,toAdd);
 }
@@ -1691,12 +1697,12 @@ if(typeof logAction==='function')logAction('添加歌曲','id='+(toAdd&&toAdd.id
 pendingSong=null;
 closeAdd();
 $('addHint').textContent='是否将此歌曲加入播放列表？';
-// 分享添加成功：只切到该曲，不自动播放
-if(fromUrl||wasEmpty){
+// 暂停：跳到新歌且不播放；播放中：保持当前曲，仅插入为下一首
+if(!isPlaying||wasEmpty){
 playIndex(insertAt,null,null,{play:false});
 }else{
-// 手动添加：切到新歌但不播放
-playIndex(insertAt,null,null,{play:false});
+// 播放中不切换 current，列表已插入在 current+1
+try{render();}catch(e){}
 }
 });
 
@@ -1859,30 +1865,51 @@ function applyImport(imported,mode){
 imported=imported||[];
 mode=mode||'merge';
 var added=0;
+var firstIndex=-1;
 if(mode==='replace'||mode==='new'){
 state.playlist=imported.slice();
-state.current=imported.length?0:-1;
+// 不在这里改 current：由调用方按播放状态决定是否跳转
 added=imported.length;
+firstIndex=imported.length?0:-1;
 try{savePlaylist(true);}catch(e){try{savePlaylist();}catch(e2){}}
-return added;
+return {added:added,firstIndex:firstIndex};
 }
-// merge
+// merge：只加入与原列表不重复的歌曲，按导出顺序插到「当前歌曲」后面
 var exist={};
 for(var i=0;i<state.playlist.length;i++){
 try{exist[songKey(state.playlist[i])]=true;}catch(e){}
 }
+var toInsert=[];
 for(var j=0;j<imported.length;j++){
 var s=imported[j];
 var k='';
 try{k=songKey(s);}catch(e){k=String(s.id||'');}
 if(!k||exist[k])continue;
 exist[k]=true;
-state.playlist.push(s);
-added++;
+toInsert.push(s);
 }
-if(state.current<0&&state.playlist.length)state.current=0;
+if(!toInsert.length){
 try{savePlaylist();}catch(e){}
-return added;
+return {added:0,firstIndex:-1};
+}
+var insertAt=0;
+if(state.playlist.length===0){
+insertAt=0;
+}else if(typeof state.current==='number'&&state.current>=0){
+insertAt=state.current+1;
+}else{
+insertAt=state.playlist.length;
+}
+// splice 一次保持导入顺序
+var args=[insertAt,0].concat(toInsert);
+state.playlist.splice.apply(state.playlist,args);
+firstIndex=insertAt;
+added=toInsert.length;
+if(state.current<0&&state.playlist.length){
+state.current=0;
+}
+try{savePlaylist();}catch(e){}
+return {added:added,firstIndex:firstIndex};
 }
 
 
@@ -2088,38 +2115,56 @@ var mode='merge';
 var radios=document.getElementsByName('importMode');
 for(var i=0;i<radios.length;i++){if(radios[i].checked){mode=radios[i].value;break}}
 
-var added=applyImport(imported,mode);
+var isPlaying=!!state.playing;
+var result=applyImport(imported,mode);
+var added=(result&&typeof result==='object')?result.added:result;
+var firstIndex=(result&&typeof result==='object')?result.firstIndex:-1;
 var after=state.playlist.length;
 
-if(mode==='replace'){
+if(mode==='replace'||mode==='new'){
+// 整表替换：必须停播，避免仍指向旧列表
 state.playing=false;
+isPlaying=false;
+state.loadingUrl=false;
 state.audioUrl='';state.quality='';
 state.lyric='';state.lyricTrans='';
-if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;state.lyricRoma='';
+if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;
+state.lyricRoma='';
 state.lyricLoading=false;
 state.retrying=false;
 state.editingOrder=false;
+try{
+if($('sheetEdit')){
 $('sheetEdit').innerHTML='<svg viewBox="0 0 24 24"><path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/></svg>';
 $('sheetEdit').classList.remove('active');
-stopAudio();
-resetProgressUI();
+}
+}catch(e){}
+try{stopAudio();}catch(e){}
+try{resetProgressUI();}catch(e){}
 state._lastMediaKey=null;
-updateMediaSessionMetadata();
-updateMediaSessionPlaybackState();
+try{updateMediaSessionMetadata();}catch(e){}
+try{updateMediaSessionPlaybackState();}catch(e){}
 }
 
-savePlaylist();
-render();
+try{savePlaylist();}catch(e){}
 hideScrim('importScrim');
 hideScrim('listScrim');
 
+// 合并 + 暂停：跳到新插入的第1首且不播放；合并 + 播放中：不跳转
+// 新建/覆盖：无论原先是否在播，都已暂停，并跳到第1首
+var shouldJump=false;
 if(mode==='replace'||mode==='new'){
-// new/replace 都已整体替换列表，停掉当前播放避免指到旧曲
-state.playing=false;
-state.loadingUrl=false;
-state.audioUrl='';state.quality='';
-try{stopAudio();}catch(e){}
-try{resetProgressUI();}catch(e){}
+shouldJump=firstIndex>=0;
+}else if(!isPlaying&&firstIndex>=0){
+shouldJump=true;
+}
+if(shouldJump&&firstIndex>=0&&firstIndex<state.playlist.length){
+playIndex(firstIndex,null,null,{play:false});
+}else{
+try{render();}catch(e){}
+}
+
+if(mode==='replace'||mode==='new'){
 toast(mode==='new'?('已导入 '+after+' 首歌曲'):('已覆盖为 '+after+' 首歌曲'));
 logAction('导入播放列表','mode='+mode+' count='+after);
 }else{

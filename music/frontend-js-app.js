@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261110.11';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261110.12';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -6,10 +6,15 @@ try{if(document.activeElement&&document.activeElement!==document.body)document.a
 function showScrim(id){
 var el=typeof id==='string'?$(id):id;
 if(!el)return;
-// 必须清掉可能残留的 display:none，并与 .show 同步
+var wasOpen=el.classList.contains('show')||(el.style.display&&el.style.display!=='none'&&el.style.display!=='');
 el.style.display='flex';
 requestAnimationFrame(function(){el.classList.add('show');});
+// 打开弹窗时压入历史，返回键优先关弹窗而不是退出页面
+if(!wasOpen){
+try{history.pushState({app:1,scrim:1},'');}catch(e){}
 }
+}
+
 function hideScrim(id){
 var el=typeof id==='string'?$(id):id;
 if(!el)return;
@@ -2369,7 +2374,12 @@ var EXIT_TAP_MS=2000;
 function anyScrimOpen(){
   for(var i=0;i<ALL_SCRIMS.length;i++){
     var el=$(ALL_SCRIMS[i]);
-    if(el&&el.classList.contains('show'))return true;
+    if(!el)continue;
+    if(el.classList.contains('show'))return true;
+    try{
+      var d=el.style&&el.style.display;
+      if(d&&d!=='none'&&d!=='')return true;
+    }catch(e){}
   }
   return false;
 }
@@ -2391,7 +2401,9 @@ function guardHistory(){
     // 优先级：弹窗 > 二级页面 > 退出网站
     if(anyScrimOpen()){
       closeAllScrimsUI();
+      try{if(typeof closeLogsPage==='function')closeLogsPage();}catch(e){}
       lastExitTapAt=0;
+      // 再压一层，保持栈，避免连续返回直接出站
       guardHistory();
       return;
     }
@@ -3330,8 +3342,10 @@ if(!n)box.innerHTML='<div class="logs-empty">暂无日志。添加歌曲、导�
 }
 var s=$('logsScrim');
 if(s){
+var was=s.classList.contains('show');
 s.classList.add('show');
 s.style.display='flex';
+if(!was){try{history.pushState({app:1,scrim:1},'');}catch(e){}}
 }
 if(typeof showScrim==='function')showScrim('logsScrim');
 }catch(e){

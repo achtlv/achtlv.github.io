@@ -1,4 +1,4 @@
-export const STYLE = `<style>
+export const STYLE = String.raw`export const STYLE = `<style>
 
 
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -107,6 +107,10 @@ border-top-color:var(--primary);animation:spin .8s linear infinite}
 border-radius:20px;position:relative}
 .lyric-scroll{width:100%;height:100%;overflow-y:auto;padding:4px 8px;
 scrollbar-width:none;border-radius:20px}
+.lyric-scroll.is-locked{overflow:hidden!important;touch-action:none}
+.lyric-scroll.is-locked #lyricText{padding-top:0!important;padding-bottom:0!important;
+height:100%;display:flex;align-items:center;justify-content:center}
+.lyric-scroll.is-locked .line-empty{height:100%;min-height:100%;max-height:none}
 .lyric-scroll::-webkit-scrollbar{display:none}
 .lyric-toolbar{display:none;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;
 position:absolute;bottom:10px;right:10px;z-index:3;padding:0;pointer-events:auto}
@@ -139,9 +143,9 @@ opacity:.55;user-select:none;white-space:nowrap}
 .lyric-box .line.current .line-time{color:var(--primary);opacity:.75}
 .lyric-box .line-empty{
 display:flex!important;align-items:center;justify-content:center;
-width:100%;height:100%;min-height:0;max-height:100%;
+width:100%;height:100%;min-height:100%;max-height:100%;
 padding:12px 16px;box-sizing:border-box;
-grid-template-columns:none;
+grid-template-columns:none;overflow:hidden;
 }
 .lyric-box .line-empty .line-body{width:100%;text-align:center}
 .lyric-box .line.no-time{display:block;text-align:center;grid-template-columns:none}
@@ -593,4 +597,5 @@ border-top-color:var(--primary);animation:spin .8s linear infinite}
 .empty-loading-text{opacity:.85}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
+`;
 `;

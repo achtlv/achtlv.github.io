@@ -286,21 +286,27 @@ attachText(mainLines,romaLines,'roma');
 state.lyricLines=mainLines;
 state.lyricHasTime=parsed.hasTime;
 state.lyricCurrent=-1;
-try{ensureLyricCenterPadding();}catch(e){}
 state.lyricUserScrolled=false;
 if(state._lyricScrollTimer){clearTimeout(state._lyricScrollTimer);state._lyricScrollTimer=null;}
 
 var box=$('lyricText');
 box.innerHTML='';
+var scrollEl=$('lyricScroll')||$('lyricBox');
 
 function isPlaceholderText(t){
 if(!t)return true;
 var s=String(t).trim();
-return s===''||s==='暂无歌词'||s==='正在加载歌词...'||s==='外部音源，暂无歌词'||s==='视频音源，暂无歌词';
+return s===''||s==='暂无歌词'||s==='正在加载歌词...'||s==='外部音源，暂无歌词'||s==='视频音源，暂无歌词'||s==='歌词加载中…';
 }
 
 var showEmpty=!mainLines.length||state.lyricLoading||(!parsed.hasTime&&mainLines.length===1&&isPlaceholderText(mainLines[0].text));
 if(showEmpty){
+// 加载中/空歌词：锁定滚动，禁止上下滑动
+if(scrollEl){
+scrollEl.classList.add('is-locked');
+try{scrollEl.scrollTop=0;}catch(e){}
+}
+try{box.style.paddingTop='0';box.style.paddingBottom='0';}catch(e){}
 var d=document.createElement('div');
 d.className='line line-empty';
 if(state.lyricLoading)d.className+=' loading';
@@ -331,6 +337,9 @@ box.appendChild(d);
 updateLyricToolbar();
 return;
 }
+// 有正式歌词：解锁并恢复居中
+if(scrollEl)scrollEl.classList.remove('is-locked');
+try{ensureLyricCenterPadding();}catch(e){}
 
 for(var i=0;i<mainLines.length;i++){
 var line=mainLines[i];

@@ -1,4 +1,5 @@
-export const STYLE = String.raw`export const STYLE = `<style>
+export const STYLE = String.raw`<style>
+
 
 
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -597,5 +598,4 @@ border-top-color:var(--primary);animation:spin .8s linear infinite}
 .empty-loading-text{opacity:.85}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
-`;
 `;

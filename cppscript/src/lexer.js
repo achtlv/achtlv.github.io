@@ -3,7 +3,7 @@ import { err } from './errors.js';
 
 const KEYWORDS = new Set([
   'number', 'string', 'bool', 'auto', 'void', 'struct',
-  'deque', 'set', 'map',
+  'deque', 'list', 'set', 'multiset', 'map', 'multimap', 'pair', 'tuple',
   'if', 'else', 'switch', 'case', 'default',
   'for', 'while', 'break', 'continue',
   'return', 'delete', 'in', 'out', 'getchar',

@@ -6,7 +6,7 @@ import { resolveInput, InputStream } from './input.js';
 
 /** 文档 HTML：优先 env.DOCS_URL，否则 GitHub raw */
 const DEFAULT_DOCS_URL =
-  'https://raw.githubusercontent.com/achtlv/achtlv.github.io/main/cppscript/index.html';
+  'https://raw.githubusercontent.com/achtlv/achtlv.github.io/main/cppscript/docs/index.html';
 
 const THEME_CSS = `
 :root {
@@ -218,7 +218,7 @@ function formPageShell({ ruleUrl, needsIn, needsKey, prefillIn, prefillKey }) {
       <button class="run" id="run-btn" type="submit">运行</button>
     </form>
   </div>
-  <p class="foot"><a href="/">文档</a> · CppScript v14.2</p>
+  <p class="foot"><a href="/docs/">文档</a> · CppScript v14.2</p>
 </div>
 ${boot}
 </body>
@@ -263,7 +263,7 @@ function runPageShell({ title, statusLabel, statusClass, ruleUrl, inputPreview, 
       ? `<div class="card"><h2>即将跳转</h2><pre><a href="${escapeHtml(String(redirectUrl))}">${escapeHtml(String(redirectUrl))}</a></pre></div>`
       : ''
   }
-  <p class="foot"><a href="/">文档</a> · CppScript v14.2</p>
+  <p class="foot"><a href="/docs/">文档</a> · CppScript v14.2</p>
 </div>
 ${redirectScript}
 </body>
@@ -437,66 +437,105 @@ export default {
 };
 
 /**
- * 执行规则 → 完整 HTML（禁止流式，避免空 body / 1101）
+ * 执行规则并流式返回 HTML：
+ * - 用 TransformStream 立刻拿到 writer（无 ReadableStream start 竞态）
+ * - out() 每次调用立即 enqueue，浏览器边收边显示
+ * - 无 out 时在结束时一次性写入输出
  */
 async function executeAndRespond(ast, ctx) {
-  try {
-    const interp = new Interpreter(ast, {
-      url: ctx.url,
-      env: ctx.env,
-      inputStream: ctx.inputStream,
-      onChunk: null,
-    });
+  const enc = new TextEncoder();
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
 
-    const result = await interp.run();
-    const output = interp.output != null ? String(interp.output) : '';
+  const head = runPageShell({
+    title: 'CppScript · running',
+    statusLabel: '运行中',
+    statusClass: 'ok',
+    ruleUrl: ctx.ruleUrl,
+    inputPreview: ctx.inputPreview,
+    bodyHtml: '',
+  });
+  const marker = '<pre class="out" id="out">';
+  const idx = head.indexOf(marker);
+  const prefix = idx >= 0 ? head.slice(0, idx + marker.length) : head;
+  const suffix = idx >= 0 ? head.slice(idx + marker.length) : '\n</body></html>';
 
-    if (result && result.redirect && result.url) {
-      const page = runPageShell({
-        title: 'CppScript · redirect',
-        statusLabel: '跳转 ' + String(result.status || 302),
-        statusClass: 'ok',
-        ruleUrl: ctx.ruleUrl,
-        inputPreview: ctx.inputPreview,
-        bodyHtml: escapeHtml(output || '(无 body 输出)'),
-        redirectUrl: String(result.url),
+  // 后台执行；先返回 Response，客户端即可开始读流
+  const runTask = (async () => {
+    let wroteAny = false;
+    // 串行写入，保证 out 顺序、避免并发写冲突
+    let writeChain = Promise.resolve();
+    const push = (s) => {
+      writeChain = writeChain
+        .then(() => writer.write(enc.encode(s)))
+        .catch(() => {});
+    };
+
+    try {
+      await writer.write(enc.encode(prefix));
+
+      const interp = new Interpreter(ast, {
+        url: ctx.url,
+        env: ctx.env,
+        inputStream: ctx.inputStream,
+        onChunk: (delta) => {
+          const s = escapeHtml(String(delta ?? ''));
+          if (!s) return;
+          wroteAny = true;
+          push(s);
+        },
       });
-      return new Response(page, {
-        status: 200,
-        headers: { 'Content-Type': 'text/html; charset=utf-8' },
-      });
-    }
 
-    let st = 200;
-    if (result && result.status != null) {
-      const n = Number(result.status);
-      if (Number.isFinite(n) && n >= 200 && n <= 599) st = n;
-    }
+      const result = await interp.run();
+      await writeChain; // 等所有 out 写完再收尾
 
-    const page = runPageShell({
-      title: 'CppScript · result',
-      statusLabel: '完成 ' + String(st),
-      statusClass: 'ok',
-      ruleUrl: ctx.ruleUrl,
-      inputPreview: ctx.inputPreview,
-      bodyHtml: escapeHtml(output),
-    });
-    return new Response(page, {
-      status: st,
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
-    });
-  } catch (e) {
-    const msg = (e && e.message) ? String(e.message) : String(e);
-    const page = runPageShell({
-      title: 'CppScript · error',
-      statusLabel: '执行错误',
-      statusClass: 'err',
-      ruleUrl: ctx.ruleUrl || '',
-      bodyHtml: escapeHtml(msg),
-    });
-    return new Response(page, {
-      status: 500,
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
-    });
-  }
+      const output = interp.output != null ? String(interp.output) : '';
+
+      // 从未 out：结束时补写全部输出
+      if (!wroteAny && output) {
+        await writer.write(enc.encode(escapeHtml(output)));
+        wroteAny = true;
+      }
+
+      if (result && result.redirect && result.url) {
+        const note =
+          '\n\n[redirect] ' +
+          String(result.url) +
+          '\n';
+        await writer.write(enc.encode(escapeHtml(note)));
+        // 在后缀前注入跳转脚本（放进 footer 区域）
+        const redir =
+          '<script>setTimeout(function(){location.replace(' +
+          JSON.stringify(String(result.url)) +
+          ');},600);</script>';
+        await writer.write(enc.encode(suffix.replace('</body>', redir + '</body>')));
+      } else {
+        await writer.write(enc.encode(suffix));
+      }
+    } catch (e) {
+      const msg = (e && e.message) ? String(e.message) : String(e);
+      try {
+        // 若还没写过 prefix，先写
+        // （正常路径已写 prefix；这里仅兜底）
+        await writer.write(enc.encode(escapeHtml('\n[error] ' + msg + '\n')));
+        await writer.write(enc.encode(suffix));
+      } catch (_) {}
+    } finally {
+      try {
+        await writer.close();
+      } catch (_) {}
+    }
+  })();
+
+  // 不阻塞返回；runTask 自己推流
+  // 挂到 ctx 避免被提前 GC（可选）
+  ctx._runTask = runTask;
+
+  return new Response(readable, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+    },
+  });
 }

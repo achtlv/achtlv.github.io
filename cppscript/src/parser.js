@@ -40,7 +40,7 @@ export function parse(src) {
   const isTypeStart = () => {
     const t = peek();
     if (t.type === 'KEYWORD') {
-      return ['number', 'string', 'bool', 'auto', 'void', 'deque', 'set', 'map'].includes(t.value);
+      return ['number', 'string', 'bool', 'auto', 'void', 'deque', 'list', 'set', 'multiset', 'map', 'multimap', 'pair', 'tuple'].includes(t.value);
     }
     // struct 名作为类型：IDENT 后跟 IDENT 或 &
     if (t.type === 'IDENT' && (peek(1).type === 'IDENT' || (peek(1).type === 'OP' && peek(1).value === '&'))) {
@@ -61,21 +61,40 @@ export function parse(src) {
       next();
       return { kind: t.value };
     }
-    if (t.value === 'deque' || t.value === 'set') {
+    if (t.value === 'deque' || t.value === 'list' || t.value === 'set' || t.value === 'multiset') {
       next();
       expect('OP', '<');
       const elem = parseType();
       expect('OP', '>');
       return { kind: t.value, elem };
     }
-    if (t.value === 'map') {
+    if (t.value === 'map' || t.value === 'multimap') {
       next();
       expect('OP', '<');
       const key = parseType();
       expect('OP', ',');
       const val = parseType();
       expect('OP', '>');
-      return { kind: 'map', key, val };
+      return { kind: t.value, key, val };
+    }
+    if (t.value === 'pair') {
+      next();
+      expect('OP', '<');
+      const first = parseType();
+      expect('OP', ',');
+      const second = parseType();
+      expect('OP', '>');
+      return { kind: 'pair', first, second };
+    }
+    if (t.value === 'tuple') {
+      next();
+      expect('OP', '<');
+      const elems = [];
+      elems.push(parseType());
+      while (match('OP', ',')) elems.push(parseType());
+      expect('OP', '>');
+      if (!elems.length) err('E10', 'tuple requires at least one type', peek().line, peek().col);
+      return { kind: 'tuple', elems };
     }
     err('E10', `unknown type: ${t.value}`, t.line, t.col);
   };
@@ -158,7 +177,7 @@ export function parse(src) {
     // 但容器组：deque<number> a[5];
     // 区分：type 是 deque/set/map 时为容器组，否则为原生数组
     if (check('OP', '[')) {
-      if (type.kind === 'deque' || type.kind === 'set') {
+      if (type.kind === 'deque' || type.kind === 'list' || type.kind === 'set' || type.kind === 'multiset') {
         // 容器组
         next();
         const size = expression();
@@ -166,8 +185,8 @@ export function parse(src) {
         expect('OP', ';');
         return { type: 'ContainerGroupDecl', varType: type, name, size };
       }
-      if (type.kind === 'map') {
-        err('E19', 'map does not support container group', peek().line, peek().col);
+      if (type.kind === 'map' || type.kind === 'multimap') {
+        err('E19', 'map/multimap does not support container group', peek().line, peek().col);
       }
       // 原生数组
       const dims = [];
@@ -181,7 +200,7 @@ export function parse(src) {
     }
 
     // 容器初始化 a(n)
-    if ((type.kind === 'deque' || type.kind === 'set') && check('OP', '(')) {
+    if ((type.kind === 'deque' || type.kind === 'list' || type.kind === 'set' || type.kind === 'multiset') && check('OP', '(')) {
       next();
       const size = expression();
       expect('OP', ')');

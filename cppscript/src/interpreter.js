@@ -1,6 +1,6 @@
 // interpreter.js
 import { err, fail } from './errors.js';
-import { Deque, SetContainer, MapContainer } from './containers.js';
+import { Deque, ListContainer, SetContainer, MultiSetContainer, MapContainer, MultiMapContainer } from './containers.js';
 import { doRequest, normalizeReturnUrl } from './request.js';
 import { assertSafeUrl } from './sandbox.js';
 
@@ -237,7 +237,7 @@ export class Interpreter {
     if (node.init === null) {
       // 容器 / struct 默认构造为空对象；标量仍视为未初始化直至赋值
       const k = node.varType && node.varType.kind;
-      if (k === 'deque' || k === 'set' || k === 'map' || k === 'struct') {
+      if (k === 'deque' || k === 'list' || k === 'set' || k === 'multiset' || k === 'map' || k === 'multimap' || k === 'struct' || k === 'pair' || k === 'tuple') {
         value = this.defaultValue(node.varType);
       } else {
         value = { __uninit: true, type: node.varType };
@@ -299,8 +299,11 @@ export class Interpreter {
 
   makeContainer(type) {
     if (type.kind === 'deque') return new Deque();
+    if (type.kind === 'list') return new ListContainer();
     if (type.kind === 'set') return new SetContainer();
+    if (type.kind === 'multiset') return new MultiSetContainer();
     if (type.kind === 'map') return new MapContainer();
+    if (type.kind === 'multimap') return new MultiMapContainer();
     err('E10', `cannot make container of ${type.kind}`);
   }
 
@@ -471,7 +474,7 @@ export class Interpreter {
   }
 
   async execIn(node) {
-    const token = this.ctx.inputStream.readToken();
+    const token = await this.ctx.inputStream.readToken();
     if (token === null) return;
     if (!this.scope.has(node.name)) {
       this.scope.declare(node.name, { __uninit: true, type: { kind: 'auto' } });
@@ -691,14 +694,31 @@ export class Interpreter {
         ? this.lookupIdent(node.target.name, { asContainer: true })
         : await this.evalExpr(node.target);
       const idx = await this.evalExpr(node.index);
+      if (target && target.__tuple) {
+        const i = this.toNum(idx);
+        return new RefBox(
+          () => {
+            if (i < 0 || i >= target.items.length) err('E23', `tuple index ${i} out of range`);
+            return target.items[i];
+          },
+          (v) => {
+            if (i < 0 || i >= target.items.length) err('E23', `tuple index ${i} out of range`);
+            target.items[i] = v;
+          },
+          { kind: 'auto' },
+        );
+      }
       if (target && target.__container) {
         const c = target.__container;
-        if (c instanceof MapContainer) {
+        if (c instanceof MapContainer || c instanceof MultiMapContainer) {
           const k = this.toKey(idx);
           return new RefBox(
-            () => c.has(k) ? c.get(k) : this.defaultValue(target.__elemType.val),
-            (v) => c.set(k, v),
-            target.__elemType,
+            () => c.has(k) ? c.get(k) : this.defaultValue((target.__elemType && target.__elemType.val) || { kind: 'auto' }),
+            (v) => {
+              if (c instanceof MultiMapContainer) c.insert(k, v);
+              else c.set(k, v);
+            },
+            (target.__elemType && target.__elemType.val) || { kind: 'auto' },
           );
         }
         const i = this.toNum(idx);
@@ -706,7 +726,9 @@ export class Interpreter {
           () => c.get(i),
           (v) => {
             const et = this.containerElemType(target);
-            c.set(i, (!et || et.kind === 'auto') ? v : this.coerce(v, et, 'index'));
+            if (typeof c.set === 'function') {
+              c.set(i, (!et || et.kind === 'auto') ? v : this.coerce(v, et, 'index'));
+            } else err('E10', 'cannot index-assign this container');
           },
           this.containerElemType(target),
         );
@@ -738,7 +760,17 @@ export class Interpreter {
       err('E10', 'index target is not a container/array');
     }
     if (node.type === 'Member') {
-      const target = await this.evalExpr(node.target);
+      const target = node.target.type === 'Ident'
+        ? this.lookupIdent(node.target.name, { asContainer: true })
+        : await this.evalExpr(node.target);
+      if (target && target.__pair && (node.name === 'first' || node.name === 'second')) {
+        const key = node.name;
+        return new RefBox(
+          () => target[key],
+          (v) => { target[key] = v; },
+          { kind: 'auto' },
+        );
+      }
       if (target && typeof target === 'object') {
         const name = node.name;
         return new RefBox(
@@ -757,14 +789,20 @@ export class Interpreter {
       ? this.lookupIdent(node.target.name, { asContainer: true })
       : await this.evalExpr(node.target);
     const index = await this.evalExpr(node.index);
+    if (target && target.__tuple) {
+      const i = this.toNum(index);
+      if (i < 0 || i >= target.items.length) err('E23', `tuple index ${i} out of range`);
+      return target.items[i];
+    }
     if (target && target.__container) {
       const c = target.__container;
-      if (c instanceof MapContainer) {
+      if (c instanceof MapContainer || c instanceof MultiMapContainer) {
         const k = this.toKey(index);
-        if (!c.has(k)) return this.defaultValue(target.__elemType.val);
+        if (!c.has(k)) return this.defaultValue((target.__elemType && target.__elemType.val) || { kind: 'auto' });
         return c.get(k);
       }
-      return c.get(this.toNum(index));
+      if (typeof c.get === 'function') return c.get(this.toNum(index));
+      err('E10', 'index not supported on this container');
     }
     if (target && target.__group) {
       const arr = target.__group;
@@ -790,6 +828,13 @@ export class Interpreter {
     const target = node.target.type === 'Ident'
       ? this.lookupIdent(node.target.name, { asContainer: true })
       : await this.evalExpr(node.target);
+    if (target && target.__pair) {
+      if (node.name === 'first' || node.name === 'second') return target[node.name];
+      err('E10', `pair has no member ${node.name}`);
+    }
+    if (target && target.__tuple) {
+      err('E10', 'use get(tuple, i) or tuple[i] for tuple elements');
+    }
     if (target && (target.__container || target.__group || target.__native || target.__struct)) {
       return { __methodRef: { target, name: node.name } };
     }
@@ -850,38 +895,107 @@ export class Interpreter {
     const c = target.__container;
     const elemType = this.containerElemType(target);
     const isMap = c instanceof MapContainer;
+    const isMultiMap = c instanceof MultiMapContainer;
+    const isMultiSet = c instanceof MultiSetContainer;
+    const isSeq = c instanceof Deque || c instanceof ListContainer; // deque/list/set
     const coerceElem = (v) => {
       if (!elemType || elemType.kind === 'auto') return v;
       return this.coerce(v, elemType, name);
     };
     switch (name) {
       case 'size': return c.size();
-      case 'find': return c.find ? c.find(args[0]) : -1;
+      case 'clear': c.clear(); return;
+      case 'find': {
+        if (isMap || isMultiMap) return c.has(this.toKey(args[0])) ? 1 : -1;
+        if (c.find) return c.find(args[0]);
+        return -1;
+      }
+      case 'count': {
+        if (isMultiSet) return c.count(args[0]);
+        if (isMultiMap) return c.count(this.toKey(args[0]));
+        if (isMap) return c.has(this.toKey(args[0])) ? 1 : 0;
+        if (c.items) {
+          let n = 0;
+          for (const x of c.items) if (x === args[0] || Object.is(x, args[0])) n++;
+          return n;
+        }
+        err('E10', 'count not supported');
+      }
       case 'front': return c.front ? c.front() : err('E10', 'no front');
       case 'back': return c.back ? c.back() : err('E10', 'no back');
-      case 'push_back': c.push_back(coerceElem(args[0])); return;
-      case 'push_front': c.push_front(coerceElem(args[0])); return;
-      case 'pop_back': c.pop_back(); return;
-      case 'pop_front': c.pop_front(); return;
-      case 'erase': isMap ? c.erase(this.toKey(args[0])) : c.erase(this.toNum(args[0])); return;
-      case 'insert':
-        if (isMap) c.set(this.toKey(args[0]), coerceElem(args[1]));
-        else c.insert(this.toNum(args[0]), coerceElem(args[1]));
+      case 'push_back':
+        if (!c.push_back) err('E10', 'push_back not supported');
+        c.push_back(coerceElem(args[0]));
         return;
-      case 'clear': c.clear(); return;
-      case 'fill': c.fill(coerceElem(args[0])); return;
-      case 'has': if (isMap) return c.has(this.toKey(args[0])); err('E10', 'has only on map');
+      case 'push_front':
+        if (!c.push_front) err('E10', 'push_front not supported');
+        c.push_front(coerceElem(args[0]));
+        return;
+      case 'pop_back':
+        if (!c.pop_back) err('E10', 'pop_back not supported');
+        return c.pop_back();
+      case 'pop_front':
+        if (!c.pop_front) err('E10', 'pop_front not supported');
+        return c.pop_front();
+      case 'erase': {
+        if (isMap || isMultiMap) { c.erase(this.toKey(args[0])); return; }
+        if (isMultiSet) {
+          // erase(value) 删一个；erase(value, true) 或第二参数 "all" 全删
+          if (args.length > 1 && (args[1] === true || this.toStr(args[1]) === 'all')) {
+            return c.eraseAll(args[0]);
+          }
+          return c.erase(args[0]);
+        }
+        // deque/list/set：按索引
+        c.erase(this.toNum(args[0]));
+        return;
+      }
+      case 'insert': {
+        if (isMap) {
+          c.set(this.toKey(args[0]), coerceElem(args[1]));
+          return;
+        }
+        if (isMultiMap) {
+          c.insert(this.toKey(args[0]), coerceElem(args[1]));
+          return;
+        }
+        if (isMultiSet) {
+          c.insert(coerceElem(args[0]));
+          return;
+        }
+        // set 的 insert(value) 单参；deque/list 的 insert(index, value)
+        if (args.length === 1 && c instanceof SetContainer) {
+          c.insertValue(coerceElem(args[0]));
+          return;
+        }
+        c.insert(this.toNum(args[0]), coerceElem(args[1]));
+        return;
+      }
+      case 'fill':
+        if (!c.fill) err('E10', 'fill not supported');
+        c.fill(coerceElem(args[0]));
+        return;
+      case 'has':
+        if (isMap || isMultiMap) return c.has(this.toKey(args[0]));
+        err('E10', 'has only on map/multimap');
       case 'keys': {
-        if (!isMap) err('E10', 'keys only on map');
+        if (!isMap && !isMultiMap) err('E10', 'keys only on map/multimap');
         const d = new Deque();
         for (const k of c.keysList()) d.push_back(k);
         return { __container: d, __elemType: { kind: 'deque', elem: { kind: 'auto' } } };
       }
       case 'values': {
-        if (!isMap) err('E10', 'values only on map');
+        if (!isMap && !isMultiMap) err('E10', 'values only on map/multimap');
         const d = new Deque();
         for (const v of c.valuesList()) d.push_back(v);
         return { __container: d, __elemType: { kind: 'deque', elem: { kind: 'auto' } } };
+      }
+      case 'equal_range': {
+        // multimap: 返回该 key 的全部 value 组成的 deque
+        if (!isMultiMap) err('E10', 'equal_range only on multimap');
+        const d = new Deque();
+        for (const v of c.equalRange(this.toKey(args[0]))) d.push_back(v);
+        return { __container: d, __elemType: { kind: 'deque', elem: elemType || { kind: 'auto' } } };
       }
       default: err('E10', `unknown container method: ${name}`);
     }
@@ -891,8 +1005,10 @@ export class Interpreter {
   containerElemType(target) {
     const t = target && target.__elemType;
     if (!t) return { kind: 'auto' };
-    if (t.kind === 'deque' || t.kind === 'set') return t.elem || { kind: 'auto' };
-    if (t.kind === 'map') return t.val || { kind: 'auto' };
+    if (t.kind === 'deque' || t.kind === 'list' || t.kind === 'set' || t.kind === 'multiset') {
+      return t.elem || { kind: 'auto' };
+    }
+    if (t.kind === 'map' || t.kind === 'multimap') return t.val || { kind: 'auto' };
     return t;
   }
 
@@ -1092,8 +1208,24 @@ export class Interpreter {
         return { __struct: type.name, ...obj };
       }
       case 'deque': return { __container: new Deque(), __elemType: type };
+      case 'list': return { __container: new ListContainer(), __elemType: type };
       case 'set': return { __container: new SetContainer(), __elemType: type };
+      case 'multiset': return { __container: new MultiSetContainer(), __elemType: type };
       case 'map': return { __container: new MapContainer(), __elemType: type };
+      case 'multimap': return { __container: new MultiMapContainer(), __elemType: type };
+      case 'pair':
+        return {
+          __pair: true,
+          first: this.defaultValue(type.first),
+          second: this.defaultValue(type.second),
+          __pairType: type,
+        };
+      case 'tuple':
+        return {
+          __tuple: true,
+          items: (type.elems || []).map((e) => this.defaultValue(e)),
+          __tupleType: type,
+        };
       default: return 0;
     }
   }
@@ -1197,7 +1329,9 @@ export class Interpreter {
   unwrapSeq(v, name = 'container') {
     if (v && v.__container) {
       const c = v.__container;
-      if (c instanceof MapContainer) err('E10', `${name}: map not supported here, use keys()/values()`);
+      if (c instanceof MapContainer || c instanceof MultiMapContainer) {
+        err('E10', `${name}: map/multimap not supported here, use keys()/values()`);
+      }
       if (Array.isArray(c.items)) return c.items;
     }
     if (v && v.__native && Array.isArray(v.__native)) return v.__native;
@@ -1254,7 +1388,7 @@ export class Interpreter {
         if (self.ctx.onChunk) self.ctx.onChunk(s);
         return null;
       },
-      getchar: () => self.ctx.inputStream.getchar(),
+      getchar: async () => await self.ctx.inputStream.getchar(),
       q_get: (args) => self.ctx.url.searchParams.get(self.toStr(args[0])) ?? '',
       json_str: (args) => self.jsonGet(args[0], args[1], 'string'),
       json_num: (args) => self.jsonGet(args[0], args[1], 'number'),
@@ -1450,6 +1584,117 @@ export class Interpreter {
           if (self.defaultLess(arr[i], arr[i - 1])) return false;
         }
         return true;
+      },
+
+
+      // ---- pair / tuple ----
+      make_pair: (args) => {
+        if (args.length !== 2) err('E09', 'make_pair requires 2 arguments');
+        return { __pair: true, first: args[0], second: args[1] };
+      },
+      make_tuple: (args) => {
+        return { __tuple: true, items: [...args] };
+      },
+      get: (args) => {
+        // get(tuple, i) 或 get(pair, 0|1)
+        const t = args[0];
+        const i = self.toNum(args[1]);
+        if (t && t.__tuple) {
+          if (i < 0 || i >= t.items.length) err('E23', `tuple get index ${i} out of range`);
+          return t.items[i];
+        }
+        if (t && t.__pair) {
+          if (i === 0) return t.first;
+          if (i === 1) return t.second;
+          err('E23', 'pair get index must be 0 or 1');
+        }
+        err('E10', 'get expects pair or tuple');
+      },
+      // ---- <cmath> ----
+      abs: (args) => Math.abs(self.toNum(args[0])),
+      fabs: (args) => Math.abs(self.toNum(args[0])),
+      sqrt: (args) => Math.sqrt(self.toNum(args[0])),
+      cbrt: (args) => Math.cbrt(self.toNum(args[0])),
+      hypot: (args) => Math.hypot(...args.map((a) => self.toNum(a))),
+      exp: (args) => Math.exp(self.toNum(args[0])),
+      exp2: (args) => Math.pow(2, self.toNum(args[0])),
+      log: (args) => Math.log(self.toNum(args[0])),
+      log10: (args) => Math.log10(self.toNum(args[0])),
+      log2: (args) => Math.log2(self.toNum(args[0])),
+      sin: (args) => Math.sin(self.toNum(args[0])),
+      cos: (args) => Math.cos(self.toNum(args[0])),
+      tan: (args) => Math.tan(self.toNum(args[0])),
+      asin: (args) => Math.asin(self.toNum(args[0])),
+      acos: (args) => Math.acos(self.toNum(args[0])),
+      atan: (args) => Math.atan(self.toNum(args[0])),
+      atan2: (args) => Math.atan2(self.toNum(args[0]), self.toNum(args[1])),
+      sinh: (args) => Math.sinh(self.toNum(args[0])),
+      cosh: (args) => Math.cosh(self.toNum(args[0])),
+      tanh: (args) => Math.tanh(self.toNum(args[0])),
+      round: (args) => Math.round(self.toNum(args[0])),
+      trunc: (args) => Math.trunc(self.toNum(args[0])),
+      fmod: (args) => {
+        const x = self.toNum(args[0]);
+        const y = self.toNum(args[1]);
+        if (y === 0) err('E34', 'fmod by zero');
+        return x % y;
+      },
+      copysign: (args) => {
+        const mag = Math.abs(self.toNum(args[0]));
+        const sgn = self.toNum(args[1]);
+        return sgn < 0 ? -mag : mag;
+      },
+      // ---- <cstdio> 子集 ----
+      puts: (args) => {
+        const s = self.toStr(args[0]) + '\n';
+        if (self.output.length + s.length > MAX_OUT) err('E51', 'output exceeds 1MB');
+        self.output += s;
+        if (self.ctx.onChunk) self.ctx.onChunk(s);
+        return 0;
+      },
+      printf: (args) => {
+        // 简化：printf(fmt, a, b, ...) 支持 %s %d %i %f %g %% 
+        let fmt = self.toStr(args[0]);
+        let ai = 1;
+        let out = '';
+        for (let i = 0; i < fmt.length; i++) {
+          if (fmt[i] === '%' && i + 1 < fmt.length) {
+            const sp = fmt[i + 1];
+            if (sp === '%') { out += '%'; i++; continue; }
+            const val = args[ai++];
+            if (sp === 's') out += self.toStr(val);
+            else if (sp === 'd' || sp === 'i') out += String(Math.trunc(self.toNum(val)));
+            else if (sp === 'f' || sp === 'g') out += String(self.toNum(val));
+            else out += '%' + sp;
+            i++;
+            continue;
+          }
+          out += fmt[i];
+        }
+        if (self.output.length + out.length > MAX_OUT) err('E51', 'output exceeds 1MB');
+        self.output += out;
+        if (self.ctx.onChunk) self.ctx.onChunk(out);
+        return out.length;
+      },
+      sprintf: (args) => {
+        let fmt = self.toStr(args[0]);
+        let ai = 1;
+        let out = '';
+        for (let i = 0; i < fmt.length; i++) {
+          if (fmt[i] === '%' && i + 1 < fmt.length) {
+            const sp = fmt[i + 1];
+            if (sp === '%') { out += '%'; i++; continue; }
+            const val = args[ai++];
+            if (sp === 's') out += self.toStr(val);
+            else if (sp === 'd' || sp === 'i') out += String(Math.trunc(self.toNum(val)));
+            else if (sp === 'f' || sp === 'g') out += String(self.toNum(val));
+            else out += '%' + sp;
+            i++;
+            continue;
+          }
+          out += fmt[i];
+        }
+        return out;
       },
 
       min: (args) => (self.toNum(args[0]) < self.toNum(args[1]) ? args[0] : args[1]),

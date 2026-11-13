@@ -1,3 +1,4 @@
+import { assertSafeUrl } from './sandbox.js';
 // index.js
 import { fail, HttpError } from './errors.js';
 import { parse } from './parser.js';
@@ -366,6 +367,51 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname || '/';
+
+    // ---------- 浏览器 get/post 同源代理（解决 CORS）----------
+    if (path === '/api/fetch' || path === '/api/fetch/') {
+      try {
+        let target = url.searchParams.get('target') || url.searchParams.get('url');
+        let method = 'GET';
+        let headers = {};
+        let body = null;
+        if (request.method.toUpperCase() === 'POST') {
+          const ct = (request.headers.get('content-type') || '').toLowerCase();
+          if (ct.includes('application/json')) {
+            const j = await request.json();
+            target = j.url || target;
+            method = (j.method || 'GET').toUpperCase();
+            headers = j.headers || {};
+            body = j.body != null ? String(j.body) : null;
+          }
+        }
+        if (!target) {
+          return new Response('missing target url', { status: 400 });
+        }
+        assertSafeUrl(target, env);
+        const init = {
+          method,
+          headers: { ...headers },
+          signal: AbortSignal.timeout(15000),
+        };
+        if (body != null && method !== 'GET' && method !== 'HEAD') init.body = body;
+        const upstream = await fetch(target, init);
+        const text = await upstream.text();
+        if (text.length > 5 * 1024 * 1024) {
+          return new Response('response too large', { status: 502 });
+        }
+        return new Response(text, {
+          status: upstream.status,
+          headers: {
+            'Content-Type': upstream.headers.get('Content-Type') || 'text/plain; charset=utf-8',
+            'Access-Control-Allow-Origin': '*',
+          },
+        });
+      } catch (e) {
+        const msg = (e && e.message) ? e.message : String(e);
+        return new Response(msg, { status: 502, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+      }
+    }
 
     // ---------- 与静态站相同的路由（优先）----------
     // /           → 运行页 index.html（浏览器加载 /src/*.js）

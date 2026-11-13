@@ -535,6 +535,16 @@ export class Interpreter {
    *   默认：key 若为 deque，直接访问等价于 key[0]
    */
   lookupIdent(name, opts = {}) {
+    // 运行中可改的 key：每次从 getQueryParam 重读
+    if (name === 'key' && this.ctx.getQueryParam) {
+      const raw = this.resolveQueryParam('key');
+      const parsed = this.parseKeyParam(raw);
+      if (!opts.asContainer && parsed && parsed.__container) {
+        const c = parsed.__container;
+        return c.size() > 0 ? c.get(0) : '';
+      }
+      return parsed;
+    }
     const v = this.scope.get(name);
     if (v === undefined) err('E05', `unknown variable: ${name}`);
     let val = v;
@@ -862,9 +872,234 @@ export class Interpreter {
     err('E10', `unknown member: ${node.name}`);
   }
 
+
+  /**
+   * scanf(fmt, v1, v2, ...) / sscanf(str, fmt, v1, ...)
+   * 格式支持：%d %i %f %g %s %c %% ；变量参数须为标识符（写入该变量）
+   * 返回成功赋值的项数
+   */
+  async execScanf(kind, args) {
+    if (!args || args.length < 1) err('E09', kind + ' requires format');
+    let text;
+    let fmtExpr;
+    let varArgs;
+    if (kind === 'sscanf') {
+      if (args.length < 2) err('E09', 'sscanf requires string and format');
+      text = this.toStr(await this.evalExpr(args[0]));
+      fmtExpr = args[1];
+      varArgs = args.slice(2);
+    } else {
+      // 从输入流读足够文本：按行累积直到 fmt 能吃完或 EOF
+      fmtExpr = args[0];
+      varArgs = args.slice(1);
+      const parts = [];
+      // 读至少一行；若还有 % 未满足继续读行
+      for (;;) {
+        const line = await this.readLineFromInput();
+        if (line === null) break;
+        parts.push(line);
+        // 粗略：有一行就先 parse，不够再读
+        break;
+      }
+      text = parts.join('\n');
+    }
+    const fmt = this.toStr(await this.evalExpr(fmtExpr));
+    const tokens = this.scanfTokenize(text);
+    let ti = 0;
+    let vi = 0;
+    let assigned = 0;
+    for (let i = 0; i < fmt.length; i++) {
+      if (fmt[i] !== '%') continue;
+      if (i + 1 < fmt.length && fmt[i + 1] === '%') { i++; continue; }
+      const sp = i + 1 < fmt.length ? fmt[i + 1] : '';
+      i++;
+      if (!varArgs[vi]) break;
+      const argNode = varArgs[vi++];
+      if (!argNode || argNode.type !== 'Ident') {
+        err('E09', kind + ' variable args must be identifiers');
+      }
+      const name = argNode.name;
+      if (ti >= tokens.length && sp !== 'c') break;
+      let val;
+      if (sp === 'd' || sp === 'i') {
+        val = parseInt(tokens[ti++], 10);
+        if (Number.isNaN(val)) break;
+      } else if (sp === 'f' || sp === 'g') {
+        val = parseFloat(tokens[ti++]);
+        if (Number.isNaN(val)) break;
+      } else if (sp === 's') {
+        val = tokens[ti++];
+      } else if (sp === 'c') {
+        // 单字符：从当前 token 或原始剩余
+        const tok = tokens[ti] !== undefined ? tokens[ti++] : '';
+        val = tok ? tok[0] : '';
+      } else {
+        continue;
+      }
+      if (!this.scope.has(name)) this.scope.declare(name, val);
+      else this.scope.set(name, val);
+      assigned++;
+    }
+    return assigned;
+  }
+
+  scanfTokenize(text) {
+    const s = String(text ?? '');
+    const out = [];
+    let i = 0;
+    while (i < s.length) {
+      while (i < s.length && /\s/.test(s[i])) i++;
+      if (i >= s.length) break;
+      let j = i;
+      while (j < s.length && !/\s/.test(s[j])) j++;
+      out.push(s.slice(i, j));
+      i = j;
+    }
+    return out;
+  }
+
+  async readLineFromInput() {
+    const stream = this.ctx.inputStream;
+    if (!stream) return null;
+    // 若有 readToken 路径：拼一行到 \\n 或 EOF
+    let line = '';
+    for (;;) {
+      const cp = await stream.getchar();
+      if (cp === -1) return line.length ? line : null;
+      const ch = String.fromCodePoint(cp);
+      if (ch === '\n') return line;
+      if (ch !== '\r') line += ch;
+    }
+  }
+
+
+  /** printf/sprintf 格式化：支持 flags (-+0 #)、width、*、.precision、长度 hh h l ll、转换 diouxXeEfFgGaAcspn% */
+  formatPrintf(fmt, args) {
+    let ai = 0;
+    let out = '';
+    const s = String(fmt);
+    for (let i = 0; i < s.length; i++) {
+      if (s[i] !== '%') { out += s[i]; continue; }
+      if (i + 1 < s.length && s[i + 1] === '%') { out += '%'; i++; continue; }
+      i++;
+      let flags = '';
+      while (i < s.length && '-+0 #'.includes(s[i])) { flags += s[i]; i++; }
+      let width = null;
+      if (i < s.length && s[i] === '*') {
+        width = Math.trunc(this.toNum(args[ai++]));
+        i++;
+      } else {
+        const m = /^(\d+)/.exec(s.slice(i));
+        if (m) { width = parseInt(m[1], 10); i += m[1].length; }
+      }
+      let prec = null;
+      if (i < s.length && s[i] === '.') {
+        i++;
+        if (i < s.length && s[i] === '*') {
+          prec = Math.trunc(this.toNum(args[ai++]));
+          i++;
+        } else {
+          const m = /^(\d*)/.exec(s.slice(i));
+          prec = m[1] === '' ? 0 : parseInt(m[1], 10);
+          i += m[1].length;
+        }
+      }
+      // length modifiers (ignored for value, we only have number/string)
+      if (i < s.length && (s[i] === 'h' || s[i] === 'l' || s[i] === 'L' || s[i] === 'z' || s[i] === 'j' || s[i] === 't')) {
+        if ((s[i] === 'h' || s[i] === 'l') && i + 1 < s.length && s[i + 1] === s[i]) i += 2;
+        else i++;
+      }
+      if (i >= s.length) break;
+      const sp = s[i];
+      const arg = args[ai++];
+      let piece = '';
+      if (sp === 's') {
+        piece = this.toStr(arg);
+        if (prec != null) piece = piece.slice(0, prec);
+      } else if (sp === 'c') {
+        const str = this.toStr(arg);
+        piece = str ? str[0] : String.fromCharCode(this.toNum(arg) || 0);
+      } else if (sp === 'd' || sp === 'i') {
+        let n = Math.trunc(this.toNum(arg));
+        const neg = n < 0;
+        n = Math.abs(n);
+        piece = n.toString(10);
+        if (prec != null) piece = piece.padStart(prec, '0');
+        if (neg) piece = '-' + piece;
+        else if (flags.includes('+')) piece = '+' + piece;
+        else if (flags.includes(' ')) piece = ' ' + piece;
+      } else if (sp === 'u') {
+        let n = Math.trunc(this.toNum(arg));
+        if (n < 0) n = 0;
+        piece = n.toString(10);
+        if (prec != null) piece = piece.padStart(prec, '0');
+      } else if (sp === 'o') {
+        let n = Math.trunc(this.toNum(arg));
+        if (n < 0) n = 0;
+        piece = n.toString(8);
+        if (prec != null) piece = piece.padStart(prec, '0');
+        if (flags.includes('#') && piece !== '0') piece = '0' + piece;
+      } else if (sp === 'x' || sp === 'X') {
+        let n = Math.trunc(this.toNum(arg));
+        if (n < 0) n = 0;
+        piece = n.toString(16);
+        if (sp === 'X') piece = piece.toUpperCase();
+        if (prec != null) piece = piece.padStart(prec, '0');
+        if (flags.includes('#') && n !== 0) piece = (sp === 'X' ? '0X' : '0x') + piece;
+      } else if ('fFeEgGaA'.includes(sp)) {
+        const n = this.toNum(arg);
+        const p = prec != null ? prec : 6;
+        if (sp === 'f' || sp === 'F') piece = n.toFixed(p);
+        else if (sp === 'e' || sp === 'E') {
+          piece = n.toExponential(p);
+          if (sp === 'E') piece = piece.toUpperCase();
+        } else if (sp === 'g' || sp === 'G') {
+          piece = n.toPrecision(p > 0 ? p : 1);
+          if (sp === 'G') piece = piece.toUpperCase();
+        } else {
+          piece = String(n);
+        }
+        if (flags.includes('+') && n >= 0) piece = '+' + piece;
+        else if (flags.includes(' ') && n >= 0 && !piece.startsWith('-')) piece = ' ' + piece;
+      } else if (sp === 'p') {
+        piece = '0x' + Math.trunc(this.toNum(arg)).toString(16);
+      } else if (sp === 'n') {
+        // 写入已输出长度到变量——无指针，忽略
+        piece = '';
+        ai--; // 不消耗？C 中 %n 写指针；这里跳过参数若有
+      } else {
+        piece = '%' + sp;
+        ai--;
+      }
+      if (width != null && width !== 0) {
+        const left = flags.includes('-');
+        const pad = flags.includes('0') && !left && prec == null && !'s'.includes(sp) ? '0' : ' ';
+        if (piece.length < Math.abs(width)) {
+          const padLen = Math.abs(width) - piece.length;
+          const pads = pad.repeat(padLen);
+          piece = left ? piece + pads : pads + piece;
+        }
+      }
+      out += piece;
+    }
+    return out;
+  }
+
+  resolveQueryParam(name) {
+    if (this.ctx.getQueryParam) {
+      const v = this.ctx.getQueryParam(name);
+      if (v !== undefined && v !== null) return String(v);
+    }
+    return this.ctx.url.searchParams.get(name) ?? '';
+  }
+
   async evalCall(node) {
     if (node.callee.type === 'Ident') {
       const name = node.callee.name;
+      // scanf / sscanf：后续参数按标识符写入（类似 & 变量）
+      if (name === 'scanf' || name === 'sscanf') {
+        return await this.execScanf(name, node.args);
+      }
       const builtins = this.builtinFunctions;
       const builtin = builtins[name];
       if (builtin) {
@@ -1407,7 +1642,7 @@ export class Interpreter {
         return null;
       },
       getchar: async () => await self.ctx.inputStream.getchar(),
-      q_get: (args) => self.ctx.url.searchParams.get(self.toStr(args[0])) ?? '',
+      q_get: (args) => self.resolveQueryParam(self.toStr(args[0])),
       json_str: (args) => self.jsonGet(args[0], args[1], 'string'),
       json_num: (args) => self.jsonGet(args[0], args[1], 'number'),
       json_bool: (args) => self.jsonGet(args[0], args[1], 'bool'),
@@ -1671,49 +1906,13 @@ export class Interpreter {
         return 0;
       },
       printf: (args) => {
-        // 简化：printf(fmt, a, b, ...) 支持 %s %d %i %f %g %% 
-        let fmt = self.toStr(args[0]);
-        let ai = 1;
-        let out = '';
-        for (let i = 0; i < fmt.length; i++) {
-          if (fmt[i] === '%' && i + 1 < fmt.length) {
-            const sp = fmt[i + 1];
-            if (sp === '%') { out += '%'; i++; continue; }
-            const val = args[ai++];
-            if (sp === 's') out += self.toStr(val);
-            else if (sp === 'd' || sp === 'i') out += String(Math.trunc(self.toNum(val)));
-            else if (sp === 'f' || sp === 'g') out += String(self.toNum(val));
-            else out += '%' + sp;
-            i++;
-            continue;
-          }
-          out += fmt[i];
-        }
+        const out = self.formatPrintf(self.toStr(args[0]), args.slice(1));
         if (self.output.length + out.length > MAX_OUT) err('E51', 'output exceeds 1MB');
         self.output += out;
         if (self.ctx.onChunk) self.ctx.onChunk(out);
         return out.length;
       },
-      sprintf: (args) => {
-        let fmt = self.toStr(args[0]);
-        let ai = 1;
-        let out = '';
-        for (let i = 0; i < fmt.length; i++) {
-          if (fmt[i] === '%' && i + 1 < fmt.length) {
-            const sp = fmt[i + 1];
-            if (sp === '%') { out += '%'; i++; continue; }
-            const val = args[ai++];
-            if (sp === 's') out += self.toStr(val);
-            else if (sp === 'd' || sp === 'i') out += String(Math.trunc(self.toNum(val)));
-            else if (sp === 'f' || sp === 'g') out += String(self.toNum(val));
-            else out += '%' + sp;
-            i++;
-            continue;
-          }
-          out += fmt[i];
-        }
-        return out;
-      },
+      sprintf: (args) => self.formatPrintf(self.toStr(args[0]), args.slice(1)),
 
       min: (args) => (self.toNum(args[0]) < self.toNum(args[1]) ? args[0] : args[1]),
       max: (args) => (self.toNum(args[0]) > self.toNum(args[1]) ? args[0] : args[1]),

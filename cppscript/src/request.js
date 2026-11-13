@@ -99,8 +99,34 @@ export async function doRequest(url, opts = {}, env) {
     init.body = opts.body;
   }
 
-  // 5. 请求
-  const res = await fetch(finalUrl, init);
+  // 5. 请求（浏览器可通过 env.FETCH_VIA 走同源代理，避免 CORS）
+  let res;
+  if (env && env.FETCH_VIA) {
+    try {
+      const viaUrl = env.FETCH_VIA + encodeURIComponent(finalUrl);
+      const viaInit = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: finalUrl,
+          method: init.method || 'GET',
+          headers: headers,
+          body: opts.body != null && init.method !== 'GET' ? String(opts.body) : null,
+        }),
+        signal: AbortSignal.timeout(20000),
+      };
+      res = await fetch(viaUrl, viaInit);
+      // 代理本身 404 时回退直连
+      if (res.status === 404) res = null;
+    } catch {
+      res = null;
+    }
+  }
+  if (!res) {
+    res = await fetch(finalUrl, init);
+  }
 
   // 6. 读取响应体（限制 5MB）
   const reader = res.body.getReader();

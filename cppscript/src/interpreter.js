@@ -861,7 +861,7 @@ export class Interpreter {
       err('E10', `pair has no member ${node.name}`);
     }
     if (target && target.__tuple) {
-      err('E10', 'use get(tuple, i) or tuple[i] for tuple elements');
+      err('E10', 'use tget(tuple, i) or tuple[i] for tuple elements');
     }
     if (target && (target.__container || target.__group || target.__native || target.__struct)) {
       return { __methodRef: { target, name: node.name } };
@@ -1848,20 +1848,20 @@ export class Interpreter {
       make_tuple: (args) => {
         return { __tuple: true, items: [...args] };
       },
-      get: (args) => {
-        // get(tuple, i) 或 get(pair, 0|1)
+      tget: (args) => {
+        // tget(tuple, i) 或 tget(pair, 0|1) — 避免与 HTTP get() 重名
         const t = args[0];
         const i = self.toNum(args[1]);
         if (t && t.__tuple) {
-          if (i < 0 || i >= t.items.length) err('E23', `tuple get index ${i} out of range`);
+          if (i < 0 || i >= t.items.length) err('E23', `tuple tget index ${i} out of range`);
           return t.items[i];
         }
         if (t && t.__pair) {
           if (i === 0) return t.first;
           if (i === 1) return t.second;
-          err('E23', 'pair get index must be 0 or 1');
+          err('E23', 'pair tget index must be 0 or 1');
         }
-        err('E10', 'get expects pair or tuple');
+        err('E10', 'tget expects pair or tuple');
       },
       // ---- <cmath> ----
       abs: (args) => Math.abs(self.toNum(args[0])),

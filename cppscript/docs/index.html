@@ -131,7 +131,9 @@ with  param  header  proxy  UA</code></pre>
 <ul>
 <li><code>?url=</code> 规则文件 URL（必填）</li>
 <li><code>?in=</code> 输入流（可选：纯文本、或 <code>http(s)://</code> 远程文本）</li>
-<li><code>?key=</code> 映射到只读内置变量 <code>key</code>（可选；支持 <code>{1,&quot;abc&quot;,false}</code>）</li>
+<li><code>?key=</code> → 内置 <code>key</code>（可选；支持花括号）</li>
+<li><code>?in=</code> → 标准输入预置</li>
+<li>其它 query 可通过 <code>q_get("名")</code> 读取；内置还有 <code>keyword</code> <code>repoPath</code> <code>tag</code> <code>selector</code> <code>prerelease</code> 及路径段 <code>p1</code>–<code>p4</code></li>
 <li><code>?run=1</code> 强制跳过表单、立即执行</li>
 </ul>
 <p>1.5b 纯前端本地运行（<code>根目录 index.html</code>）</p>
@@ -756,8 +758,11 @@ floor ceil round trunc fmod(x,y) copysign(mag,sgn)
 pow(base,exp)  // 已有</code></pre>
 <p>12.10 &lt;cstdio&gt; 子集</p>
 <pre><code>puts(s)              // 等价 out(s+"\n")，返回 0
-printf(fmt, ...)     // 支持 %s %d %i %f %g %%，写入输出流，返回写入长度
-sprintf(fmt, ...)    // 同上但返回 string，不写入输出流</code></pre>
+printf(fmt, ...)     // 写入输出；支持 flags(-+0#)、width、.prec、*、diouxXfFeEgGaAcsp%%
+sprintf(fmt, ...)    // 同上，返回 string
+scanf(fmt, v1, ...)  // 标准输入；转换 diouxXfFgGs c；变量须为标识符
+sscanf(str, fmt, v1, ...)  // 从字符串解析；返回成功赋值个数
+// 说明：无完整 C 指针/%n 写入语义；长度修饰 hh/l 等可写但按 number/string 处理</code></pre>
 <p>12.11 pair 与 tuple</p>
 <pre><code>pair&lt;number, string&gt; p = make_pair(1, "a");
 out(to_str(p.first) + p.second);  // first / second 可读写

@@ -475,7 +475,25 @@ export class Interpreter {
 
   async execIn(node) {
     const token = await this.ctx.inputStream.readToken();
-    if (token === null) return;
+    // EOF：仍写入默认值，避免 string name; in(name); 后 name 未初始化
+    if (token === null) {
+      if (!this.scope.has(node.name)) {
+        this.scope.declare(node.name, '');
+        return;
+      }
+      const cur = this.scope.get(node.name);
+      if (cur && cur.__uninit) {
+        const k = cur.type && cur.type.kind;
+        if (k === 'number') this.scope.set(node.name, 0);
+        else if (k === 'bool') this.scope.set(node.name, false);
+        else this.scope.set(node.name, '');
+        return;
+      }
+      if (typeof cur === 'number') this.scope.set(node.name, 0);
+      else if (typeof cur === 'boolean') this.scope.set(node.name, false);
+      else if (typeof cur === 'string' || cur === undefined || cur.__uninit) this.scope.set(node.name, '');
+      return;
+    }
     if (!this.scope.has(node.name)) {
       this.scope.declare(node.name, { __uninit: true, type: { kind: 'auto' } });
     }

@@ -4,7 +4,10 @@ import { parse } from './parser.js';
 import { Interpreter } from './interpreter.js';
 import { resolveInput, InputStream } from './input.js';
 
-/** 文档 HTML：优先 env.DOCS_URL，否则 GitHub raw */
+/** 静态资源根：优先 env.STATIC_BASE，否则 GitHub raw（与仓库 cppscript/ 目录一致） */
+const DEFAULT_STATIC_BASE =
+  'https://raw.githubusercontent.com/achtlv/achtlv.github.io/main/cppscript';
+
 const DEFAULT_DOCS_URL =
   'https://raw.githubusercontent.com/achtlv/achtlv.github.io/main/cppscript/docs/index.html';
 
@@ -270,6 +273,58 @@ ${redirectScript}
 </html>`;
 }
 
+
+function staticBase(env) {
+  return ((env && env.STATIC_BASE) || DEFAULT_STATIC_BASE).replace(/\/+$/, '');
+}
+
+function contentTypeFor(path) {
+  const p = path.toLowerCase();
+  if (p.endsWith('.html') || p.endsWith('.htm')) return 'text/html; charset=utf-8';
+  if (p.endsWith('.js') || p.endsWith('.mjs')) return 'text/javascript; charset=utf-8';
+  if (p.endsWith('.css')) return 'text/css; charset=utf-8';
+  if (p.endsWith('.json')) return 'application/json; charset=utf-8';
+  if (p.endsWith('.txt') || p.endsWith('.md')) return 'text/plain; charset=utf-8';
+  return 'application/octet-stream';
+}
+
+/** 将路径映射到仓库内文件并代理（同源提供 HTML/JS，前端不再依赖 Worker 执行） */
+async function serveStaticPath(pathname, env) {
+  let path = pathname || '/';
+  if (path === '/') path = '/index.html';
+  else if (path === '/docs' || path === '/docs/') path = '/docs/index.html';
+  // 禁止 .. 
+  if (path.includes('..')) {
+    return new Response('Bad path', { status: 400 });
+  }
+  const base = staticBase(env);
+  const remote = base + path;
+  try {
+    const res = await fetch(remote, { signal: AbortSignal.timeout(15000) });
+    if (!res.ok) {
+      return new Response(`Not found: ${path} (${res.status})`, {
+        status: res.status === 404 ? 404 : 502,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+    }
+    const body = await res.arrayBuffer();
+    return new Response(body, {
+      status: 200,
+      headers: {
+        'Content-Type': contentTypeFor(path),
+        'Cache-Control': 'public, max-age=60',
+        // 允许 module 加载
+        'X-Content-Type-Options': 'nosniff',
+      },
+    });
+  } catch (e) {
+    return new Response(`Static fetch error: ${e.message || e}`, {
+      status: 502,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+  }
+}
+
 async function serveDocs(env) {
   const docsUrl = (env && env.DOCS_URL) || DEFAULT_DOCS_URL;
   try {
@@ -310,13 +365,37 @@ async function serveDocs(env) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const path = url.pathname || '/';
+
+    // ---------- 与静态站相同的路由（优先）----------
+    // /           → 运行页 index.html（浏览器加载 /src/*.js）
+    // /docs       → 语法文档
+    // /src/*      → 解释器等模块
+    // 其它静态扩展名 → 按路径代理
+    const isSrc = path === '/src' || path.startsWith('/src/');
+    const isDocs = path === '/docs' || path === '/docs/' || path.startsWith('/docs/');
+    const isRoot = path === '/' || path === '/index.html';
+    const looksStatic =
+      isSrc ||
+      isDocs ||
+      isRoot ||
+      /\.(js|mjs|css|html|txt|md|json|map)$/i.test(path);
+
+    // 默认：全部走静态代理，与 GitHub 目录结构一致（不再用 ?url= 在 Worker 里执行）
+    if (looksStatic || !url.searchParams.has('url')) {
+      // 仅当明确要求服务端执行时才进入旧逻辑：?server=1&url=
+      if (!(url.searchParams.get('server') === '1' && url.searchParams.get('url'))) {
+        return serveStaticPath(path, env);
+      }
+    }
+
+    // ---------- 可选：?server=1&url= 仍在 Worker 内执行规则（兼容旧用法）----------
     let ruleUrl = url.searchParams.get('url');
 
-    // POST 表单可能把 url/in/key 放在 body（只能读一次）
     let formIn = null;
     let formKey = null;
     let formRun = false;
-    let bodyConsumed = false; // formData() 后禁止再 request.text()
+    let bodyConsumed = false;
     const method = request.method.toUpperCase();
     if (method === 'POST') {
       const ctype = (request.headers.get('content-type') || '').toLowerCase();
@@ -325,7 +404,6 @@ export default {
           const fd = await request.formData();
           bodyConsumed = true;
           if (!ruleUrl && fd.get('url')) ruleUrl = String(fd.get('url'));
-          // 表单字段：有 name 就读（即使空字符串）
           if (fd.has('in')) formIn = String(fd.get('in') ?? '');
           if (fd.has('key')) formKey = String(fd.get('key') ?? '');
           if (String(fd.get('run') || '') === '1') formRun = true;
@@ -333,14 +411,9 @@ export default {
           if (formIn !== null) url.searchParams.set('in', formIn);
           url.searchParams.set('run', '1');
         } catch {
-          // 读失败则不标记 consumed，留给 resolveInput
+          // ignore
         }
       }
-    }
-
-    // 无 ?url=：文档
-    if (!ruleUrl && (url.pathname === '/' || url.pathname === '/index.html')) {
-      return serveDocs(env);
     }
 
     try {

@@ -66,12 +66,17 @@
 <div class="wrap">
 <p>CppScript 语法规范 v14.2（完整版）</p>
 <p>语言：CppScript　｜　版本：v14.2　｜　规则文件：任意文本（≤ 100 KB）</p>
-<p>面向 C++ 用户，无编译期、无指针、无头文件、无宏。</p>
-<p>核心：main 的 return 只返回 URL，body 输出统一用 out 且实时流式推送。</p>
-<p>v14.2 变更：修复声明节点 type 字段冲突；main 改为 auto main；key 支持 {1,&quot;abc&quot;,false} 下标访问；with 绑定整段表达式；关键字不可作变量名；Worker 按需表单输入 in/key。</p>
+<p>面向 C++ 用户，无编译期、无指针、无宏；容器与 &lt;algorithm&gt; 风格函数可直接使用（无 #include）。</p>
+<p>核心：<code>out()</code> 输出 body（可边执行边显示）；<code>return</code> 可返回跳转 URL 或状态码。</p>
+<p>运行方式两套：</p>
+<ul>
+<li><strong>Cloudflare Worker</strong>（<code>/?url=...</code>）：服务端执行，出站 <code>get</code>/<code>post</code> 不受浏览器 CORS 限制。</li>
+<li><strong>纯前端</strong>（同目录 <code>local.html</code>）：浏览器内解析执行，不依赖 Worker；跨站请求受 CORS 限制。</li>
+</ul>
+<p>v14.2 要点：auto main；key 花括号下标；with 整式绑定；关键字不可作变量名；deque/set/map 为类型关键字；容器无初值即空容器；Worker 按需 key/in 表单；out 流式（TransformStream）；纯前端 local.html；algorithm 风格函数。</p>
 <hr />
 <p>目录</p>
-<p>1. 基础</p>
+<p>1. 基础（含 Worker / 本地运行 / algorithm 概览）</p>
 <p>2. 类型系统</p>
 <p>3. 变量与作用域</p>
 <p>4. 运算符</p>
@@ -82,7 +87,7 @@
 <p>9. struct</p>
 <p>10. 引用</p>
 <p>11. 输入流</p>
-<p>12. 内置函数</p>
+<p>12. 内置函数（含 &lt;algorithm&gt;）</p>
 <p>13. 内置变量</p>
 <p>14. 执行限制与错误</p>
 <p>15. 完整示例</p>
@@ -107,11 +112,13 @@
 </ul>
 <p>1.3 关键字</p>
 <pre><code>number  string  bool  auto  void  struct
+deque  set  map
 if  else  switch  case  default
 for  while  break  continue
 return  delete  in  out  getchar
 true  false
 with  param  header  proxy  UA</code></pre>
+<p>类型名 <code>deque</code> / <code>set</code> / <code>map</code> 也是关键字，不能作变量名。</p>
 <p><strong>关键字不能作变量名 / 参数名 / 字段名。</strong>例如 <code>string UA = &quot;...&quot;</code> 会报 E03，应改成 <code>string userAgent = &quot;...&quot;</code>，再用 <code>with UA userAgent</code>。</p>
 <p>1.4 最小示例</p>
 <pre><code>auto main() {
@@ -126,13 +133,31 @@ with  param  header  proxy  UA</code></pre>
 <li><code>?key=</code> 映射到只读内置变量 <code>key</code>（可选；支持 <code>{1,&quot;abc&quot;,false}</code>）</li>
 <li><code>?run=1</code> 强制跳过表单、立即执行</li>
 </ul>
+<p>1.5b 纯前端本地运行（<code>local.html</code>）</p>
+<ul>
+<li>打开同目录 <a href="./local.html"><code>local.html</code></a>。必须通过 <strong>http(s) 静态服务</strong>加载（ES module）；<code>file://</code> 通常无法 import。</li>
+<li>例如：在项目根目录执行 <code>npx serve .</code>，访问 <code>/local.html</code>；或 GitHub Pages 上的对应路径。</li>
+<li>在页面中粘贴规则、填写可选 <code>key</code> / <code>in</code>，点「运行」；也可从 URL 加载规则（对方需允许 CORS）。</li>
+<li>解释器在<strong>浏览器本机</strong>执行；<code>out()</code> 实时追加到输出框，无需 Worker。</li>
+<li><code>get</code>/<code>post</code> 使用浏览器 <code>fetch</code>：跨域若未配置 CORS 会失败。需要稳定跨站拉取时请用 Worker 版。</li>
+<li>内置变量 <code>key</code> / <code>q_get("key")</code> 来自页面填写的 key（同步到地址栏查询串）。</li>
+</ul>
+<p>1.5c &lt;algorithm&gt; 风格函数（详见 §12.8）</p>
+<ul>
+<li>作用于 <code>deque</code> 或原生数组，多数为<strong>就地</strong>修改。</li>
+<li>就地：<code>sort(d)</code>、<code>sort(d,"desc")</code>、<code>reverse(d)</code>、<code>unique(d)</code>、<code>iota(d,start)</code>、<code>fill_n(d,n,v)</code>、<code>swap_ranges(d,i,j)</code></li>
+<li>查询：<code>find(d,x)</code> → 下标或 -1；<code>count</code> / <code>min_element</code> / <code>max_element</code> / <code>binary_search</code> / <code>lower_bound</code> / <code>upper_bound</code> / <code>is_sorted</code> / <code>accumulate</code></li>
+<li>排列：<code>next_permutation(d)</code>、<code>prev_permutation(d)</code> 返回 bool</li>
+<li>与成员方法区分：<code>a.find(x)</code> 是容器方法；自由函数 <code>find(a, x)</code> 是 algorithm 风格。</li>
+</ul>
 <p>1.6 Worker 交互页（按需输入、无缝运行）</p>
 <ul>
 <li>打开 <code>?url=</code> 时先解析规则：检测是否使用 <code>key</code>（含标识符 <code>key</code> 与 <code>q_get(&quot;key&quot;)</code>）以及标准输入（<code>in()</code> / <code>getchar</code>）。</li>
 <li><strong>都未使用</strong> → 直接执行，不显示输入框。</li>
 <li><strong>使用了且 URL 中还缺少对应参数</strong> → 只显示需要的框（一个或两个）+ <strong>一个「运行」按钮</strong>。</li>
 <li>可以<strong>留空</strong>再点运行：仍会补上 <code>key=</code> / <code>in=</code>（值为空）并执行。</li>
-<li>点「运行」后：页面脚本把 <code>url</code>、<code>run=1</code> 以及用到的 <code>key</code>/<code>in</code>（可为空）写入地址并 <code>location.assign</code> 打开结果页（整页跳转，避免 fetch 写回导致白屏）。</li>
+<li>点「运行」后：脚本把 <code>url</code>、<code>run=1</code> 与用到的 <code>key</code>/<code>in</code>（可为空）写入查询串，并用 <code>location.assign</code> 打开结果页。</li>
+<li>结果页：Worker 执行规则；若调用了 <code>out()</code>，通过 TransformStream <strong>边执行边推送</strong> HTML 输出区内容。</li>
 <li>已带齐参数或带 <code>&amp;run=1</code> → 跳过表单直接跑。</li>
 <li>无 <code>?url=</code> 访问根路径 → 本语法文档（跟随系统浅色/深色主题）。</li>
 </ul>
@@ -358,12 +383,12 @@ void log(string msg) { out(msg); }</code></pre>
 <p>&quot;example.com/a b.zip&quot; https://example.com/a%20b.zip</p>
 <p>&quot;hello world&quot; E43（host 含空格）</p>
 <p>&quot;&quot; E43</p>
-<p>6.4 out 与流式渲染（v14.1 核心）</p>
-<p>out 是唯一 body 输出通道，且是实时流式推送。</p>
+<p>6.4 out 与流式渲染</p>
+<p><code>out</code> 是 body 输出通道。Worker 版用 <strong>TransformStream</strong> 边执行边推送；本地版直接追加到页面输出框。</p>
 <p>6.4.1 双路响应</p>
 <p>脚本行为 响应模式</p>
 <p>从未调用 out buffer 模式：脚本执行完后，按 return 决定 302 / 200+body</p>
-<p>调用过 out（至少一次） 流式模式：第一次 out 时立即返回 200 + ReadableStream，后续每次 out 实时推送</p>
+<p>调用过 out（至少一次） 流式模式：先返回 HTML 壳，每次 out 向输出区追加一段（Worker：TransformStream；本地：DOM/文本框）</p>
 <p>6.4.2 buffer 模式（未调 out）</p>
 <pre><code>auto main() {
     return &quot;https://example.com/a.zip&quot;;     // 302
@@ -622,7 +647,7 @@ auto main() {
     return;
 }</code></pre>
 <hr />
-<p>12. 内置函数</p>
+<p>12. 内置函数（含 &lt;algorithm&gt;）</p>
 <p>12.1 请求</p>
 <pre><code>string body = get(url);
 string body = post(url, requestBody);</code></pre>
@@ -690,8 +715,31 @@ return &quot;https://github.com/a/b/releases/download/v1.0/x.zip&quot;
 <p>12.7 输入输出</p>
 <pre><code>getchar()                 // 读一个字符（code point），EOF 返回 -1
 in(x)                     // cin 风格读 token
-out(x)                    // 追加输出并实时流式推送（见 §6.4）
+out(x)                    // 追加输出；Worker 流式 / 本地实时显示（见 §6.4）
 q_get(&quot;name&quot;)             // URL query 参数，未传 &quot;&quot;</code></pre>
+<p>12.8 &lt;algorithm&gt; 风格（deque / 原生数组）</p>
+<p>无需 <code>#include</code>，直接调用。对 <code>map</code> 不适用（可用 <code>keys()</code>/<code>values()</code> 再处理）。</p>
+<pre><code>deque&lt;number&gt; a;          // 无初值 = 空容器
+a.push_back(3); a.push_back(1); a.push_back(4);
+sort(a);                  // 升序就地排序
+sort(a, "desc");          // 降序
+reverse(a);
+unique(a);                // 去掉连续重复（常先 sort），返回新长度
+number i = find(a, 4);    // 下标，找不到 -1
+number n = count(a, 1);
+number lo = min_element(a);
+number hi = max_element(a);
+bool ok = binary_search(a, 4);  // 要求已按升序排好
+number lb = lower_bound(a, 2);
+number ub = upper_bound(a, 2);
+bool sorted = is_sorted(a);
+number sum = accumulate(a);     // 可选第二参数为初值
+iota(a, 10);                    // 填 10,11,12,...
+fill_n(a, 3, 0);                // 前 3 个置 0（必要时扩展长度）
+swap_ranges(a, 0, 2);           // 交换下标 0 与 2
+bool np = next_permutation(a);
+bool pp = prev_permutation(a);</code></pre>
+<p>比较规则：两 number 按数值；否则转字符串比较。bool 按 false &lt; true。</p>
 <hr />
 <p>13. 内置变量</p>
 <p>变量 类型 来源 可修改</p>
@@ -1072,6 +1120,11 @@ get(url) with UA userAgent;         // ✓</code></pre>
 <p>坑 27：in 换行要用编码或表单</p>
 <pre><code>// URL:  ?in=line1%0Aline2
 // 页面：文本框直接回车，再点「运行」</code></pre>
+<p>坑 28：本地版 get/post 受 CORS 限制</p>
+<pre><code>// local.html 里 get("https://other.com/...") 若对方无 CORS 头会失败
+// 需要稳定跨站请求时用 Worker：/?url=规则地址</code></pre>
+<p>坑 29：file:// 打不开 local.html 的模块</p>
+<pre><code>// 请用 npx serve . 或任意静态 HTTP 服务，不要直接双击文件</code></pre>
 <p>坑 23：with proxy 不叠加</p>
 <pre><code>get(url) with proxy &quot;https://a.com/&quot; with proxy &quot;https://b.com/&quot;
 // 最终用 b.com</code></pre>
@@ -1093,12 +1146,12 @@ get(url) with UA userAgent;         // ✓</code></pre>
 <p>v13 输入流、getchar、in 改为 cin 风格</p>
 <p>v13.2 ?txtin= 输入流来源（URL 或文本）</p>
 <p>v14 key 只读变量、with 通用修饰符（param/header/UA/proxy/status）</p>
-<p>v14.1 ?txturl= → ?url=（不要求 .txt）；?txtin= → ?in=；out 输出缓冲后整页返回（避免流式空 body）</p>
-<p>v14.2 修复 AST type 字段冲突；main 改为 auto main；key 花括号下标；with 整式绑定；关键字禁作变量名；按需 in/key 表单；out 结果整页缓冲返回（修复点运行白屏）</p>
+<p>v14.1 ?txturl= → ?url=（不要求 .txt）；?txtin= → ?in=；out() 边执行边流式推送到浏览器（TransformStream，避免旧版空 body）</p>
+<p>v14.2 auto main；key 花括号；with 整式；关键字限制；deque/set/map 关键字；空容器默认构造；Worker 按需表单 + TransformStream 流式 out；修复 runPageShell；纯前端 local.html；&lt;algorithm&gt; 风格函数</p>
 <hr />
 <p>CppScript v14.2 · 2026-10</p>
 <hr />
-<p class="meta">CppScript v14.2 · 2026-10 · 文档已同步：按需 key/in 表单、无缝运行、q_get(&quot;key&quot;) 检测</p>
+<p class="meta">CppScript v14.2 · 文档已同步：Worker + local.html 双运行方式、algorithm 函数、流式 out、表单与关键字说明</p>
 </div>
 </body>
 </html>

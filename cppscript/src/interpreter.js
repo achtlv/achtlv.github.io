@@ -235,7 +235,13 @@ export class Interpreter {
   async execVarDecl(node) {
     let value;
     if (node.init === null) {
-      value = { __uninit: true, type: node.varType };
+      // 容器 / struct 默认构造为空对象；标量仍视为未初始化直至赋值
+      const k = node.varType && node.varType.kind;
+      if (k === 'deque' || k === 'set' || k === 'map' || k === 'struct') {
+        value = this.defaultValue(node.varType);
+      } else {
+        value = { __uninit: true, type: node.varType };
+      }
     } else {
       value = await this.evalExpr(node.init);
       value = this.coerce(value, node.varType, node.name);
@@ -1186,6 +1192,38 @@ export class Interpreter {
     err('E13', 'return type mismatch');
   }
 
+
+  /** 取出可排序/遍历的底层数组（deque / 原生数组） */
+  unwrapSeq(v, name = 'container') {
+    if (v && v.__container) {
+      const c = v.__container;
+      if (c instanceof MapContainer) err('E10', `${name}: map not supported here, use keys()/values()`);
+      if (Array.isArray(c.items)) return c.items;
+    }
+    if (v && v.__native && Array.isArray(v.__native)) return v.__native;
+    if (Array.isArray(v)) return v;
+    err('E10', `${name}: expected deque or array`);
+  }
+
+  defaultLess(a, b) {
+    if (typeof a === 'number' && typeof b === 'number') return a < b;
+    if (typeof a === 'boolean' && typeof b === 'boolean') return a < b;
+    // 数字字符串按数值
+    if (typeof a === 'number' && typeof b === 'string' && b.trim() !== '' && !Number.isNaN(Number(b))) {
+      return a < Number(b);
+    }
+    if (typeof b === 'number' && typeof a === 'string' && a.trim() !== '' && !Number.isNaN(Number(a))) {
+      return Number(a) < b;
+    }
+    return String(a) < String(b);
+  }
+
+  defaultEqual(a, b) {
+    if (typeof a === 'number' && typeof b === 'number') return a === b;
+    if (typeof a === 'boolean' && typeof b === 'boolean') return a === b;
+    return String(a) === String(b);
+  }
+
   get builtinFunctions() {
     if (this._builtins) return this._builtins;
     const self = this;
@@ -1236,6 +1274,184 @@ export class Interpreter {
           return m ? (m[1] !== undefined ? m[1] : m[0]) : '';
         } catch { err('E10', 'invalid regex'); }
       },
+
+      // ---- <algorithm> 风格（对 deque / 原生数组就地或返回值）----
+      sort: (args) => {
+        const arr = self.unwrapSeq(args[0], 'sort');
+        const desc = args.length > 1 && (self.toStr(args[1]) === 'desc' || self.toStr(args[1]) === 'greater');
+        arr.sort((a, b) => {
+          if (self.defaultEqual(a, b)) return 0;
+          const less = self.defaultLess(a, b);
+          return desc ? (less ? 1 : -1) : (less ? -1 : 1);
+        });
+        return null;
+      },
+      reverse: (args) => {
+        self.unwrapSeq(args[0], 'reverse').reverse();
+        return null;
+      },
+      unique: (args) => {
+        // 去掉连续重复（与 C++ unique 类似，通常先 sort）
+        const arr = self.unwrapSeq(args[0], 'unique');
+        if (!arr.length) return 0;
+        let w = 1;
+        for (let r = 1; r < arr.length; r++) {
+          if (!self.defaultEqual(arr[r], arr[w - 1])) arr[w++] = arr[r];
+        }
+        arr.length = w;
+        return w;
+      },
+      find: (args) => {
+        const arr = self.unwrapSeq(args[0], 'find');
+        const x = args[1];
+        for (let i = 0; i < arr.length; i++) {
+          if (self.defaultEqual(arr[i], x)) return i;
+        }
+        return -1;
+      },
+      count: (args) => {
+        const arr = self.unwrapSeq(args[0], 'count');
+        const x = args[1];
+        let n = 0;
+        for (const v of arr) if (self.defaultEqual(v, x)) n++;
+        return n;
+      },
+      min_element: (args) => {
+        const arr = self.unwrapSeq(args[0], 'min_element');
+        if (!arr.length) err('E23', 'min_element on empty');
+        let m = arr[0];
+        for (let i = 1; i < arr.length; i++) if (self.defaultLess(arr[i], m)) m = arr[i];
+        return m;
+      },
+      max_element: (args) => {
+        const arr = self.unwrapSeq(args[0], 'max_element');
+        if (!arr.length) err('E23', 'max_element on empty');
+        let m = arr[0];
+        for (let i = 1; i < arr.length; i++) if (self.defaultLess(m, arr[i])) m = arr[i];
+        return m;
+      },
+      binary_search: (args) => {
+        const arr = self.unwrapSeq(args[0], 'binary_search');
+        const x = args[1];
+        let lo = 0, hi = arr.length;
+        while (lo < hi) {
+          const mid = (lo + hi) >> 1;
+          if (self.defaultLess(arr[mid], x)) lo = mid + 1;
+          else hi = mid;
+        }
+        return lo < arr.length && self.defaultEqual(arr[lo], x);
+      },
+      lower_bound: (args) => {
+        const arr = self.unwrapSeq(args[0], 'lower_bound');
+        const x = args[1];
+        let lo = 0, hi = arr.length;
+        while (lo < hi) {
+          const mid = (lo + hi) >> 1;
+          if (self.defaultLess(arr[mid], x)) lo = mid + 1;
+          else hi = mid;
+        }
+        return lo;
+      },
+      upper_bound: (args) => {
+        const arr = self.unwrapSeq(args[0], 'upper_bound');
+        const x = args[1];
+        let lo = 0, hi = arr.length;
+        while (lo < hi) {
+          const mid = (lo + hi) >> 1;
+          if (!self.defaultLess(x, arr[mid])) lo = mid + 1;
+          else hi = mid;
+        }
+        return lo;
+      },
+      fill_n: (args) => {
+        // fill_n(d, n, value) 从 0 写 n 个；若 d 更短则扩展
+        const arr = self.unwrapSeq(args[0], 'fill_n');
+        const n = self.toNum(args[1]);
+        const val = args[2];
+        if (n < 0) err('E10', 'fill_n: n < 0');
+        while (arr.length < n) arr.push(val);
+        for (let i = 0; i < n; i++) arr[i] = val;
+        return null;
+      },
+      iota: (args) => {
+        // iota(d, start) 顺序填 start, start+1, ...
+        const arr = self.unwrapSeq(args[0], 'iota');
+        let v = self.toNum(args[1]);
+        for (let i = 0; i < arr.length; i++) arr[i] = v++;
+        return null;
+      },
+      accumulate: (args) => {
+        const arr = self.unwrapSeq(args[0], 'accumulate');
+        let sum = args.length > 1 ? self.toNum(args[1]) : 0;
+        for (const x of arr) sum += self.toNum(x);
+        return sum;
+      },
+      swap_ranges: (args) => {
+        // swap(d, i, j) 交换下标
+        const arr = self.unwrapSeq(args[0], 'swap');
+        const i = self.toNum(args[1]);
+        const j = self.toNum(args[2]);
+        if (i < 0 || j < 0 || i >= arr.length || j >= arr.length) err('E23', 'swap index out of range');
+        const t = arr[i];
+        arr[i] = arr[j];
+        arr[j] = t;
+        return null;
+      },
+      next_permutation: (args) => {
+        const arr = self.unwrapSeq(args[0], 'next_permutation');
+        // 标准 next_permutation
+        let i = arr.length - 2;
+        while (i >= 0 && !self.defaultLess(arr[i], arr[i + 1])) i--;
+        if (i < 0) {
+          arr.reverse();
+          return false;
+        }
+        let j = arr.length - 1;
+        while (!self.defaultLess(arr[i], arr[j])) j--;
+        const t = arr[i];
+        arr[i] = arr[j];
+        arr[j] = t;
+        let lo = i + 1, hi = arr.length - 1;
+        while (lo < hi) {
+          const u = arr[lo];
+          arr[lo] = arr[hi];
+          arr[hi] = u;
+          lo++;
+          hi--;
+        }
+        return true;
+      },
+      prev_permutation: (args) => {
+        const arr = self.unwrapSeq(args[0], 'prev_permutation');
+        let i = arr.length - 2;
+        while (i >= 0 && !self.defaultLess(arr[i + 1], arr[i])) i--;
+        if (i < 0) {
+          arr.reverse();
+          return false;
+        }
+        let j = arr.length - 1;
+        while (!self.defaultLess(arr[j], arr[i])) j--;
+        const t = arr[i];
+        arr[i] = arr[j];
+        arr[j] = t;
+        let lo = i + 1, hi = arr.length - 1;
+        while (lo < hi) {
+          const u = arr[lo];
+          arr[lo] = arr[hi];
+          arr[hi] = u;
+          lo++;
+          hi--;
+        }
+        return true;
+      },
+      is_sorted: (args) => {
+        const arr = self.unwrapSeq(args[0], 'is_sorted');
+        for (let i = 1; i < arr.length; i++) {
+          if (self.defaultLess(arr[i], arr[i - 1])) return false;
+        }
+        return true;
+      },
+
       min: (args) => (self.toNum(args[0]) < self.toNum(args[1]) ? args[0] : args[1]),
       max: (args) => (self.toNum(args[0]) > self.toNum(args[1]) ? args[0] : args[1]),
       pow: (args) => Math.pow(self.toNum(args[0]), self.toNum(args[1])),

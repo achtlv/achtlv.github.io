@@ -8,36 +8,22 @@
 <style>
 :root {
   color-scheme: light dark;
-  --bg: #f6f8fb;
-  --panel: #ffffff;
-  --text: #1a2332;
-  --muted: #5a6a82;
-  --accent: #2563eb;
-  --code-bg: #eef2f7;
-  --border: #d0d7e2;
-  --ok: #15803d;
-  --err: #b91c1c;
+  --bg: #f6f8fb; --panel: #ffffff; --text: #1a2332; --muted: #5a6a82;
+  --accent: #2563eb; --code-bg: #eef2f7; --border: #d0d7e2;
+  --ok: #15803d; --err: #b91c1c;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0f1419;
-    --panel: #1a2332;
-    --text: #e7ecf3;
-    --muted: #8b9bb4;
-    --accent: #3d8bfd;
-    --code-bg: #0b1220;
-    --border: #2a3548;
-    --ok: #3dd68c;
-    --err: #f87171;
+    --bg: #0f1419; --panel: #1a2332; --text: #e7ecf3; --muted: #8b9bb4;
+    --accent: #3d8bfd; --code-bg: #0b1220; --border: #2a3548;
+    --ok: #3dd68c; --err: #f87171;
   }
 }
 * { box-sizing: border-box; }
 body {
   margin: 0;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  line-height: 1.55;
+  background: var(--bg); color: var(--text); line-height: 1.55;
 }
 .wrap { max-width: 960px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
 header {
@@ -47,11 +33,8 @@ header {
 header h1 { font-size: 1.2rem; margin: 0; font-weight: 650; }
 .meta { color: var(--muted); font-size: 0.85rem; }
 .card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 0.85rem 1rem;
-  margin-bottom: 0.85rem;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 0.85rem;
 }
 .card h2 {
   font-size: 0.8rem; margin: 0 0 0.5rem; color: var(--muted);
@@ -62,32 +45,19 @@ textarea, input[type=text], input[type=url] {
   width: 100%;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.88rem;
-  background: var(--code-bg);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.65rem 0.8rem;
+  background: var(--code-bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 0.65rem 0.8rem;
 }
 textarea.code { min-height: 180px; resize: vertical; line-height: 1.45; }
-textarea.out {
-  min-height: 160px; resize: vertical; white-space: pre-wrap;
-}
+textarea.out { min-height: 160px; resize: vertical; white-space: pre-wrap; }
 .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.6rem; }
 button {
-  cursor: pointer;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 0.5rem 1rem;
-  font-size: 0.9rem;
-  font-weight: 600;
+  cursor: pointer; background: var(--accent); color: #fff; border: none;
+  border-radius: 8px; padding: 0.5rem 1rem; font-size: 0.9rem; font-weight: 600;
 }
 button:disabled { opacity: 0.55; cursor: not-allowed; }
 button.secondary {
-  background: transparent;
-  color: var(--accent);
-  border: 1px solid var(--border);
+  background: transparent; color: var(--accent); border: 1px solid var(--border);
 }
 .badge {
   display: inline-block; font-size: 0.75rem; padding: 0.15rem 0.5rem;
@@ -105,7 +75,7 @@ a { color: var(--accent); }
   font-weight: 500; padding: 0.35rem 0.75rem;
 }
 .tabs button.active { color: var(--accent); border-color: var(--accent); }
-#lineIn:disabled { opacity: 0.7; }
+[hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -113,7 +83,7 @@ a { color: var(--accent); }
   <header>
     <h1>CppScript</h1>
     <span class="badge" id="status">就绪</span>
-    <span class="meta">纯前端 · 加载本地 JS 模块 · 不请求 Worker</span>
+    <span class="meta">浏览器执行 · 按需显示 key/输入 · get 可走同源代理</span>
   </header>
 
   <div class="card">
@@ -126,17 +96,12 @@ a { color: var(--accent); }
       <textarea class="code" id="code" spellcheck="false" placeholder="auto main() { ... }"></textarea>
     </div>
     <div id="paneUrl" hidden>
-      <input type="url" id="ruleUrl" placeholder="https://.../rule.txt（需 CORS 允许）" />
-      <p class="hint">从远程加载源码到编辑器（不自动运行）</p>
+      <input type="url" id="ruleUrl" placeholder="https://.../rule.txt" />
+      <p class="hint">加载远程规则（需 CORS 或同站代理）</p>
       <div class="row">
         <button type="button" class="secondary" id="btnLoad">加载到编辑器</button>
       </div>
     </div>
-  </div>
-
-  <div class="card">
-    <h2>参数 key（可选）</h2>
-    <input type="text" id="key" placeholder='例如 2^3 或 {1,"abc",false}' />
   </div>
 
   <div class="row" style="margin-bottom:0.85rem">
@@ -144,31 +109,43 @@ a { color: var(--accent); }
     <button type="button" class="secondary" id="btnClearOut">清空输出</button>
   </div>
 
-  <div class="card">
-    <h2>输出</h2>
-    <textarea class="out" id="out" readonly placeholder="out() 会实时出现在这里"></textarea>
+  <div class="card" id="cardKey" hidden>
+    <h2>参数 key</h2>
+    <input type="text" id="key" placeholder='例如 2^3 或 {1,"abc",false}' />
+    <p class="hint">使用 key / q_get("key") 时显示。运行中可随时修改，无「完成」按钮。</p>
   </div>
 
-  <div class="card">
+  <div class="card" id="cardQuery" hidden>
+    <h2>Query 参数</h2>
+    <textarea id="queryBox" rows="4" placeholder="一行一个：&#10;a=1&#10;b=hello"></textarea>
+    <p class="hint">使用 q_get("其它名") 或内置 keyword 等时显示。格式 <code>名=值</code>，一行一个。运行中可随时改。</p>
+  </div>
+
+  <div class="card" id="cardIn" hidden>
     <h2>标准输入</h2>
-    <p class="hint">程序执行到 <code>in()</code> / <code>getchar</code> 且需要数据时，在此输入。<strong>每按一次 Enter 提交当前行</strong>；点「完成」表示输入结束（EOF）。</p>
+    <p class="hint">规则使用了 <code>in()</code> / <code>getchar</code> / <code>scanf</code> 时显示。每行 Enter 提交；「完成」= EOF（会先提交当前行）。</p>
     <div class="row" style="margin-top:0.5rem">
-      <input type="text" id="lineIn" placeholder="输入一行后按 Enter 提交" style="flex:1;min-width:160px" disabled />
+      <input type="text" id="lineIn" placeholder="输入一行后按 Enter" style="flex:1;min-width:160px" disabled />
       <button type="button" id="btnDone" disabled>完成</button>
     </div>
-    <p class="hint" id="inHint">请先点击「运行」</p>
+    <p class="hint" id="inHint"></p>
+  </div>
+
+  <div class="card" id="cardOut" hidden>
+    <h2>输出</h2>
+    <textarea class="out" id="out" readonly placeholder="out / printf / puts 的输出"></textarea>
   </div>
 
   <p class="foot">
     <a href="./docs/">文档</a> ·
-    本页通过 ES module 加载 <code>./src/*.js</code>，执行在浏览器内完成，不请求 Worker
+    带 <code>?url=</code> 时自动加载并运行（无需输入则不等待）
   </p>
 </div>
 
 <script type="module">
 import { parse } from './src/parser.js';
 import { Interpreter } from './src/interpreter.js';
-import { InteractiveInputStream } from './src/input.js';
+import { InteractiveInputStream, InputStream } from './src/input.js';
 
 const $ = (id) => document.getElementById(id);
 const statusEl = $('status');
@@ -177,6 +154,11 @@ const codeEl = $('code');
 const lineIn = $('lineIn');
 const btnDone = $('btnDone');
 const inHint = $('inHint');
+const cardKey = $('cardKey');
+const cardQuery = $('cardQuery');
+const cardIn = $('cardIn');
+const cardOut = $('cardOut');
+const queryBox = $('queryBox');
 
 const DEMO = `auto main() {
     out("name?\\n");
@@ -189,23 +171,75 @@ const DEMO = `auto main() {
 }
 `;
 
-if (!codeEl.value) codeEl.value = DEMO;
-
-const pageUrl = new URL(location.href);
-if (pageUrl.searchParams.has('key')) $('key').value = pageUrl.searchParams.get('key') || '';
-const preload = pageUrl.searchParams.get('url');
-if (preload) {
-  $('ruleUrl').value = preload;
-  showTab('url');
-  loadRule(preload).then(() => showTab('code')).catch((e) => setStatus('加载失败: ' + e.message, true));
+/** 静态分析是否需要 key / 标准输入 */
+function analyzeNeeds(ast) {
+  let needsKey = false;
+  let needsIn = false;
+  let needsOut = false;
+  let needsQuery = false;
+  const IN_FNS = new Set(['getchar', 'scanf', 'fgetc', 'getchar']);
+  const OUT_FNS = new Set(['out', 'printf', 'puts', 'putchar', 'fputs']);
+  const Q_BUILTINS = new Set(['keyword', 'repoPath', 'tag', 'selector', 'prerelease', 'p1', 'p2', 'p3', 'p4']);
+  const walk = (n) => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(walk); return; }
+    if (n.type === 'Ident') {
+      if (n.name === 'key') needsKey = true;
+      if (Q_BUILTINS.has(n.name)) needsQuery = true;
+    }
+    if (n.type === 'In') needsIn = true;
+    if (n.type === 'Call' && n.callee && n.callee.type === 'Ident') {
+      const fn = n.callee.name;
+      if (IN_FNS.has(fn)) needsIn = true;
+      if (OUT_FNS.has(fn)) needsOut = true;
+      if (fn === 'q_get') {
+        const a0 = n.args && n.args[0];
+        if (a0 && a0.type === 'String' && a0.value === 'key') needsKey = true;
+        else needsQuery = true; // q_get("其它") 或动态参数
+      }
+    }
+    for (const k of Object.keys(n)) {
+      if (k === 'type') continue;
+      walk(n[k]);
+    }
+  };
+  walk(ast);
+  return { needsKey, needsIn, needsOut, needsQuery };
 }
 
-let stream = null;
-let running = false;
+/** 解析 query 文本框：一行 name=value */
+function parseQueryBoxText(text) {
+  const map = Object.create(null);
+  for (const line of String(text || '').split(/\r?\n/)) {
+    const s = line.trim();
+    if (!s || s.startsWith('#')) continue;
+    const eq = s.indexOf('=');
+    if (eq <= 0) continue;
+    const k = s.slice(0, eq).trim();
+    const v = s.slice(eq + 1); // 保留右侧原样（可含 =）
+    if (k) map[k] = v;
+  }
+  return map;
+}
+
+function getLiveQueryParam(name) {
+  if (name === 'key') return $('key').value || '';
+  const box = parseQueryBoxText(queryBox ? queryBox.value : '');
+  if (Object.prototype.hasOwnProperty.call(box, name)) return box[name];
+  try {
+    const u = new URL(location.href);
+    if (u.searchParams.has(name)) return u.searchParams.get(name) || '';
+  } catch (_) {}
+  return '';
+}
 
 function setStatus(text, kind) {
   statusEl.textContent = text;
-  statusEl.className = 'badge' + (kind === true || kind === 'err' ? ' err' : kind === 'wait' ? ' wait' : kind === false || kind === 'ok' ? ' ok' : '');
+  statusEl.className = 'badge' + (
+    kind === true || kind === 'err' ? ' err'
+    : kind === 'wait' ? ' wait'
+    : kind === false || kind === 'ok' ? ' ok' : ''
+  );
 }
 
 function showTab(name) {
@@ -220,36 +254,73 @@ $('tabCode').onclick = () => showTab('code');
 $('tabUrl').onclick = () => showTab('url');
 
 async function loadRule(url) {
-  setStatus('加载中…');
+  setStatus('加载规则…', 'wait');
   const res = await fetch(url);
   if (!res.ok) throw new Error('HTTP ' + res.status);
   codeEl.value = await res.text();
   setStatus('已加载', 'ok');
+  return codeEl.value;
 }
 
-$('btnLoad').onclick = () => {
+$('btnLoad').onclick = async () => {
   const u = $('ruleUrl').value.trim();
   if (!u) return alert('请填写规则 URL');
-  loadRule(u).then(() => showTab('code')).catch((e) => setStatus('加载失败: ' + e.message, true));
+  try {
+    await loadRule(u);
+    showTab('code');
+    refreshNeedsUI();
+  } catch (e) {
+    setStatus('加载失败: ' + e.message, true);
+  }
 };
 
 $('btnClearOut').onclick = () => { outEl.value = ''; };
 
-function setInputEnabled(on, waiting) {
+let stream = null;
+let running = false;
+let lastNeeds = { needsKey: false, needsIn: false };
+
+function refreshNeedsUI() {
+  const src = codeEl.value.trim();
+  if (!src) {
+    lastNeeds = { needsKey: false, needsIn: false, needsOut: false, needsQuery: false };
+    cardKey.hidden = true;
+    cardQuery.hidden = true;
+    cardIn.hidden = true;
+    cardOut.hidden = true;
+    return lastNeeds;
+  }
+  try {
+    const ast = parse(src);
+    lastNeeds = analyzeNeeds(ast);
+  } catch {
+    lastNeeds = { needsKey: true, needsIn: true, needsOut: true, needsQuery: true };
+  }
+  cardKey.hidden = !lastNeeds.needsKey;
+  cardQuery.hidden = !lastNeeds.needsQuery;
+  cardIn.hidden = !lastNeeds.needsIn;
+  cardOut.hidden = !lastNeeds.needsOut;
+  return lastNeeds;
+}
+
+codeEl.addEventListener('change', refreshNeedsUI);
+codeEl.addEventListener('blur', refreshNeedsUI);
+
+function setInputEnabled(on) {
   lineIn.disabled = !on;
   btnDone.disabled = !on;
-  if (!on) inHint.textContent = '请先点击「运行」';
-  else if (waiting) inHint.textContent = '等待输入：输入一行后按 Enter；全部输完后点「完成」';
-  else inHint.textContent = '可提前输入行（按 Enter 提交）；程序读到时会用到';
-  if (on) lineIn.focus();
+  if (on) {
+    inHint.textContent = '等待输入：Enter 提交一行；「完成」结束';
+    lineIn.focus();
+  } else {
+    inHint.textContent = '';
+  }
 }
 
 function submitLine() {
   if (!stream || lineIn.disabled) return;
-  const line = lineIn.value;
-  stream.pushLine(line);
+  stream.pushLine(lineIn.value);
   lineIn.value = '';
-  // 不强制滚动输出；out 回调会写
 }
 
 lineIn.addEventListener('keydown', (e) => {
@@ -261,78 +332,101 @@ lineIn.addEventListener('keydown', (e) => {
 
 btnDone.addEventListener('click', () => {
   if (!stream) return;
-  // 输入框里还有未回车的内容：先当作一行提交，再 EOF
-  // （避免只点「完成」导致 in() 读到空、变量未赋值）
   if (lineIn.value !== '') {
     stream.pushLine(lineIn.value);
     lineIn.value = '';
   }
   stream.finish();
   setInputEnabled(false);
-  inHint.textContent = '已发送当前行（若有）并「完成」（EOF）';
+  inHint.textContent = '已结束输入（EOF）';
   setStatus('输入已结束', 'ok');
 });
 
-$('btnRun').onclick = async () => {
+function fetchViaEnv() {
+  // 同源 Worker 代理；GitHub Pages 无此接口时会回退直连
+  try {
+    return location.origin + '/api/fetch?target=';
+  } catch {
+    return '';
+  }
+}
+
+async function runCode(src, options = {}) {
   if (running) return;
-  const src = codeEl.value;
-  if (!src.trim()) return alert('请输入源代码，或从「规则 URL」加载');
+  if (!src || !src.trim()) {
+    alert('请输入源代码或加载规则');
+    return;
+  }
 
   outEl.value = '';
   running = true;
   $('btnRun').disabled = true;
   setStatus('运行中…', 'wait');
 
-  stream = new InteractiveInputStream();
-  setInputEnabled(true, true);
+  let needs;
+  let ast;
+  try {
+    ast = parse(src);
+    needs = analyzeNeeds(ast);
+  } catch (e) {
+    outEl.value = '[error] ' + (e.message || e);
+    setStatus('解析错误', 'err');
+    running = false;
+    $('btnRun').disabled = false;
+    return;
+  }
 
-  // 包装：读操作时提示等待
-  const origGetchar = stream.getchar.bind(stream);
-  const origToken = stream.readToken.bind(stream);
-  stream.getchar = async () => {
-    setStatus('等待输入…', 'wait');
-    inHint.textContent = '程序在等输入：写一行后按 Enter';
-    const c = await origGetchar();
-    if (c !== -1) setStatus('运行中…', 'wait');
-    return c;
-  };
-  stream.readToken = async () => {
-    setStatus('等待输入…', 'wait');
-    inHint.textContent = '程序在等输入：写一行后按 Enter';
-    const t = await origToken();
-    if (t !== null) setStatus('运行中…', 'wait');
-    return t;
-  };
+  lastNeeds = needs;
+  cardKey.hidden = !needs.needsKey;
+  cardQuery.hidden = !needs.needsQuery;
+  cardIn.hidden = !needs.needsIn;
+  cardOut.hidden = !needs.needsOut;
+
+  // 输入流：不需要 in 时用空流直接跑
+  if (needs.needsIn) {
+    stream = new InteractiveInputStream(options.prefillIn || '');
+    setInputEnabled(true);
+  } else {
+    stream = new InputStream(options.prefillIn || '');
+    setInputEnabled(false);
+  }
+
+  const keyVal = needs.needsKey ? ($('key').value || '') : '';
+  const fake = new URL('https://local.cppscript/run');
+  if (needs.needsKey) fake.searchParams.set('key', keyVal);
 
   try {
-    const ast = parse(src);
-    const fake = new URL('https://local.cppscript/run');
-    const keyVal = $('key').value;
-    fake.searchParams.set('key', keyVal);
-    try {
-      const u = new URL(location.href);
-      if (keyVal) u.searchParams.set('key', keyVal);
-      else u.searchParams.delete('key');
-      history.replaceState(null, '', u);
-    } catch (_) {}
+    const u = new URL(location.href);
+    if (keyVal) u.searchParams.set('key', keyVal);
+    history.replaceState(null, '', u);
+  } catch (_) {}
 
+  try {
     const interp = new Interpreter(ast, {
       url: fake,
-      env: {},
+      env: {
+        FETCH_VIA: fetchViaEnv(),
+      },
       inputStream: stream,
+      getQueryParam: getLiveQueryParam,
       onChunk: (delta) => {
+        if (cardOut.hidden) cardOut.hidden = false;
         outEl.value += delta;
         outEl.scrollTop = outEl.scrollHeight;
       },
     });
 
     const result = await interp.run();
-    if (!outEl.value && interp.output) outEl.value = interp.output;
+    if (!outEl.value && interp.output) {
+      if (cardOut.hidden) cardOut.hidden = false;
+      outEl.value = interp.output;
+    }
 
     if (result && result.redirect && result.url) {
+      if (cardOut.hidden) cardOut.hidden = false;
       outEl.value += (outEl.value && !outEl.value.endsWith('\n') ? '\n' : '') + '[redirect] ' + result.url;
       setStatus('完成 · 跳转', 'ok');
-      setTimeout(() => { location.href = result.url; }, 500);
+      setTimeout(() => { location.href = result.url; }, 400);
     } else {
       setStatus('完成 ' + ((result && result.status) || 200), 'ok');
     }
@@ -343,14 +437,61 @@ $('btnRun').onclick = async () => {
   } finally {
     running = false;
     $('btnRun').disabled = false;
-    if (stream && !stream.eof) {
-      // 程序已结束，关闭输入
-      setInputEnabled(false);
-      inHint.textContent = '程序已结束';
+    if (stream && typeof stream.finish === 'function' && !stream.eof) {
+      // 程序已结束
     }
+    setInputEnabled(false);
     stream = null;
+    if (!needs.needsIn) inHint.textContent = '';
+    else inHint.textContent = '程序已结束';
   }
-};
+}
+
+$('btnRun').onclick = () => runCode(codeEl.value);
+
+// ---------- 启动：?url= 自动加载并运行 ----------
+const pageUrl = new URL(location.href);
+if (pageUrl.searchParams.has('key')) {
+  $('key').value = pageUrl.searchParams.get('key') || '';
+}
+{
+  const skip = new Set(['url', 'key', 'in', 'run', 'server']);
+  const lines = [];
+  for (const [k, v] of pageUrl.searchParams.entries()) {
+    if (skip.has(k)) continue;
+    lines.push(k + '=' + v);
+  }
+  if (lines.length && queryBox) queryBox.value = lines.join('\n');
+}
+
+const preload = pageUrl.searchParams.get('url');
+if (preload) {
+  $('ruleUrl').value = preload;
+  (async () => {
+    try {
+      await loadRule(preload);
+      showTab('code');
+      const needs = refreshNeedsUI();
+      // 缺 key 且规则需要 key：不自动跑，等用户填
+      if (needs.needsKey && !pageUrl.searchParams.has('key')) {
+        setStatus('请填写 key 后点运行', 'wait');
+        cardKey.hidden = false;
+        return;
+      }
+      // 需要交互输入：仍自动开始跑（会停在 in 等待）
+      await runCode(codeEl.value, {
+        prefillIn: pageUrl.searchParams.get('in') || '',
+      });
+    } catch (e) {
+      setStatus('加载失败: ' + e.message, true);
+    }
+  })();
+} else if (!codeEl.value) {
+  codeEl.value = DEMO;
+  refreshNeedsUI();
+} else {
+  refreshNeedsUI();
+}
 </script>
 </body>
 </html>

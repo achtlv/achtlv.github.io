@@ -261,9 +261,15 @@ lineIn.addEventListener('keydown', (e) => {
 
 btnDone.addEventListener('click', () => {
   if (!stream) return;
+  // 输入框里还有未回车的内容：先当作一行提交，再 EOF
+  // （避免只点「完成」导致 in() 读到空、变量未赋值）
+  if (lineIn.value !== '') {
+    stream.pushLine(lineIn.value);
+    lineIn.value = '';
+  }
   stream.finish();
   setInputEnabled(false);
-  inHint.textContent = '已发送「完成」（EOF）';
+  inHint.textContent = '已发送当前行（若有）并「完成」（EOF）';
   setStatus('输入已结束', 'ok');
 });
 

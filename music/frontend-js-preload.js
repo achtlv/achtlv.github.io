@@ -190,7 +190,6 @@ var len=state.playlist.length;
 var curIdx=state.current;
 if(curIdx<0||len<1)return;
 var curSong=state.playlist[curIdx];
-// 当前歌曲：立刻取封面+歌词（不等人点播放）
 if(curSong){
 try{preloadSongPic(curSong);}catch(e){}
 try{preloadSongLyric(curSong);}catch(e){}
@@ -200,19 +199,33 @@ setTimeout(function(){
 if(state.current!==scheduledIdx)return;
 var curSong2=state.playlist[curIdx];
 if(!curSong2)return;
-var prevIdx=(curIdx-1+len)%len;
-var nextIdx=(curIdx+1)%len;
 var targets=[];
-var prevSong=state.playlist[prevIdx];
-var nextSong=state.playlist[nextIdx];
-if(prevSong&&prevSong!==curSong2)targets.push(prevSong);
-if(nextSong&&nextSong!==curSong2&&nextSong!==prevSong)targets.push(nextSong);
+var seen={};
+function addIdx(idx){
+if(idx==null||idx<0||idx>=len)return;
+if(idx===curIdx)return;
+if(seen[idx])return;
+seen[idx]=true;
+var s=state.playlist[idx];
+if(s)targets.push(s);
+}
+if(state.mode==='shuffle'&&state.shuffleOrder&&state.shuffleOrder.length===len){
+var sp=(typeof state.shufflePos==='number'?state.shufflePos:state.shuffleOrder.indexOf(curIdx));
+if(sp<0)sp=0;
+// 打乱列表下一首、上一首
+addIdx(state.shuffleOrder[(sp+1)%len]);
+addIdx(state.shuffleOrder[(sp-1+len)%len]);
+}
+// 原列表下一首、上一首
+addIdx((curIdx+1)%len);
+addIdx((curIdx-1+len)%len);
 for(var i=0;i<targets.length;i++){
-preloadSongPic(targets[i]);
-preloadSongLyric(targets[i]);
-preloadSongUrl(targets[i]);
+try{preloadSongPic(targets[i]);}catch(e){}
+try{preloadSongLyric(targets[i]);}catch(e){}
+try{preloadSongUrl(targets[i]);}catch(e){}
 }
-},PRELOAD_DELAY);
+},80);
 }
+
 
 `;

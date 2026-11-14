@@ -7,9 +7,9 @@ var url=extractUrl(r);
 if(url&&isHttpUrl(url)){return {url:url,level:LEVELS[i],expi:extractExpi(r)};}
 }catch(e){}
 }
+if(!(String(id||'').indexOf('kg')===0||/^[a-fA-F0-9]{32}$/.test(String(id||'')))){
 var off=await probeOfficialLocal(id);
-if(off&&off.url){
-return {url:off.url,level:'official',expi:off.expi||0,fromCache:!!off.fromCache};
+if(off&&off.url){return {url:off.url,level:'official',expi:off.expi||0,fromCache:!!off.fromCache};}
 }
 return null;
 }
@@ -29,9 +29,9 @@ return {url:url,level:LEVELS[i],expi:expi};
 }
 }catch(e){}
 }
+if(!(String(id||'').indexOf('kg')===0||/^[a-fA-F0-9]{32}$/.test(String(id||'')))){
 var off=await probeOfficialLocal(id);
-if(off&&off.url){
-return {url:off.url,level:'official',expi:off.expi||0,fromCache:!!off.fromCache};
+if(off&&off.url){return {url:off.url,level:'official',expi:off.expi||0,fromCache:!!off.fromCache};}
 }
 return null;
 }
@@ -412,8 +412,9 @@ new Promise(function(res){setTimeout(function(){res({code:408,msg:'搜索超时'
 ]);
 }catch(e){rsk={code:500,msg:String(e&&e.message||e)};}
 if(rsk&&rsk.id){
-var meta4={id:String(rsk.id),name:rsk.name||text,artist:rsk.artist||'未知歌手',pic:rsk.pic||'',duration:rsk.duration||0,source:'kg',quality:'exhigh'};
+var meta4={id:String(rsk.id),name:rsk.name||text,artist:rsk.artist||'未知歌手',pic:rsk.pic||'',duration:rsk.duration||0,source:'kg',quality:'exhigh',hash:rsk.hash||'',hqHash:rsk.hqHash||'',sqHash:rsk.sqHash||''};
 if(meta4.id.indexOf('kg')!==0&&/^[a-fA-F0-9]{32}$/.test(meta4.id))meta4.id='kg'+meta4.id.toLowerCase();
+if(!meta4.hash&&meta4.id.indexOf('kg')===0)meta4.hash=meta4.id.substring(2);
 if(meta4.pic){try{await saveCoverToCache(meta4.id,meta4.pic);}catch(e){}}
 return meta4;
 }

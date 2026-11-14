@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261113.02';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261114.01';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -674,32 +674,56 @@ if(token!==playToken)return;
 triggerPreloadNeighbors();
 }
 
+function ensureShuffleOrder(opts){
+opts=opts||{};var n=state.playlist.length;
+if(n<=0){state.shuffleOrder=[];state.shufflePos=0;return;}
+var idxs=[];for(var i=0;i<n;i++)idxs.push(i);
+for(var i=n-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=idxs[i];idxs[i]=idxs[j];idxs[j]=t;}
+if(n>1&&opts.avoidFirstIdx!=null&&idxs[0]===opts.avoidFirstIdx){
+for(var k=1;k<n;k++){if(idxs[k]!==opts.avoidFirstIdx){var u=idxs[0];idxs[0]=idxs[k];idxs[k]=u;break;}}
+}
+if(n>1&&opts.avoidLastIdx!=null&&idxs[n-1]===opts.avoidLastIdx){
+for(var k2=n-2;k2>=0;k2--){if(idxs[k2]!==opts.avoidLastIdx){var u2=idxs[n-1];idxs[n-1]=idxs[k2];idxs[k2]=u2;break;}}
+}
+state.shuffleOrder=idxs;
+}
 function nextSong(forcePlay){
 if(!state.playlist.length)return;
 var keepPlay=(forcePlay===true)?true:!!state.playing;
-pendingSeekFromUser=false;
-pendingSeekRatio=null;
-try{resetProgressUI();}catch(e){}
-var n=state.current;
+pendingSeekFromUser=false;pendingSeekRatio=null;try{resetProgressUI();}catch(e){}
+if(state.mode==='single'){playIndex(state.current,null,null,{play:keepPlay});return;}
 if(state.mode==='shuffle'){
-if(state.playlist.length===1){n=0}
-else{do{n=Math.floor(Math.random()*state.playlist.length)}while(n===state.current)}
-}else{n=(state.current+1)%state.playlist.length;}
-playIndex(n,null,null,{play:keepPlay});
+if(!state.shuffleOrder||state.shuffleOrder.length!==state.playlist.length){
+ensureShuffleOrder({avoidFirstIdx:state.current});
+var pos=state.shuffleOrder.indexOf(state.current);state.shufflePos=(pos>=0?pos:-1);
 }
+if(state.shufflePos>=state.shuffleOrder.length-1){
+var lastIdx=state.shuffleOrder[state.shuffleOrder.length-1];
+ensureShuffleOrder({avoidFirstIdx:lastIdx});state.shufflePos=0;
+}else{state.shufflePos=(state.shufflePos<0?0:state.shufflePos+1);}
+playIndex(state.shuffleOrder[state.shufflePos],null,null,{play:keepPlay});return;
+}
+playIndex((state.current+1)%state.playlist.length,null,null,{play:keepPlay});
+}
+
 function prevSong(){
 if(!state.playlist.length)return;
 var keepPlay=!!state.playing;
-pendingSeekFromUser=false;
-pendingSeekRatio=null;
-try{resetProgressUI();}catch(e){}
-var n=state.current;
+pendingSeekFromUser=false;pendingSeekRatio=null;try{resetProgressUI();}catch(e){}
 if(state.mode==='shuffle'){
-if(state.playlist.length===1){n=0}
-else{do{n=Math.floor(Math.random()*state.playlist.length)}while(n===state.current)}
-}else{n=(state.current-1+state.playlist.length)%state.playlist.length;}
-playIndex(n,null,null,{play:keepPlay});
+if(!state.shuffleOrder||state.shuffleOrder.length!==state.playlist.length){
+ensureShuffleOrder({avoidLastIdx:state.current});
+var pos0=state.shuffleOrder.indexOf(state.current);state.shufflePos=(pos0>=0?pos0:0);
 }
+if(state.shufflePos<=0){
+var firstIdx=state.shuffleOrder[0];
+ensureShuffleOrder({avoidLastIdx:firstIdx});state.shufflePos=state.shuffleOrder.length-1;
+}else{state.shufflePos=state.shufflePos-1;}
+playIndex(state.shuffleOrder[state.shufflePos],null,null,{play:keepPlay});return;
+}
+playIndex((state.current-1+state.playlist.length)%state.playlist.length,null,null,{play:keepPlay});
+}
+
 
 async function resumeWithRefresh(pos){
 var song=state.playlist[state.current];
@@ -969,18 +993,17 @@ return;
 }
 if(!(audio.duration&&isFinite(audio.duration)&&audio.duration>0))return;
 var t=ratio*audio.duration;
-// 拖到末尾：仅播放中才切下一首
+// 拖到末尾：单曲循环重播；否则播放中切下一首
 if(ratio>=0.995||t>=audio.duration-0.25){
-if(state.playing){
-try{nextSong(true);}catch(e){}
-}else{
-try{audio.currentTime=Math.max(0,audio.duration-0.05);}catch(e){}
-updateSeekBg(100);
-$('curTime').textContent=fmt(audio.duration||0);
+if(state.mode==='single'||state.mode==='loop'){
+try{audio.currentTime=0;}catch(e){}updateSeekBg(0);
+try{if($('curTime'))$('curTime').textContent=fmt(0);}catch(e){}
+if(state.playing){try{var pR=audio.play();if(pR&&pR.catch)pR.catch(function(){});}catch(e){}}
+pendingSeekFromUser=false;pendingSeekRatio=null;return;
 }
-pendingSeekFromUser=false;
-pendingSeekRatio=null;
-return;
+if(state.playing){try{nextSong(true);}catch(e){}}
+else{try{audio.currentTime=Math.max(0,audio.duration-0.05);}catch(e){}updateSeekBg(100);try{if($('curTime'))$('curTime').textContent=fmt(audio.duration||0);}catch(e){}}
+pendingSeekFromUser=false;pendingSeekRatio=null;return;
 }
 seekWithUrlCheck(t);
 pendingSeekFromUser=false;
@@ -1077,7 +1100,16 @@ if($('modeBtn'))$('modeBtn').addEventListener('click',function(ev){
 blurControl(ev.currentTarget||this);
 var order=['order','single','shuffle'];
 var i=order.indexOf(state.mode);
+if(i<0)i=0;
+var prevMode=state.mode;
 state.mode=order[(i+1)%3];
+if(state.mode==='shuffle'){
+ensureShuffleOrder({avoidFirstIdx:state.current});
+var p=state.shuffleOrder.indexOf(state.current);
+state.shufflePos=(p>=0?p:0);
+}else if(prevMode==='shuffle'){
+state.shuffleOrder=[];state.shufflePos=0;
+}
 toast(state.mode==='single'?'单曲循环':(state.mode==='shuffle'?'随机播放':'顺序播放'));
 if(typeof saveSettingsLocal==='function')saveSettingsLocal();
 if(typeof notifyDataChanged==='function')notifyDataChanged('settings');
@@ -1243,7 +1275,8 @@ loadingMap=loadingMap||{};
 var html='<div class="quality-list">';
 for(var i=0;i<DOWNLOAD_LEVELS.length;i++){
 var lv=DOWNLOAD_LEVELS[i];
-// 官方：仅当三档都失败且不在 loading 时才显示为可点；否则显示为不可用/加载中
+// 酷狗不显示官方音质
+if(song&&song.source==='kg'&&lv.key==='official')continue;
 var isOfficial=lv.key==='official';
 var isCurrent=lv.key===currentQuality;
 var avail=!!availability[lv.key];
@@ -1287,6 +1320,7 @@ if(btn){btn.disabled=true;btn.classList.add('spinning');}
 
 var availability={lossless:false,exhigh:false,standard:false,official:false};
 var loading={lossless:true,exhigh:true,standard:true,official:false};
+if(song&&song.source==='kg'){loading.official=false;}
 var currentIsThisSong=(state.current>=0&&state.playlist[state.current]===song);
 var currentQuality=currentIsThisSong?state.quality:'';
 

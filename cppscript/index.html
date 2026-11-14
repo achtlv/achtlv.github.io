@@ -80,23 +80,16 @@ a { color: var(--accent); }
 }
 .tabs button.active { color: var(--accent); border-color: var(--accent); }
 [hidden] { display: none !important; }
-#btnStopBar {
-  margin-bottom: 0.85rem;
-}
-#btnStop {
-  width: 100%; background: #b91c1c; padding: 0.65rem 1rem;
-}
-@media (prefers-color-scheme: dark) {
-  #btnStop { background: #dc2626; }
-}
+#btnStopBar { margin-bottom: 0.85rem; }
+#btnStop { width: 100%; background: #b91c1c; padding: 0.65rem 1rem; }
+@media (prefers-color-scheme: dark) { #btnStop { background: #dc2626; } }
 .out-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.5rem; }
 .out-head h2 { margin: 0; }
 .out-head button { padding: 0.25rem 0.6rem; font-size: 0.78rem; }
 .modal-mask {
   position: fixed; inset: 0; background: rgba(0,0,0,.45);
   display: flex; align-items: center; justify-content: center;
-  z-index: 9999; padding: 1rem;
-  overflow: hidden;
+  z-index: 9999; padding: 1rem; overflow: hidden;
 }
 .modal {
   background: var(--panel); color: var(--text);
@@ -131,41 +124,43 @@ a { color: var(--accent); }
     <span class="meta">浏览器执行</span>
   </header>
 
-  <div id="btnStopBar" hidden>
-    <button type="button" id="btnStop">强行停止</button>
-  </div>
-
+  <!-- 1. 代码框（未运行显示，运行中隐藏） -->
   <div class="card" id="cardRule">
     <div class="card-head">
-      <h2>规则</h2>
+      <h2>代码</h2>
       <button type="button" id="btnRun">运行</button>
     </div>
     <div class="tabs">
-      <button type="button" class="active" id="tabCode">源代码</button>
-      <button type="button" id="tabUrl">规则 URL</button>
+      <button type="button" class="active" id="tabCode">编辑器</button>
+      <button type="button" id="tabUrl">URL</button>
     </div>
     <div id="paneCode">
       <textarea class="code" id="code" spellcheck="false" placeholder="auto main() { ... }"></textarea>
     </div>
     <div id="paneUrl" hidden>
       <input type="url" id="ruleUrl" placeholder="https://.../rule.txt" />
-      <p class="hint">无协议自动补 https；http 会升为 https</p>
+      <p class="hint">无协议自动补 https；http 升为 https。点「运行」会先保存到地址栏再执行。</p>
       <div class="row">
         <button type="button" class="secondary" id="btnLoad">加载到编辑器</button>
       </div>
     </div>
   </div>
 
-  <div class="card" id="cardKey" hidden>
-    <h2>参数 key</h2>
-    <input type="text" id="key" placeholder='例如 2^3 或 {1,"abc",false}' />
+  <!-- 2. 输出 -->
+  <div class="card" id="cardOut" hidden>
+    <div class="out-head">
+      <h2>输出</h2>
+      <button type="button" class="secondary" id="btnClearOut">清空输出</button>
+    </div>
+    <textarea class="out" id="out" readonly></textarea>
   </div>
 
-  <div class="card" id="cardQuery" hidden>
-    <h2>Query 参数</h2>
-    <textarea id="queryBox" rows="4" placeholder="一行一个：&#10;a=1&#10;b=hello"></textarea>
+  <!-- 3. 强行停止（运行中显示） -->
+  <div id="btnStopBar" hidden>
+    <button type="button" id="btnStop">强行停止</button>
   </div>
 
+  <!-- 4. 标准输入 -->
   <div class="card" id="cardIn" hidden>
     <h2>标准输入</h2>
     <p class="hint">Enter 提交一行；「完成」= EOF</p>
@@ -176,12 +171,16 @@ a { color: var(--accent); }
     <p class="hint" id="inHint"></p>
   </div>
 
-  <div class="card" id="cardOut" hidden>
-    <div class="out-head">
-      <h2>输出</h2>
-      <button type="button" class="secondary" id="btnClearOut">清空输出</button>
-    </div>
-    <textarea class="out" id="out" readonly></textarea>
+  <!-- 5. key -->
+  <div class="card" id="cardKey" hidden>
+    <h2>参数 key</h2>
+    <input type="text" id="key" placeholder='例如 2^3 或 {1,"abc",false}' />
+  </div>
+
+  <!-- 6. query -->
+  <div class="card" id="cardQuery" hidden>
+    <h2>Query 参数</h2>
+    <textarea id="queryBox" rows="4" placeholder="一行一个：&#10;a=1&#10;b=hello"></textarea>
   </div>
 
   <p class="foot"><a href="./docs/">文档</a></p>
@@ -218,6 +217,7 @@ const queryBox = $('queryBox');
 const btnRun = $('btnRun');
 const btnStop = $('btnStop');
 const btnStopBar = $('btnStopBar');
+const ruleUrlEl = $('ruleUrl');
 
 const DEMO = `auto main() {
     out("name?\\n");
@@ -263,15 +263,11 @@ function openModal({ title, url, message, buttons }) {
       urlEl.hidden = false;
       urlEl.textContent = url;
       urlEl.title = url;
-    } else {
-      urlEl.hidden = true;
-    }
+    } else urlEl.hidden = true;
     if (message) {
       msgEl.hidden = false;
       msgEl.textContent = message;
-    } else {
-      msgEl.hidden = true;
-    }
+    } else msgEl.hidden = true;
     const close = (val) => {
       mask.hidden = true;
       lockScroll(false);
@@ -359,7 +355,6 @@ function analyzeNeeds(ast) {
         if (a0 && a0.type === 'String' && a0.value === 'key') needsKey = true;
         else needsQuery = true;
       }
-      if (fn === 'modal') needsOut = needsOut; // no box required
     }
     for (const k of Object.keys(n)) {
       if (k === 'type') continue;
@@ -413,16 +408,41 @@ function hideRuntimePanels() {
   cardIn.hidden = true;
 }
 
-function showTab(name) {
+/** 保存 URL 页内容到地址栏参数（不刷新） */
+function saveUrlFromBox() {
+  let u = ruleUrlEl.value.trim();
+  if (!u) {
+    setUrlParam('url', '');
+    return '';
+  }
+  u = ensureHttps(u);
+  ruleUrlEl.value = u;
+  setUrlParam('url', u);
+  return u;
+}
+
+function showTab(name, { fromUser = false } = {}) {
   const isCode = name === 'code';
+  // 切到编辑器：若 URL 框或地址栏有 url，先保存
+  if (isCode && fromUser) {
+    const box = ruleUrlEl.value.trim();
+    const param = new URL(location.href).searchParams.get('url');
+    if (box || param) {
+      const u = saveUrlFromBox() || (param ? ensureHttps(param) : '');
+      if (u && !codeEl.value.trim()) {
+        // 有 URL 但编辑器空：尝试加载
+        loadRule(u).catch(() => {});
+      }
+    }
+  }
   $('tabCode').classList.toggle('active', isCode);
   $('tabUrl').classList.toggle('active', !isCode);
   $('paneCode').hidden = !isCode;
   $('paneUrl').hidden = isCode;
 }
 
-$('tabCode').onclick = () => showTab('code');
-$('tabUrl').onclick = () => showTab('url');
+$('tabCode').onclick = () => showTab('code', { fromUser: true });
+$('tabUrl').onclick = () => showTab('url', { fromUser: true });
 
 async function loadRule(url) {
   const fixed = ensureHttps(url);
@@ -435,10 +455,10 @@ async function loadRule(url) {
 }
 
 $('btnLoad').onclick = async () => {
-  let u = $('ruleUrl').value.trim();
+  let u = ruleUrlEl.value.trim();
   if (!u) return alert('请填写规则 URL');
   u = ensureHttps(u);
-  $('ruleUrl').value = u;
+  ruleUrlEl.value = u;
   try {
     await loadRule(u);
     setUrlParam('url', u);
@@ -455,13 +475,12 @@ $('btnClearOut').onclick = () => {
   cardOut.hidden = true;
 };
 
-// 编辑源代码：清空 url 参数与 URL 输入框
 let codeEditTimer = null;
 codeEl.addEventListener('input', () => {
   clearTimeout(codeEditTimer);
   codeEditTimer = setTimeout(() => {
     setUrlParam('url', '');
-    $('ruleUrl').value = '';
+    ruleUrlEl.value = '';
   }, 200);
 });
 
@@ -544,10 +563,10 @@ async function runCode(src, options = {}) {
     return;
   }
 
-  // 运行时按需显示
   cardKey.hidden = !needs.needsKey;
   cardQuery.hidden = !needs.needsQuery;
   cardIn.hidden = !needs.needsIn;
+  // 仅当代码会真正写输出流时才预先显示输出框
   if (needs.needsOut) cardOut.hidden = false;
 
   if (needs.needsIn) {
@@ -565,6 +584,7 @@ async function runCode(src, options = {}) {
   const fake = new URL('https://local.cppscript/run');
   if (needs.needsKey) fake.searchParams.set('key', keyVal);
 
+  let hadStreamOut = false;
   try {
     const interp = new Interpreter(ast, {
       url: fake,
@@ -574,6 +594,7 @@ async function runCode(src, options = {}) {
       abortSignal: abortCtl.signal,
       showModal: showModalConfirm,
       onChunk: (delta) => {
+        hadStreamOut = true;
         if (cardOut.hidden) cardOut.hidden = false;
         outEl.value += delta;
         outEl.scrollTop = outEl.scrollHeight;
@@ -581,16 +602,21 @@ async function runCode(src, options = {}) {
     });
 
     const result = await interp.run();
-    if (!outEl.value && interp.output) {
+    if (interp.output && interp.output.length) {
+      hadStreamOut = true;
       if (cardOut.hidden) cardOut.hidden = false;
-      outEl.value = interp.output;
+      if (!outEl.value) outEl.value = interp.output;
     }
 
+    // 跳转不算输出：仅有 redirect 时不显示输出框（除非已有 out 内容）
     if (result && result.redirect && result.url) {
-      if (cardOut.hidden) cardOut.hidden = false;
       const mode = result.redirectMode || 'auto';
-      outEl.value += (outEl.value && !outEl.value.endsWith('\n') ? '\n' : '') +
-        '[redirect' + (mode === 'confirm' ? '·确认' : '') + '] ' + result.url;
+      if (hadStreamOut) {
+        outEl.value += (outEl.value && !outEl.value.endsWith('\n') ? '\n' : '') +
+          '[redirect' + (mode === 'confirm' ? '·确认' : '') + '] ' + result.url;
+      } else {
+        cardOut.hidden = true;
+      }
       setStatus('完成 · 跳转', 'ok');
       showToast('运行完成');
       if (mode === 'confirm') {
@@ -614,10 +640,30 @@ async function runCode(src, options = {}) {
     setRunningUI(false);
     setInputEnabled(false);
     stream = null;
-    // 运行结束隐藏 key/query/in；输出保留直到清空
     hideRuntimePanels();
     inHint.textContent = '';
   }
+}
+
+/** 运行入口：若在 URL 页则先保存参数并加载源码 */
+async function onRunClick() {
+  if (running) return;
+  // 当前在 URL 页：先保存 URL 到地址栏，再加载再运行
+  const onUrlTab = !$('paneUrl').hidden;
+  if (onUrlTab) {
+    const u = saveUrlFromBox();
+    if (!u) {
+      alert('请填写规则 URL');
+      return;
+    }
+    try {
+      await loadRule(u);
+    } catch (e) {
+      setStatus('加载失败: ' + e.message, 'err');
+      return;
+    }
+  }
+  await runCode(codeEl.value);
 }
 
 btnStop.onclick = () => {
@@ -627,9 +673,9 @@ btnStop.onclick = () => {
   }
 };
 
-btnRun.onclick = () => runCode(codeEl.value);
+btnRun.onclick = () => onRunClick();
 
-// boot
+// ---------- boot ----------
 const pageUrl = new URL(location.href);
 if (pageUrl.searchParams.has('key')) $('key').value = pageUrl.searchParams.get('key') || '';
 {
@@ -645,19 +691,22 @@ if (pageUrl.searchParams.has('key')) $('key').value = pageUrl.searchParams.get('
 const preload = pageUrl.searchParams.get('url');
 if (preload) {
   const fixed = ensureHttps(preload);
-  $('ruleUrl').value = fixed;
+  ruleUrlEl.value = fixed;
   if (fixed !== preload) setUrlParam('url', fixed);
+  // 有 url 参数：默认停在 URL 页，不自动切编辑器
+  showTab('url');
   (async () => {
     try {
       await loadRule(fixed);
-      showTab('code');
+      // 仍停在 URL 页；用户点编辑器才会切换并保存
       await runCode(codeEl.value, { prefillIn: pageUrl.searchParams.get('in') || '' });
     } catch (e) {
       setStatus('加载失败: ' + e.message, 'err');
     }
   })();
-} else if (!codeEl.value) {
-  codeEl.value = DEMO;
+} else {
+  showTab('code');
+  if (!codeEl.value) codeEl.value = DEMO;
 }
 </script>
 </body>

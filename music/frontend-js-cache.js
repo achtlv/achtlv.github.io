@@ -326,6 +326,9 @@ return {main:String(obj.l||''),trans:String(obj.t||''),roma:String(obj.r||'')};
 }
 
 async function saveLyricToCache(id,main,trans,roma){
+// 禁止把空歌词/占位文案写入缓存，否则会一直命中「暂无歌词」
+var m=String(main||'').trim();
+if(!m||m==='暂无歌词'||m==='外部音源，暂无歌词'||m==='视频音源，暂无歌词')return;
 var key='lyric'+String(id);
 var expireAt=Date.now()+COVER_LYRIC_TTL_MS;
 var obj={l:main||'',t:trans||'',r:roma||''};

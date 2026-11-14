@@ -557,28 +557,86 @@ return {code:404,msg:'无信息'};
 async function localGetSongLyric(id){
 var songId=String(id||'').trim();
 if(!songId)return {code:400,msg:'无效歌曲 ID'};
+// ---------- 酷狗：必须走同源 Worker 代理（浏览器直连 m.kugou.com 会被 CORS 拦截，这是歌词丢失的根因） ----------
 if(/^kg/i.test(songId)||/^[a-fA-F0-9]{32}$/.test(songId)){
 var hash=songId.indexOf('kg')===0?songId.substring(2):songId;
 hash=String(hash).toLowerCase().replace(/[^a-f0-9]/g,'');
-if(hash.length===32){
-try{if(typeof getLocalLyricOnly==='function'){var locK=getLocalLyricOnly(songId);if(locK&&(locK.main||locK.trans||locK.roma)){return {code:200,data:{lrc:{lyric:ensureHttpsInText(locK.main||'')},tlyric:{lyric:ensureHttpsInText(locK.trans||'')},romalrc:{lyric:ensureHttpsInText(locK.roma||'')}}};}}}catch(e){}
+if(hash.length!==32)return {code:400,msg:'无效酷狗 hash'};
+// 本地缓存（非空才用）
 try{
-var krcUrl='https://m.kugou.com/app/i/krc.php?cmd=100&hash='+encodeURIComponent(hash)+'&timelength=999999&d=0.1';
-var rk=await localFetchJson(krcUrl,{method:'GET',headers:{'User-Agent':'Mozilla/5.0','Referer':'https://www.kugou.com/'}},12000);
-var rawK='';
-if(typeof rk.data==='string')rawK=rk.data;else if(rk.text)rawK=rk.text;else if(rk.data&&typeof rk.data.lyric==='string')rawK=rk.data.lyric;
-if(rawK&&String(rawK).trim()){
-var cleaned=typeof cleanLyricMeta==='function'?cleanLyricMeta(String(rawK)):String(rawK);
-if(cleaned&&cleaned.trim()){try{if(typeof saveLyricToCache==='function')await saveLyricToCache(songId,cleaned,'','');}catch(e){}
-return {code:200,data:{lrc:{lyric:ensureHttpsInText(cleaned)},tlyric:{lyric:''},romalrc:{lyric:''}}};}
+if(typeof getLocalLyricOnly==='function'){
+var locK=getLocalLyricOnly(songId);
+if(locK&&locK.main&&String(locK.main).trim()&&String(locK.main).trim()!=='暂无歌词'){
+return {code:200,data:{
+lrc:{lyric:ensureHttpsInText(locK.main||'')},
+tlyric:{lyric:ensureHttpsInText(locK.trans||'')},
+romalrc:{lyric:ensureHttpsInText(locK.roma||'')}
+}};
+}
 }
 }catch(e){}
-return {code:404,msg:'暂无歌词'};
+try{
+if(typeof getCachedLyric==='function'){
+var cK=await getCachedLyric(songId);
+if(cK&&cK.main&&String(cK.main).trim()&&String(cK.main).trim()!=='暂无歌词'){
+return {code:200,data:{
+lrc:{lyric:ensureHttpsInText(cK.main||'')},
+tlyric:{lyric:ensureHttpsInText(cK.trans||'')},
+romalrc:{lyric:ensureHttpsInText(cK.roma||'')}
+}};
 }
 }
-try{if(typeof getLocalLyricOnly==='function'){var loc=getLocalLyricOnly(songId);if(loc&&(loc.main||loc.trans||loc.roma)){return {code:200,data:{lrc:{lyric:ensureHttpsInText(loc.main||'')},tlyric:{lyric:ensureHttpsInText(loc.trans||'')},romalrc:{lyric:ensureHttpsInText(loc.roma||'')}}};}}}catch(e){}
+}catch(e){}
+// Worker 代理
+try{
+var rk=await localFetchJson(toAbsoluteApiUrl('/api/kgLyric'),{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({hash:hash,id:songId})
+},15000);
+var rawK='';
+var body=rk&&rk.data;
+if(body&&body.code===200&&body.data){
+rawK=body.data.lyric||(body.data.lrc&&(body.data.lrc.lyric||body.data.lrc))||'';
+}
+if(!rawK&&rk&&rk.text){
+try{var pj=JSON.parse(rk.text);if(pj&&pj.data)rawK=pj.data.lyric||'';}catch(e){rawK=rk.text;}
+}
+rawK=String(rawK||'').replace(/^\uFEFF/,'');
+if(rawK&&rawK.trim()){
+var cleaned=typeof cleanLyricMeta==='function'?cleanLyricMeta(rawK):rawK;
+// 若误删成空，回退到仅去元信息行的简单处理
+if(!cleaned||!String(cleaned).trim()){
+cleaned=rawK.split(/\r?\n/).filter(function(line){
+var t=String(line).trim();
+if(!t)return false;
+if(/^\[[a-zA-Z$][^\]]*:/.test(t)&&!/^\[\d{1,2}:\d{2}/.test(t))return false;
+return true;
+}).join('\n');
+}
+if(cleaned&&String(cleaned).trim()){
+try{if(typeof saveLyricToCache==='function')await saveLyricToCache(songId,cleaned,'','');}catch(e){}
+return {code:200,data:{lrc:{lyric:ensureHttpsInText(cleaned)},tlyric:{lyric:''},romalrc:{lyric:''}}};
+}
+}
+}catch(e){}
+return {code:404,msg:'暂无歌词',data:{lrc:{lyric:''},tlyric:{lyric:''},romalrc:{lyric:''}}};
+}
+// ---------- 网易 ----------
+try{
+if(typeof getLocalLyricOnly==='function'){
+var loc=getLocalLyricOnly(songId);
+if(loc&&loc.main&&String(loc.main).trim()&&String(loc.main).trim()!=='暂无歌词'){
+return {code:200,data:{
+lrc:{lyric:ensureHttpsInText(loc.main||'')},
+tlyric:{lyric:ensureHttpsInText(loc.trans||'')},
+romalrc:{lyric:ensureHttpsInText(loc.roma||'')}
+}};
+}
+}
+}catch(e){}
 var tasks=[];
-tasks.push(async function(){try{if(typeof getCachedLyric==='function'){var c=await getCachedLyric(songId);if(c&&(c.main||c.trans||c.roma)){return {code:200,data:{lrc:{lyric:ensureHttpsInText(c.main||'')},tlyric:{lyric:ensureHttpsInText(c.trans||'')},romalrc:{lyric:ensureHttpsInText(c.roma||'')}}};}}}catch(e){}return null;});
+tasks.push(async function(){try{if(typeof getCachedLyric==='function'){var c=await getCachedLyric(songId);if(c&&c.main&&String(c.main).trim()&&String(c.main).trim()!=='暂无歌词'){return {code:200,data:{lrc:{lyric:ensureHttpsInText(c.main||'')},tlyric:{lyric:ensureHttpsInText(c.trans||'')},romalrc:{lyric:ensureHttpsInText(c.roma||'')}}};}}}catch(e){}return null;});
 tasks.push(async function(){try{
 var rv=await localFetchJson('https://api.vkeys.cn/v2/music/netease/lyric?id='+encodeURIComponent(songId),{method:'GET'});
 var d=(rv.data&&rv.data.data)||rv.data||{};
@@ -594,17 +652,20 @@ var results=await Promise.all(tasks.map(function(fn){return fn().catch(function(
 var best=null;
 for(var i=0;i<results.length;i++){
 var r=results[i];if(!r||r.code!==200||!r.data)continue;
-var hasMain=r.data.lrc&&r.data.lrc.lyric;var hasRoma=r.data.romalrc&&r.data.romalrc.lyric;
+var hasMain=r.data.lrc&&r.data.lrc.lyric&&String(r.data.lrc.lyric).trim();
+var hasRoma=r.data.romalrc&&r.data.romalrc.lyric&&String(r.data.romalrc.lyric).trim();
 if(hasMain&&hasRoma){best=r;break;}if(hasMain&&!best)best=r;
 }
 if(best){
 try{var bm=best.data.lrc&&best.data.lrc.lyric||'';var bt=best.data.tlyric&&best.data.tlyric.lyric||'';var br=best.data.romalrc&&best.data.romalrc.lyric||'';
 if(!br){for(var j=0;j<results.length;j++){var rj=results[j];if(rj&&rj.data&&rj.data.romalrc&&rj.data.romalrc.lyric){br=rj.data.romalrc.lyric;best.data.romalrc={lyric:br};break;}}}
-if(typeof saveLyricToCache==='function')await saveLyricToCache(songId,bm,bt,br);}catch(e){}
+if(bm&&String(bm).trim()&&typeof saveLyricToCache==='function')await saveLyricToCache(songId,bm,bt,br);}catch(e){}
 return best;
 }
 return {code:404,msg:'暂无歌词',data:{lrc:{lyric:''},tlyric:{lyric:''},romalrc:{lyric:''}}};
 }
+
+
 
 async function textdbPutOne(safeKey,val){
 // 浏览器直连 textdb（不走 Worker）

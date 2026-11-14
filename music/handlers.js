@@ -119,3 +119,35 @@ export async function handleGetSongInfo() { return json({ code: 404, msg: "clien
 export async function handleDownload() { return json({ code: 404 }, 404); }
 export async function handleOfficialResolve() { return json({ code: 404 }, 404); }
 export async function proxy() { return new Response("not found", { status: 404 }); }
+
+
+
+export async function handleKgLyric(hash) {
+  const h = String(hash || "").toLowerCase().replace(/[^a-f0-9]/g, "");
+  if (h.length !== 32) return json({ code: 400, msg: "无效 hash" }, 400);
+  const tryUrls = [
+    "https://m.kugou.com/app/i/krc.php?cmd=100&hash=" + encodeURIComponent(h) + "&timelength=999999&d=0.1",
+    "http://m.kugou.com/app/i/krc.php?cmd=100&hash=" + encodeURIComponent(h) + "&timelength=999999&d=0.1",
+  ];
+  for (let i = 0; i < tryUrls.length; i++) {
+    try {
+      const r = await fetchJson(tryUrls[i], {
+        headers: { "User-Agent": UA, "Referer": "https://www.kugou.com/", "Accept": "*/*" },
+      }, 12000);
+      let raw = "";
+      if (r.text && String(r.text).trim()) raw = r.text;
+      else if (typeof r.data === "string") raw = r.data;
+      else if (r.data && r.data.lyric) raw = String(r.data.lyric);
+      // 去掉 BOM
+      raw = String(raw || "").replace(/^\uFEFF/, "");
+      if (raw && /\[\d{1,2}:\d{2}/.test(raw)) {
+        return json({ code: 200, data: { lyric: raw, lrc: { lyric: raw } } });
+      }
+      if (raw && raw.length > 20 && raw.indexOf("[") >= 0) {
+        return json({ code: 200, data: { lyric: raw, lrc: { lyric: raw } } });
+      }
+    } catch (e) {}
+  }
+  return json({ code: 404, msg: "暂无歌词" });
+}
+

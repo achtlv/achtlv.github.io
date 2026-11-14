@@ -84,63 +84,45 @@ schedulePreloadRetry(song,'pic');
 async function preloadSongLyric(song){
 if(!song||!song.id)return;
 var entry=getPreloadEntry(song.id);
-if(!entry||entry.lyricDone)return;
-
-if(song.external){
-entry.lyricDone=true;
-return;
-}
-
+if(!entry)return;
+if(entry.lyricDone&&entry.lyric)return;
+if(song.external){entry.lyricDone=true;return;}
 try{
 var cached=await getCachedLyric(song.id);
 if(cached&&(cached.main||cached.trans||cached.roma)){
-entry.lyric=cached.main||'';
-entry.lyricTrans=cached.trans||'';
-entry.lyricRoma=cached.roma||'';
-// 有原文即可先展示；若无翻译稍后仍可再请求补全
-var hasMain=!!(cached.main&&String(cached.main).trim());
-if(hasMain){
-entry.lyricDone=true;
-}
+entry.lyric=cached.main||'';entry.lyricTrans=cached.trans||'';entry.lyricRoma=cached.roma||'';
+if(cached.main&&String(cached.main).trim())entry.lyricDone=true;
 var cur0=state.playlist[state.current];
-if(cur0===song||(cur0&&String(cur0.id)===String(song.id))){
-state.lyric=cached.main||'暂无歌词';
-state.lyricTrans=cached.trans||'';
+if(cur0&&String(cur0.id)===String(song.id)){
+state.lyric=cached.main||'暂无歌词';state.lyricTrans=cached.trans||'';
 if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;
-state.lyricRoma=cached.roma||'';
-state.lyricLoading=!hasMain;
-state._lastLyricKey=null;
-render();
+state.lyricRoma=cached.roma||'';state.lyricLoading=false;state._lastLyricKey=null;render();
 }
-if(hasMain&&cached.trans)return;
+if(entry.lyricDone)return;
 }
 }catch(e){}
-
 try{
 var lr=await post('/api/getSongLyric',{id:song.id});
-var m=extractLyricMulti(lr);
-entry.lyric=m.main||'';
-entry.lyricTrans=m.trans||'';
-entry.lyricRoma=m.roma||'';
-entry.lyricDone=true;
-
-await saveLyricToCache(song.id,entry.lyric,entry.lyricTrans,entry.lyricRoma);
-
-var cur=state.playlist[state.current];
-if(cur===song){
-state.lyric=entry.lyric||'暂无歌词';
-state.lyricTrans=entry.lyricTrans;
+var m=(typeof extractLyricMulti==='function')?extractLyricMulti(lr):{main:'',trans:'',roma:''};
+entry.lyric=m.main||'';entry.lyricTrans=m.trans||'';entry.lyricRoma=m.roma||'';
+entry.lyricDone=!!(m.main&&String(m.main).trim()&&String(m.main).trim()!=='暂无歌词');
+try{if(typeof saveLyricToCache==='function')await saveLyricToCache(song.id,m.main||'',m.trans||'',m.roma||'');}catch(e){}
+var cur1=state.playlist[state.current];
+if(cur1&&String(cur1.id)===String(song.id)){
+state.lyric=(m.main&&String(m.main).trim())?m.main:'暂无歌词';
+state.lyricTrans=m.trans||'';
 if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;
-state.lyricRoma=entry.lyricRoma;
-state.lyricLoading=false;
-state._lastLyricKey=null;
-render();
+state.lyricRoma=m.roma||'';state.lyricLoading=false;state._lastLyricKey=null;render();
 }
-return;
-}catch(e){}
+}catch(e){
+entry.lyricDone=false;
+var cur2=state.playlist[state.current];
+if(cur2&&String(cur2.id)===String(song.id)&&state.lyricLoading){
+state.lyric='暂无歌词';state.lyricLoading=false;state._lastLyricKey=null;render();
+}
+}
+}
 
-schedulePreloadRetry(song,'lyric');
-}
 
 async function preloadSongUrl(song){
 if(!song||!song.id)return;
@@ -209,12 +191,15 @@ seen[idx]=true;
 var s=state.playlist[idx];
 if(s)targets.push(s);
 }
-if(state.mode==='shuffle'&&state.shuffleOrder&&state.shuffleOrder.length===len){
-var sp=(typeof state.shufflePos==='number'?state.shufflePos:state.shuffleOrder.indexOf(curIdx));
+if(state.mode==='shuffle'&&state.shuffleOrder&&state.shuffleOrder.length){
+var sp=(typeof state.shufflePos==='number'?state.shufflePos:0);
 if(sp<0)sp=0;
-// 打乱列表下一首、上一首
-addIdx(state.shuffleOrder[(sp+1)%len]);
-addIdx(state.shuffleOrder[(sp-1+len)%len]);
+var sn=state.shuffleOrder.length;
+var nextId=state.shuffleOrder[(sp+1)%sn];
+var prevId=state.shuffleOrder[(sp-1+sn)%sn];
+function idToIdx(id){for(var ii=0;ii<len;ii++){if(state.playlist[ii]&&String(state.playlist[ii].id)===String(id))return ii;}return -1;}
+addIdx(idToIdx(nextId));
+addIdx(idToIdx(prevId));
 }
 // 原列表下一首、上一首
 addIdx((curIdx+1)%len);

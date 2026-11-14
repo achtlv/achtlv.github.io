@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261114.01';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261114.03';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -98,8 +98,9 @@ artwork:artwork
 function updateMediaSessionPlaybackState(){
 if(!('mediaSession' in navigator))return;
 try{
-// 严格跟随网页播放按钮：state.playing
-navigator.mediaSession.playbackState=state.playing?'playing':'paused';
+// 严格跟随网页播放按钮意图 state.playing（加载中也视为 playing）
+var ps=(state.playing||state.loadingUrl)?'playing':'paused';
+navigator.mediaSession.playbackState=ps;
 try{
 if(audio&&audio.duration&&isFinite(audio.duration)&&audio.duration>0){
 navigator.mediaSession.setPositionState({
@@ -675,54 +676,110 @@ triggerPreloadNeighbors();
 }
 
 function ensureShuffleOrder(opts){
-opts=opts||{};var n=state.playlist.length;
+opts=opts||{};
+var n=state.playlist.length;
 if(n<=0){state.shuffleOrder=[];state.shufflePos=0;return;}
-var idxs=[];for(var i=0;i<n;i++)idxs.push(i);
-for(var i=n-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=idxs[i];idxs[i]=idxs[j];idxs[j]=t;}
-if(n>1&&opts.avoidFirstIdx!=null&&idxs[0]===opts.avoidFirstIdx){
-for(var k=1;k<n;k++){if(idxs[k]!==opts.avoidFirstIdx){var u=idxs[0];idxs[0]=idxs[k];idxs[k]=u;break;}}
+// shuffleOrder 存歌曲 id，避免删歌后索引错位
+var ids=state.playlist.map(function(s){return String(s&&s.id);});
+for(var i=ids.length-1;i>0;i--){
+var j=Math.floor(Math.random()*(i+1));
+var t=ids[i];ids[i]=ids[j];ids[j]=t;
 }
-if(n>1&&opts.avoidLastIdx!=null&&idxs[n-1]===opts.avoidLastIdx){
-for(var k2=n-2;k2>=0;k2--){if(idxs[k2]!==opts.avoidLastIdx){var u2=idxs[n-1];idxs[n-1]=idxs[k2];idxs[k2]=u2;break;}}
+var avoidFirst=opts.avoidFirstId!=null?String(opts.avoidFirstId):(opts.avoidFirstIdx!=null&&state.playlist[opts.avoidFirstIdx]?String(state.playlist[opts.avoidFirstIdx].id):null);
+var avoidLast=opts.avoidLastId!=null?String(opts.avoidLastId):(opts.avoidLastIdx!=null&&state.playlist[opts.avoidLastIdx]?String(state.playlist[opts.avoidLastIdx].id):null);
+if(n>1&&avoidFirst!=null&&ids[0]===avoidFirst){
+for(var k=1;k<n;k++){if(ids[k]!==avoidFirst){var u=ids[0];ids[0]=ids[k];ids[k]=u;break;}}
 }
-state.shuffleOrder=idxs;
+if(n>1&&avoidLast!=null&&ids[n-1]===avoidLast){
+for(var k2=n-2;k2>=0;k2--){if(ids[k2]!==avoidLast){var u2=ids[n-1];ids[n-1]=ids[k2];ids[k2]=u2;break;}}
 }
-function nextSong(forcePlay){
+state.shuffleOrder=ids;
+}
+function indexOfSongId(id){
+var sid=String(id);
+for(var i=0;i<state.playlist.length;i++){
+if(state.playlist[i]&&String(state.playlist[i].id)===sid)return i;
+}
+return -1;
+}
+function syncShuffleAfterPlaylistChange(){
+if(state.mode!=='shuffle'){state.shuffleOrder=[];state.shufflePos=0;return;}
+var n=state.playlist.length;
+if(n<=0){state.shuffleOrder=[];state.shufflePos=0;return;}
+var have={};
+for(var i=0;i<n;i++){if(state.playlist[i])have[String(state.playlist[i].id)]=true;}
+var valid=[];
+if(state.shuffleOrder&&state.shuffleOrder.length){
+for(var j=0;j<state.shuffleOrder.length;j++){
+var id=String(state.shuffleOrder[j]);
+if(have[id]){valid.push(id);delete have[id];}
+}
+}
+// 新增歌曲追加到乱序列尾（再轻打乱新增段可选，这里保持追加）
+var extras=[];
+for(var k=0;k<n;k++){
+var id2=String(state.playlist[k].id);
+if(have[id2])extras.push(id2);
+}
+// 打乱新增部分再接上
+for(var a=extras.length-1;a>0;a--){var b=Math.floor(Math.random()*(a+1));var t=extras[a];extras[a]=extras[b];extras[b]=t;}
+state.shuffleOrder=valid.concat(extras);
+var curId=state.playlist[state.current]?String(state.playlist[state.current].id):null;
+var pos=curId!=null?state.shuffleOrder.indexOf(curId):-1;
+state.shufflePos=(pos>=0?pos:0);
+}
+function nextSong(forcePlay, fromAuto){
 if(!state.playlist.length)return;
 var keepPlay=(forcePlay===true)?true:!!state.playing;
 pendingSeekFromUser=false;pendingSeekRatio=null;try{resetProgressUI();}catch(e){}
-if(state.mode==='single'){playIndex(state.current,null,null,{play:keepPlay});return;}
+if(state.mode==='single'&&fromAuto){
+playIndex(state.current,null,null,{play:keepPlay});
+return;
+}
 if(state.mode==='shuffle'){
-if(!state.shuffleOrder||state.shuffleOrder.length!==state.playlist.length){
+if(!state.shuffleOrder||!state.shuffleOrder.length){
 ensureShuffleOrder({avoidFirstIdx:state.current});
-var pos=state.shuffleOrder.indexOf(state.current);state.shufflePos=(pos>=0?pos:-1);
+var curId0=state.playlist[state.current]?String(state.playlist[state.current].id):null;
+state.shufflePos=curId0!=null?state.shuffleOrder.indexOf(curId0):-1;
 }
 if(state.shufflePos>=state.shuffleOrder.length-1){
-var lastIdx=state.shuffleOrder[state.shuffleOrder.length-1];
-ensureShuffleOrder({avoidFirstIdx:lastIdx});state.shufflePos=0;
+var lastId=state.shuffleOrder[state.shuffleOrder.length-1];
+ensureShuffleOrder({avoidFirstId:lastId});
+state.shufflePos=0;
 }else{state.shufflePos=(state.shufflePos<0?0:state.shufflePos+1);}
-playIndex(state.shuffleOrder[state.shufflePos],null,null,{play:keepPlay});return;
+var nid=state.shuffleOrder[state.shufflePos];
+var nidx=indexOfSongId(nid);
+if(nidx<0){syncShuffleAfterPlaylistChange();nidx=indexOfSongId(state.shuffleOrder[state.shufflePos]);}
+if(nidx>=0)playIndex(nidx,null,null,{play:keepPlay});
+return;
 }
 playIndex((state.current+1)%state.playlist.length,null,null,{play:keepPlay});
 }
-
 function prevSong(){
 if(!state.playlist.length)return;
 var keepPlay=!!state.playing;
 pendingSeekFromUser=false;pendingSeekRatio=null;try{resetProgressUI();}catch(e){}
 if(state.mode==='shuffle'){
-if(!state.shuffleOrder||state.shuffleOrder.length!==state.playlist.length){
+if(!state.shuffleOrder||!state.shuffleOrder.length){
 ensureShuffleOrder({avoidLastIdx:state.current});
-var pos0=state.shuffleOrder.indexOf(state.current);state.shufflePos=(pos0>=0?pos0:0);
+var curId1=state.playlist[state.current]?String(state.playlist[state.current].id):null;
+state.shufflePos=curId1!=null?state.shuffleOrder.indexOf(curId1):0;
 }
 if(state.shufflePos<=0){
-var firstIdx=state.shuffleOrder[0];
-ensureShuffleOrder({avoidLastIdx:firstIdx});state.shufflePos=state.shuffleOrder.length-1;
+var firstId=state.shuffleOrder[0];
+ensureShuffleOrder({avoidLastId:firstId});
+state.shufflePos=state.shuffleOrder.length-1;
 }else{state.shufflePos=state.shufflePos-1;}
-playIndex(state.shuffleOrder[state.shufflePos],null,null,{play:keepPlay});return;
+var pid=state.shuffleOrder[state.shufflePos];
+var pidx=indexOfSongId(pid);
+if(pidx<0){syncShuffleAfterPlaylistChange();pidx=indexOfSongId(state.shuffleOrder[state.shufflePos]);}
+if(pidx>=0)playIndex(pidx,null,null,{play:keepPlay});
+return;
 }
 playIndex((state.current-1+state.playlist.length)%state.playlist.length,null,null,{play:keepPlay});
 }
+
+
 
 
 async function resumeWithRefresh(pos){
@@ -993,7 +1050,7 @@ return;
 }
 if(!(audio.duration&&isFinite(audio.duration)&&audio.duration>0))return;
 var t=ratio*audio.duration;
-// 拖到末尾：单曲循环重播；否则播放中切下一首
+// 拖到末尾：单曲循环重播；否则播放中切下一首（只触发一次）
 if(ratio>=0.995||t>=audio.duration-0.25){
 if(state.mode==='single'||state.mode==='loop'){
 try{audio.currentTime=0;}catch(e){}updateSeekBg(0);
@@ -1001,7 +1058,11 @@ try{if($('curTime'))$('curTime').textContent=fmt(0);}catch(e){}
 if(state.playing){try{var pR=audio.play();if(pR&&pR.catch)pR.catch(function(){});}catch(e){}}
 pendingSeekFromUser=false;pendingSeekRatio=null;return;
 }
-if(state.playing){try{nextSong(true);}catch(e){}}
+if(state.playing){
+state._ignoreEnded=true;
+try{nextSong(true,true);}catch(e){}
+setTimeout(function(){try{state._ignoreEnded=false;}catch(e){}},800);
+}
 else{try{audio.currentTime=Math.max(0,audio.duration-0.05);}catch(e){}updateSeekBg(100);try{if($('curTime'))$('curTime').textContent=fmt(audio.duration||0);}catch(e){}}
 pendingSeekFromUser=false;pendingSeekRatio=null;return;
 }
@@ -1048,7 +1109,7 @@ song.duration=audio.duration;
 onTimeUpdate();
 });
 audio.addEventListener('durationchange',onTimeUpdate);
-audio.addEventListener('play',function(){
+audio.addEventListener('play',function(){try{if(state.playing)navigator.mediaSession&&(navigator.mediaSession.playbackState='playing');}catch(e){}
 // 不强制改写用户暂停意图；仅在已是播放意图时同步
 if(state.playing){
 try{if(typeof updateMediaSessionPlaybackState==='function')updateMediaSessionPlaybackState();}catch(e){}
@@ -1087,7 +1148,9 @@ var p=audio.play();
 if(p&&p.catch)p.catch(function(){});
 render();
 }else{
-nextSong(true);
+// 防与拖进度条切歌重复
+if(state._ignoreEnded){state._ignoreEnded=false;return;}
+nextSong(true,true);
 }
 });
 
@@ -1726,6 +1789,7 @@ insertAt=state.current+1;
 state.playlist.splice(insertAt,0,toAdd);
 }
 try{savePlaylist();}catch(e){}
+try{if(typeof syncShuffleAfterPlaylistChange==='function')syncShuffleAfterPlaylistChange();}catch(e){}
 toast('已加入播放列表');
 if(typeof logAction==='function')logAction('添加歌曲','id='+(toAdd&&toAdd.id)+' name='+(toAdd&&toAdd.name)+' artist='+(toAdd&&toAdd.artist));
 pendingSong=null;
@@ -1765,6 +1829,7 @@ if($('clearConfirm'))$('clearConfirm').addEventListener('click',function(){
 try{
 state.playlist=[];
 state.current=-1;
+state.shuffleOrder=[];state.shufflePos=0;
 state.playing=false;
 state.lyric='';state.lyricTrans='';state.lyricRoma='';
 state.lyricLoading=false;

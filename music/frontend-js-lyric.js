@@ -131,7 +131,9 @@ return n0*3600+n1*60+n2+ms2/1000;
 
 function cleanLyricMeta(text){
 if(!text)return '';
-var lines=String(text).split(/\r?\n/);
+// 去掉 UTF-8 BOM（酷狗 krc 常见）
+text=String(text).replace(/^\uFEFF/,'');
+var lines=text.split(/\r?\n/);
 var out=[];
 for(var i=0;i<lines.length;i++){
 var line=lines[i];

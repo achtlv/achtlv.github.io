@@ -59,6 +59,27 @@ textarea.out { min-height: 160px; resize: vertical; white-space: pre-wrap; width
 @media (prefers-color-scheme: dark) {
   #btnStop { background: #dc2626; }
 }
+.modal-mask {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 9999; padding: 1rem;
+}
+.modal {
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: 12px;
+  max-width: 480px; width: 100%; padding: 1rem 1.1rem;
+  box-shadow: 0 12px 40px rgba(0,0,0,.25);
+}
+.modal h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+.modal .url {
+  word-break: break-all; font-family: ui-monospace, monospace;
+  font-size: 0.85rem; background: var(--code-bg);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.6rem 0.75rem; margin: 0.5rem 0 0.85rem;
+}
+.modal .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; }
+.modal .actions button { font-size: 0.85rem; }
+.modal .actions .secondary { background: transparent; color: var(--accent); border: 1px solid var(--border); }
 
 .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.6rem; }
 button {
@@ -153,6 +174,19 @@ a { color: var(--accent); }
     <a href="./docs/">文档</a> ·
     带 <code>?url=</code> 时自动加载并运行（无需输入则不等待）
   </p>
+</div>
+
+<div class="modal-mask" id="redirModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true">
+    <h3>确认跳转</h3>
+    <p class="hint" style="margin:0">程序有输出时可先查看输出区；可复制链接后取消，仅复制不跳转。</p>
+    <div class="url" id="redirUrl"></div>
+    <div class="actions">
+      <button type="button" class="secondary" id="redirCopy">复制链接</button>
+      <button type="button" class="secondary" id="redirCancel">取消</button>
+      <button type="button" id="redirGo">确认跳转</button>
+    </div>
+  </div>
 </div>
 
 <script type="module">
@@ -458,9 +492,7 @@ async function runCode(src, options = {}) {
         '[redirect' + (mode === 'confirm' ? '·确认' : '') + '] ' + result.url;
       setStatus('完成 · 跳转', 'ok');
       if (mode === 'confirm') {
-        if (window.confirm('是否跳转到：\n' + result.url)) {
-          location.href = result.url;
-        }
+        await openRedirectModal(result.url);
       } else {
         setTimeout(() => { location.href = result.url; }, 1500);
       }
@@ -486,6 +518,43 @@ async function runCode(src, options = {}) {
     if (!needs.needsIn) inHint.textContent = '';
     else inHint.textContent = '程序已结束';
   }
+}
+
+
+function openRedirectModal(url) {
+  return new Promise((resolve) => {
+    const mask = $('redirModal');
+    const urlEl = $('redirUrl');
+    urlEl.textContent = url;
+    mask.hidden = false;
+    const copyBtn = $('redirCopy');
+    const cancelBtn = $('redirCancel');
+    const goBtn = $('redirGo');
+    const cleanup = () => {
+      mask.hidden = true;
+      copyBtn.onclick = null;
+      cancelBtn.onclick = null;
+      goBtn.onclick = null;
+    };
+    copyBtn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(url);
+        copyBtn.textContent = '已复制';
+        setTimeout(() => { copyBtn.textContent = '复制链接'; }, 1200);
+      } catch {
+        // fallback
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); copyBtn.textContent = '已复制'; } catch (_) {}
+        document.body.removeChild(ta);
+        setTimeout(() => { copyBtn.textContent = '复制链接'; }, 1200);
+      }
+    };
+    cancelBtn.onclick = () => { cleanup(); resolve(false); };
+    goBtn.onclick = () => { cleanup(); location.href = url; resolve(true); };
+  });
 }
 
 $('btnStop').onclick = () => {

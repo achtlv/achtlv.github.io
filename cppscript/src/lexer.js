@@ -67,9 +67,9 @@ export function tokenize(src) {
       }
       if (i >= src.length) err('E01', 'unclosed string');
       advance();
-      if (quote === "'") {
-        // 单引号：必须恰好一个字符 → CHAR
-        if ([...value].length !== 1) err('E01', "single-quoted literal must be exactly one character");
+      // 单引号一字 → CHAR；更长 → STRING（支持与双引号混用写法）
+      // 双引号内可含单引号，单引号内可含双引号（词法已支持）
+      if (quote === "'" && [...value].length === 1) {
         push('CHAR', value);
       } else {
         push('STRING', value);

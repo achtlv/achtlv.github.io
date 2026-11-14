@@ -22,20 +22,30 @@ export function parse(src) {
   };
 
   /** 关键字不可作变量名；若误用则明确报错 */
-  const expectIdentName = (what = 'identifier') => {
+  const isReservedKeyName = (name) => name === 'key' || /^key\d+$/.test(name);
+
+  /**
+   * @param {string} what
+   * @param {{ allowKey?: boolean }} opts  结构体字段名允许 key / key0
+   */
+  const expectIdentName = (what = 'identifier', opts = {}) => {
     const t = peek();
     if (t.type === 'IDENT') {
       const name = t.value;
-      // 仅禁止 key、key0、key123 等「key + 纯数字」；keyboard 等允许
-      if (name === 'key' || /^key\d+$/.test(name)) {
-        err('E03', `variable name '${name}' is reserved (key / key0 / key1...); rename it`, t.line, t.col);
+      if (!opts.allowKey && isReservedKeyName(name)) {
+        err(
+          'E03',
+          `'${name}' is reserved (key / key0 / key1...); cannot be used as ${what}`,
+          t.line,
+          t.col,
+        );
       }
       return next().value;
     }
     if (t.type === 'KEYWORD') {
       err(
         'E03',
-        `'${t.value}' is a reserved keyword and cannot be used as a ${what}; rename the variable`,
+        `'${t.value}' is a reserved keyword and cannot be used as a ${what}`,
         t.line,
         t.col,
       );
@@ -121,12 +131,12 @@ export function parse(src) {
 
   const structDecl = () => {
     expect('KEYWORD', 'struct');
-    const name = expect('IDENT').value;
+    const name = expectIdentName('struct name');
     expect('OP', '{');
     const fields = [];
     while (!check('OP', '}')) {
       const type = parseType();
-      const fname = expectIdentName('field name');
+      const fname = expectIdentName('field name', { allowKey: true });
       expect('OP', ';');
       fields.push({ type, name: fname });
     }
@@ -152,7 +162,11 @@ export function parse(src) {
 
     // 函数：type name(...
     if (check('IDENT') && peek(1).type === 'OP' && peek(1).value === '(') {
+      const ft = peek();
       const fname = next().value;
+      if (isReservedKeyName(fname)) {
+        err('E03', `'${fname}' is reserved; cannot be used as function name`, ft.line, ft.col);
+      }
       expect('OP', '(');
       const params = [];
       while (!check('OP', ')')) {

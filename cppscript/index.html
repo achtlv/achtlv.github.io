@@ -121,7 +121,7 @@ a { color: var(--accent); }
   <header>
     <h1>CppScript</h1>
     <span class="badge" id="status">就绪</span>
-    <span class="meta">浏览器执行</span>
+    
   </header>
 
   <!-- 1. 代码框（未运行显示，运行中隐藏） -->
@@ -139,7 +139,6 @@ a { color: var(--accent); }
     </div>
     <div id="paneUrl" hidden>
       <input type="url" id="ruleUrl" placeholder="https://.../rule.cpps" />
-      <p class="hint">无协议自动补 https；http 升为 https。点「运行」会先保存到地址栏再执行。</p>
       <div class="row">
         <button type="button" class="secondary" id="btnLoad">加载到编辑器</button>
       </div>
@@ -162,10 +161,9 @@ a { color: var(--accent); }
 
   <!-- 4. 标准输入 -->
   <div class="card" id="cardIn" hidden>
-    <h2>标准输入</h2>
-    <p class="hint">Enter 提交一行；「完成」= EOF</p>
+    <h2>输入</h2>
     <div class="row">
-      <input type="text" id="lineIn" placeholder="输入一行后按 Enter" style="flex:1;min-width:160px" disabled />
+      <input type="text" id="lineIn" placeholder="一行后 Enter" style="flex:1;min-width:160px" disabled />
       <button type="button" id="btnDone" disabled>完成</button>
     </div>
     <p class="hint" id="inHint"></p>
@@ -173,19 +171,18 @@ a { color: var(--accent); }
 
   <!-- 5. key -->
   <div class="card" id="cardKey" hidden>
-    <h2>参数 key</h2>
-    <input type="text" id="key" placeholder='例如 2^3 或 {1,"abc",false}' />
+    <h2>key</h2>
+    <textarea id="key" rows="3" placeholder='1, "a", true'></textarea>
   </div>
 
   <!-- 6. query -->
   <div class="card" id="cardQuery" hidden>
-    <h2>Query 参数</h2>
-    <textarea id="queryBox" rows="4" placeholder="一行一个：&#10;a=1&#10;b=hello&#10;（无需分号）"></textarea>
+    <h2>query</h2>
+    <textarea id="queryBox" rows="4" placeholder="a=1&#10;b=hello"></textarea>
   </div>
 
   <div id="paramConfirmBar" hidden style="margin-bottom:0.85rem">
     <button type="button" id="btnParamConfirm" style="width:100%">确认并运行</button>
-    <p class="hint">key / query 可留空。确认后开始执行；输入输出框仅在真正执行到时出现。</p>
   </div>
 
   <p class="foot"><a href="./docs/">文档</a></p>
@@ -623,9 +620,21 @@ async function runCode(src, options = {}) {
 
   const keyVal = $('key').value || '';
   const fake = new URL('https://local.cppscript/run');
-  fake.searchParams.set('key', keyVal);
-  // sync key to address bar without reload
-  if (keyVal !== '') setUrlParam('key', keyVal, false);
+  // 支持逗号/换行多 key → 使用 key0,key1... 优先于 key
+  const keyParts = keyVal.split(/[\n,]/).map(s => s.trim()).filter(s => s !== '');
+  if (keyParts.length > 1) {
+    keyParts.forEach((v, i) => fake.searchParams.set('key' + i, v.replace(/^["']|["']$/g, '')));
+  } else if (keyVal !== '') {
+    fake.searchParams.set('key', keyVal);
+  }
+  try {
+    const u = new URL(location.href);
+    [...u.searchParams.keys()].filter(k => k === 'key' || /^key\d+$/.test(k)).forEach(k => u.searchParams.delete(k));
+    if (keyParts.length > 1) keyParts.forEach((v, i) => u.searchParams.set('key' + i, v));
+    else if (keyVal !== '') u.searchParams.set('key', keyVal);
+    history.replaceState(null, '', u);
+  } catch (_) {}
+  // query box
   // query box → address bar
   const qmap = parseQueryBoxText(queryBox.value);
   try {
@@ -684,10 +693,16 @@ async function runCode(src, options = {}) {
     }
   } catch (e) {
     const msg = (e && e.message) ? e.message : String(e);
-    if (cardOut.hidden) cardOut.hidden = false;
-    outEl.value += (outEl.value ? '\n' : '') + '[error] ' + msg;
-    setStatus(msg.includes('abort') ? '已停止' : '错误', 'err');
-    if (msg.includes('abort')) showToast('已强制停止');
+    const code = e && e.code;
+    // 强行停止：视为运行完成
+    if (code === 'E60' || /abort/i.test(msg)) {
+      setStatus('完成', 'ok');
+      showToast('运行完成');
+    } else {
+      if (cardOut.hidden) cardOut.hidden = false;
+      outEl.value += (outEl.value ? '\n' : '') + '[error] ' + msg;
+      setStatus('错误', 'err');
+    }
   } finally {
     running = false;
     window.__cppsAbort = null;

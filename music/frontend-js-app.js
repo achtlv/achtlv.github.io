@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261114.05';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261114.06';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -116,8 +116,9 @@ artwork:artwork
 function updateMediaSessionPlaybackState(){
 if(!('mediaSession' in navigator))return;
 try{
-// 严格跟随网页播放意图 state.playing
 var ps=state.playing?'playing':'paused';
+// 某些系统会忽略同值写入，先写反再写回
+try{navigator.mediaSession.playbackState=ps==='playing'?'paused':'playing';}catch(e0){}
 navigator.mediaSession.playbackState=ps;
 try{
 if(audio&&audio.duration&&isFinite(audio.duration)&&audio.duration>0){
@@ -132,11 +133,13 @@ position:Math.max(0,Math.min(audio.currentTime||0,audio.duration))
 }
 // 多次延迟同步，抵消 Android 系统在 action 回调后自动改回的状态
 function syncMediaSessionFromUi(){
+try{if(typeof setupMediaSession==='function')setupMediaSession();}catch(e){}
 try{updateMediaSessionPlaybackState();}catch(e){}
 setTimeout(function(){try{updateMediaSessionPlaybackState();}catch(e){}},0);
-setTimeout(function(){try{updateMediaSessionPlaybackState();}catch(e){}},50);
-setTimeout(function(){try{updateMediaSessionPlaybackState();}catch(e){}},150);
-setTimeout(function(){try{updateMediaSessionPlaybackState();}catch(e){}},400);
+setTimeout(function(){try{updateMediaSessionPlaybackState();}catch(e){}},30);
+setTimeout(function(){try{updateMediaSessionPlaybackState();}catch(e){}},120);
+setTimeout(function(){try{updateMediaSessionPlaybackState();}catch(e){}},300);
+setTimeout(function(){try{updateMediaSessionPlaybackState();}catch(e){}},600);
 }
 
 function setupMediaSession(){
@@ -1078,7 +1081,10 @@ $('curTime').textContent=fmt(t);
 }
 });
 function finishSeek(){
+if(state._finishSeekLock)return;
 if(!isSeeking)return;
+state._finishSeekLock=true;
+setTimeout(function(){try{state._finishSeekLock=false;}catch(e){}},800);
 isSeeking=false;
 var ratio=0;
 try{ratio=Number($('seek').value)/1000;}catch(e){ratio=0;}
@@ -1101,6 +1107,9 @@ if(state.playing){try{var pR=audio.play();if(pR&&pR.catch)pR.catch(function(){})
 pendingSeekFromUser=false;pendingSeekRatio=null;return;
 }
 if(state.playing){
+// 防连切：seek 末尾 + ended 事件只允许触发一次切歌
+if(state._seekEndLock){pendingSeekFromUser=false;pendingSeekRatio=null;return;}
+state._seekEndLock=true;
 state._ignoreEnded=true;
 pendingSeekFromUser=false;
 pendingSeekRatio=null;
@@ -1109,16 +1118,14 @@ try{updateSeekBg(0);}catch(e){}
 try{if($('curTime'))$('curTime').textContent='0:00';}catch(e){}
 try{nextSong(true,true);}catch(e){}
 setTimeout(function(){
-try{state._ignoreEnded=false;}catch(e){}
 try{resetProgressUI();}catch(e){}
 try{if($('seek'))$('seek').value='0';}catch(e){}
 try{updateSeekBg(0);}catch(e){}
-},80);
+},50);
 setTimeout(function(){
-try{resetProgressUI();}catch(e){}
-try{if($('seek'))$('seek').value='0';}catch(e){}
-try{updateSeekBg(0);}catch(e){}
-},350);
+try{state._ignoreEnded=false;}catch(e){}
+try{state._seekEndLock=false;}catch(e){}
+},1200);
 return;
 }
 else{try{audio.currentTime=Math.max(0,audio.duration-0.05);}catch(e){}updateSeekBg(100);try{if($('curTime'))$('curTime').textContent=fmt(audio.duration||0);}catch(e){}}
@@ -1207,7 +1214,7 @@ if(p&&p.catch)p.catch(function(){});
 render();
 }else{
 // 防与拖进度条切歌重复
-if(state._ignoreEnded){state._ignoreEnded=false;return;}
+if(state._ignoreEnded||state._seekEndLock){return;}
 nextSong(true,true);
 }
 });
@@ -1397,7 +1404,8 @@ var html='<div class="quality-list">';
 for(var i=0;i<DOWNLOAD_LEVELS.length;i++){
 var lv=DOWNLOAD_LEVELS[i];
 // 酷狗不显示官方音质
-if(song&&song.source==='kg'&&lv.key==='official')continue;
+var isKgSong=!!(song&&(song.source==='kg'||String(song.id||'').indexOf('kg')===0||(song.hash&&String(song.hash).length===32)));
+if(isKgSong&&lv.key==='official')continue;
 var isOfficial=lv.key==='official';
 var isCurrent=lv.key===currentQuality;
 var avail=!!availability[lv.key];
@@ -1441,7 +1449,7 @@ if(btn){btn.disabled=true;btn.classList.add('spinning');}
 
 var availability={lossless:false,exhigh:false,standard:false,official:false};
 var loading={lossless:true,exhigh:true,standard:true,official:false};
-if(song&&song.source==='kg'){loading.official=false;}
+if(song&&(song.source==='kg'||String(song.id||'').indexOf('kg')===0)){loading.official=false;availability.official=false;}
 var currentIsThisSong=(state.current>=0&&state.playlist[state.current]===song);
 var currentQuality=currentIsThisSong?state.quality:'';
 

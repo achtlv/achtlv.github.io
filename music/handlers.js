@@ -183,51 +183,27 @@ export async function handleCheckAudio(url) {
   if (u.indexOf("//") === 0) u = "https:" + u;
   if (/^http:\/\//i.test(u)) u = u.replace(/^http:\/\//i, "https://");
   if (!/^https?:\/\//i.test(u)) return json({ ok: false, msg: "无效链接" }, 400);
+  const isBili = /bilivideo\.com|bilibili\.com/i.test(u);
+  const headers = {
+    "User-Agent": UA,
+    "Range": "bytes=0-2047",
+    "Accept": "*/*",
+    "Referer": isBili ? "https://www.bilibili.com/" : "https://www.google.com/",
+  };
   try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 12000);
-    let res;
-    try {
-      res = await fetch(u, {
-        method: "GET",
-        headers: {
-          "User-Agent": UA,
-          "Range": "bytes=0-1023",
-          "Referer": "https://www.bilibili.com/",
-        },
-        signal: ctrl.signal,
-        redirect: "follow",
-      });
-    } catch (e) {
-      // retry without range
-      res = await fetch(u, {
-        method: "HEAD",
-        headers: { "User-Agent": UA, "Referer": "https://www.bilibili.com/" },
-        signal: ctrl.signal,
-        redirect: "follow",
-      });
-    }
-    clearTimeout(timer);
+    const res = await fetch(u, { method: "GET", headers, redirect: "follow" });
     const ct = (res.headers.get("content-type") || "").toLowerCase();
-    const ok = res.ok || res.status === 206 || res.status === 200;
-    // infer format
+    const ok = res.ok || res.status === 206;
     let format = "";
     const path = u.split("?")[0].toLowerCase();
     const m = path.match(/\.([a-z0-9]+)$/);
     if (m) format = m[1];
-    if (!format && ct) {
-      if (ct.indexOf("mpegurl") >= 0 || ct.indexOf("m3u8") >= 0) format = "m3u8";
-      else if (ct.indexOf("mp4") >= 0) format = "mp4";
-      else if (ct.indexOf("mpeg") >= 0 || ct.indexOf("mp3") >= 0) format = "mp3";
-      else if (ct.indexOf("flac") >= 0) format = "flac";
-      else if (ct.indexOf("ogg") >= 0) format = "ogg";
-      else if (ct.indexOf("webm") >= 0) format = "webm";
-      else if (ct.indexOf("aac") >= 0) format = "aac";
+    if (!format && /bilivideo|\.m4s/i.test(u)) format = "m4s";
+    if (!ok) {
+      return json({ ok: false, status: res.status, msg: "无法访问（HTTP " + res.status + "）", format, contentType: ct, needProxy: isBili });
     }
-    // bilibili m4s
-    if (!format && /bilivideo\.com|\.m4s/i.test(u)) format = "m4s";
-    // soft ok: if status weird but bilibili/media extension
-    const softOk = ok || /bilivideo\.com|\.m4s|\.m4a|\.mp3|\.flac|\.mp4|\.m3u8/i.test(u);
+    // needProxy: 浏览器直连会丢 Referer 被 403 的源
+    const needProxy = isBili || /upos-sz|bilivideo/i.test(u);
     let name = "外部音源";
     try {
       const segs = path.split("/");
@@ -235,26 +211,19 @@ export async function handleCheckAudio(url) {
       if (last && last.length < 80) name = decodeURIComponent(last);
     } catch (e) {}
     return json({
-      ok: !!softOk,
+      ok: true,
       url: u,
       format: format || "",
       contentType: ct,
       status: res.status,
-      name: name,
+      name,
+      needProxy: !!needProxy,
     });
   } catch (e) {
-    // still allow known media URLs
-    const soft = /bilivideo\.com|\.m4s(?:\?|$)|\.m4a(?:\?|$)|\.mp3(?:\?|$)|\.flac(?:\?|$)|\.mp4(?:\?|$)/i.test(u);
-    if (soft) {
-      let format = "m4s";
-      const path = u.split("?")[0].toLowerCase();
-      const m = path.match(/\.([a-z0-9]+)$/);
-      if (m) format = m[1];
-      return json({ ok: true, url: u, format, name: "外部音源", soft: true });
-    }
     return json({ ok: false, msg: String(e.message || e) });
   }
 }
+
 
 export async function handleProxyFetch(body) {
   const url = String((body && body.url) || "").trim();
@@ -271,5 +240,54 @@ export async function handleProxyFetch(body) {
     });
   } catch (e) {
     return json({ ok: false, status: 0, msg: String(e.message || e) });
+  }
+}
+
+
+export async function handleMediaProxy(request, urlParam) {
+  let u = String(urlParam || "").trim();
+  if (!u) {
+    try {
+      const body = await request.json();
+      u = String(body.url || "").trim();
+    } catch (e) {}
+  }
+  if (!u) return json({ ok: false, msg: "缺少 url" }, 400);
+  if (u.indexOf("//") === 0) u = "https:" + u;
+  if (/^http:\/\//i.test(u)) u = u.replace(/^http:\/\//i, "https://");
+  if (!/^https?:\/\//i.test(u)) return json({ ok: false, msg: "无效链接" }, 400);
+
+  const headers = {
+    "User-Agent": UA,
+    "Referer": /bilivideo\.com|bilibili\.com/i.test(u) ? "https://www.bilibili.com/" : "https://www.google.com/",
+    "Origin": /bilivideo\.com|bilibili\.com/i.test(u) ? "https://www.bilibili.com" : undefined,
+    "Accept": "*/*",
+  };
+  // clean undefined
+  Object.keys(headers).forEach(k => headers[k] === undefined && delete headers[k]);
+
+  // forward range for seeking
+  const range = request.headers.get("Range");
+  if (range) headers["Range"] = range;
+
+  try {
+    const upstream = await fetch(u, { headers, redirect: "follow" });
+    if (!upstream.ok && upstream.status !== 206) {
+      return json({ ok: false, status: upstream.status, msg: "上游 " + upstream.status }, upstream.status);
+    }
+    const outHeaders = new Headers();
+    const ct = upstream.headers.get("content-type") || "application/octet-stream";
+    outHeaders.set("Content-Type", ct);
+    const cl = upstream.headers.get("content-length");
+    if (cl) outHeaders.set("Content-Length", cl);
+    const cr = upstream.headers.get("content-range");
+    if (cr) outHeaders.set("Content-Range", cr);
+    const ar = upstream.headers.get("accept-ranges");
+    if (ar) outHeaders.set("Accept-Ranges", ar);
+    outHeaders.set("Access-Control-Allow-Origin", "*");
+    outHeaders.set("Cache-Control", "no-store");
+    return new Response(upstream.body, { status: upstream.status, headers: outHeaders });
+  } catch (e) {
+    return json({ ok: false, msg: String(e.message || e) }, 502);
   }
 }

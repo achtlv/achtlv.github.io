@@ -364,42 +364,33 @@ if(url.indexOf('//')===0)url='https:'+url;
 if(/^http:\/\//i.test(url))url=url.replace(/^http:\/\//i,'https://');
 var check=null;
 try{check=await post('/api/checkAudio',{url:url});}catch(e){check=null;}
-// 兼容旧 Worker 无此接口：本地软判定
-var softMedia=/bilivideo\.com|\.m4s(?:\?|$)|\.m4a(?:\?|$)|\.mp3(?:\?|$)|\.flac(?:\?|$)|\.mp4(?:\?|$)|\.m3u8(?:\?|$)|\.aac(?:\?|$)|\.ogg(?:\?|$)|\.wav(?:\?|$)/i.test(url);
-if(check&&check.ok){
-var fmt=check.format||getFormatFromUrl(url)||(softMedia&&/\.m4s/i.test(url)?'m4s':'');
+if(!check||!check.ok){
+var msg=(check&&check.msg)||'直链不可用';
+throw new Error(msg);
+}
+var fmt=check.format||getFormatFromUrl(url)||'';
+if(!fmt&&/bilivideo|\.m4s/i.test(url))fmt='m4s';
+// B站等需要 Referer：播放走 Worker 代理
+var playUrl=url;
+if(check.needProxy){
+playUrl=toAbsoluteApiUrl('/api/mediaProxy?u='+encodeURIComponent(url));
+}
 var pic='';
-try{pic=await extractCoverFromUrl(check.url||url);}catch(e){pic='';}
+try{pic=await extractCoverFromUrl(url);}catch(e){pic='';}
 return {
 id:uid(),
 name:check.name||'外部音源',
 artist:isVideoFormat(fmt)?'视频音源':'外部音源',
 pic:pic,
 external:true,
-url:check.url||url,
+url:playUrl,
 srcUrl:url,
 format:fmt||'m4s',
-quality:'external'
+quality:'external',
+needProxy:!!check.needProxy
 };
 }
-if(softMedia){
-var fmt2=getFormatFromUrl(url);
-if(!fmt2&&/\.m4s/i.test(url))fmt2='m4s';
-if(!fmt2&&/bilivideo\.com/i.test(url))fmt2='m4s';
-return {
-id:uid(),
-name:'外部音源',
-artist:isVideoFormat(fmt2)?'视频音源':'外部音源',
-pic:'',
-external:true,
-url:url,
-srcUrl:url,
-format:fmt2||'m4s',
-quality:'external'
-};
-}
-return null;
-}
+
 
 
 async function resolveInput(text){
@@ -411,13 +402,14 @@ var src=(typeof ADD_SOURCE!=='undefined'?ADD_SOURCE:'wy');
 if(src==='ext'){
 var urlsE=extractAllUrlsFromText(text);
 if(!urlsE.length)throw new Error('请输入音频/视频直链');
+var lastErr='直链不可用';
 for(var je=0;je<urlsE.length;je++){
 try{
 var eme=await tryThirdPartyLink(urlsE[je]);
 if(eme)return eme;
-}catch(e){}
+}catch(e){lastErr=(e&&e.message)||lastErr;}
 }
-throw new Error('直链不可用');
+throw new Error(lastErr||'直链不可用');
 }
 
 // 酷狗模式：只搜元数据，音质留给播放时探测（避免添加卡住）

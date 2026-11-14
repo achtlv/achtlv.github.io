@@ -14,21 +14,12 @@ export async function resolveInput(request, url, env) {
   if (inParam !== null) {
     if (/^https?:\/\//i.test(inParam)) {
       assertSafeUrl(inParam, env);
-      let res;
-      try {
-        res = await fetch(inParam, {
-          headers: { 'User-Agent': 'CppScript/14' },
-          signal: AbortSignal.timeout(10000),
-        });
-      } catch (e) {
-        fail(502, `in fetch error: ${e.message}`, 'E50');
-      }
-      if (!res.ok) fail(502, `in fetch failed: ${res.status}`, 'E50');
+      const res = await fetch(inParam, { signal: AbortSignal.timeout(15000) });
+      if (!res.ok) fail(502, `in URL fetch failed: ${res.status}`);
       const text = await res.text();
       if (text.length > 1024 * 1024) fail(502, 'in exceeds 1MB', 'E51');
       return text;
     }
-    if (inParam.length > 1024 * 1024) fail(502, 'in exceeds 1MB', 'E51');
     return inParam;
   }
 
@@ -42,7 +33,7 @@ export async function resolveInput(request, url, env) {
   return '';
 }
 
-/** 预填文本的输入流（Worker / 本地预置 in）——方法均为 async，便于统一 await */
+/** 预填文本的输入流 */
 export class InputStream {
   constructor(text = '') {
     this.text = String(text ?? '');
@@ -66,32 +57,39 @@ export class InputStream {
 }
 
 /**
- * 交互式输入流：行缓冲
- * - pushLine(line)：追加一行（自动补 \\n），唤醒等待中的 getchar/readToken
- * - finish()：标记 EOF
- * - 无数据时 await，直到有行或完成
+ * 交互式输入流
+ * - pushLine / finish / abort
  */
 export class InteractiveInputStream {
   constructor(initial = '') {
     this.buf = String(initial ?? '');
     this.pos = 0;
     this.eof = false;
+    this.aborted = false;
     this._resolvers = [];
   }
 
   pushLine(line) {
+    if (this.aborted) return;
     const s = String(line ?? '');
     this.buf += s.endsWith('\n') ? s : s + '\n';
     this._wake();
   }
 
-  /** 直接追加原始文本（可不含换行） */
   pushText(text) {
+    if (this.aborted) return;
     this.buf += String(text ?? '');
     this._wake();
   }
 
   finish() {
+    this.eof = true;
+    this._wake();
+  }
+
+  /** 强行停止：EOF + 唤醒，并标记 aborted */
+  abort() {
+    this.aborted = true;
     this.eof = true;
     this._wake();
   }
@@ -107,8 +105,18 @@ export class InteractiveInputStream {
 
   async getchar() {
     while (this.pos >= this.buf.length) {
+      if (this.aborted) {
+        const e = new Error('execution aborted');
+        e.code = 'E60';
+        throw e;
+      }
       if (this.eof) return -1;
       await this._wait();
+    }
+    if (this.aborted) {
+      const e = new Error('execution aborted');
+      e.code = 'E60';
+      throw e;
     }
     const cp = this.buf.codePointAt(this.pos);
     this.pos += cp > 0xffff ? 2 : 1;
@@ -117,6 +125,11 @@ export class InteractiveInputStream {
 
   async readToken() {
     for (;;) {
+      if (this.aborted) {
+        const e = new Error('execution aborted');
+        e.code = 'E60';
+        throw e;
+      }
       while (this.pos < this.buf.length && /\s/.test(this.buf[this.pos])) this.pos++;
       if (this.pos < this.buf.length) break;
       if (this.eof) return null;
@@ -124,11 +137,6 @@ export class InteractiveInputStream {
     }
     const start = this.pos;
     while (this.pos < this.buf.length && !/\s/.test(this.buf[this.pos])) this.pos++;
-    // 若 token 被截断在缓冲区末尾且尚未 EOF，继续等更多字符
-    if (this.pos >= this.buf.length && !this.eof) {
-      // 已读到空白或内容；若最后一个字符不是空白且可能还会续写，仍返回当前 token
-      // 行模式：pushLine 已带 \\n，token 完整
-    }
     return this.buf.slice(start, this.pos);
   }
 }

@@ -26,8 +26,9 @@ export function parse(src) {
     const t = peek();
     if (t.type === 'IDENT') {
       const name = t.value;
-      if (name === 'key' || /^key\d*$/.test(name) || name.startsWith('key')) {
-        err('E03', `variable name cannot start with 'key' (reserved for key/key0/key1...); got '${name}'`, t.line, t.col);
+      // 仅禁止 key、key0、key123 等「key + 纯数字」；keyboard 等允许
+      if (name === 'key' || /^key\d+$/.test(name)) {
+        err('E03', `variable name '${name}' is reserved (key / key0 / key1...); rename it`, t.line, t.col);
       }
       return next().value;
     }

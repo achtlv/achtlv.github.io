@@ -183,7 +183,7 @@ export class Interpreter {
 
   initBuiltins() {
     const url = this.ctx.url;
-    const q = (n) => url.searchParams.get(n) ?? '';
+    const q = (n) => { const v = url.searchParams.get(n); return v == null ? '' : String(v).trim(); };
     const p = (n) => {
       const parts = url.pathname.split('/').filter(Boolean);
       return parts[n - 1] ? decodeURIComponent(parts[n - 1]) : '';
@@ -209,7 +209,7 @@ export class Interpreter {
    *   · key[i] / key.size() / for-in key 使用完整 deque
    */
   parseKeyParam(raw) {
-    if (raw == null || raw === '') return '';
+    if (raw == null) return '';
     let s = String(raw).trim();
     if (s.startsWith('{') && s.endsWith('}')) s = s.slice(1, -1).trim();
     if (!s) {
@@ -217,6 +217,7 @@ export class Interpreter {
       return { __container: d, __elemType: { kind: 'deque', elem: { kind: 'auto' } } };
     }
     const parts = this.splitKeyTokens(s);
+    if (!parts.length) return '';
     const rawStr = String(raw);
     if (parts.length === 1 && !rawStr.includes(',') && !rawStr.includes('\n') && !rawStr.trim().startsWith('{')) {
       return parts[0];
@@ -230,8 +231,9 @@ export class Interpreter {
     const parts = [];
     let i = 0;
     const n = s.length;
+    const isSep = (c) => c === ',' || c === '\n' || c === '\r' || c === ' ' || c === '\t';
     while (i < n) {
-      while (i < n && /[\s,]/.test(s[i])) i++;
+      while (i < n && isSep(s[i])) i++;
       if (i >= n) break;
       if (s[i] === '"' || s[i] === "'") {
         const quote = s[i++];
@@ -244,7 +246,7 @@ export class Interpreter {
         parts.push(val);
       } else {
         let tok = '';
-        while (i < n && s[i] !== ',' && s[i] !== '\n' && s[i] !== '\r') tok += s[i++];
+        while (i < n && !isSep(s[i])) tok += s[i++];
         tok = tok.trim();
         if (!tok) continue;
         if (tok === 'true') parts.push(true);
@@ -261,7 +263,7 @@ export class Interpreter {
     const indexed = [];
     for (const [k, v] of sp.entries()) {
       const m = /^key(\d+)$/.exec(k);
-      if (m) indexed.push([parseInt(m[1], 10), v]);
+      if (m) indexed.push([parseInt(m[1], 10), String(v).trim()]);
     }
     indexed.sort((a, b) => a[0] - b[0]);
     if (indexed.length) {
@@ -277,7 +279,7 @@ export class Interpreter {
       }
       return this.parseKeyParam(indexed.map(([, v]) => v).join(','));
     }
-    const all = sp.getAll('key');
+    const all = sp.getAll('key').map((v) => String(v).trim());
     if (all.length > 1) return this.parseKeyParam(all.join(','));
     if (all.length === 1) return this.parseKeyParam(all[0]);
     return '';
@@ -1631,7 +1633,7 @@ export class Interpreter {
   coerce(v, type, name) {
     if (!type) return v;
     if (type.kind === 'number') return this.toNum(v);
-    if (type.kind === 'string') return this.toStr(v);
+    if (type.kind === 'string') return this.toStr(v).trim();
     if (type.kind === 'bool') return this.toBool(v);
     if (type.kind === 'char') return this.toChar(v);
     if (type.kind === 'auto') return v;

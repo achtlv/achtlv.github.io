@@ -768,9 +768,11 @@ get_all(urls, true);       // 第二参数 true 时并发走 Worker 代理
 try { ... } catch (e) { out(e); }
 throw "message";
 
-return url with 302;              // 自动跳转（延迟 1.5s）
-return url with 302 with confirm; // 弹窗确认
+out("说明文字\n");
+return url with 302;              // 可先 out 再跳转；自动跳转延迟 1.5s
+return url with 302 with confirm; // 确认弹窗：复制链接 / 取消 / 确认跳转
 return url with 302 with auto;    // 显式自动
+// confirm 下可「复制链接」后「取消」= 只复制不跳转
 </code></pre>
 <p>12.10 &lt;cstdio&gt; 子集</p>
 <pre><code>puts(s)              // 等价 out(s+"\n")，返回 0

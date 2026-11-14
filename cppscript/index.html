@@ -360,16 +360,49 @@ function analyzeKeyQuery(ast) {
   return { needsKey, needsQuery };
 }
 
+function isReservedKeyName(name) {
+  return name === 'key' || /^key\d+$/.test(name);
+}
+
 function parseQueryBoxText(text) {
   const map = Object.create(null);
-  for (const line of String(text || '').split(/\r?\n/)) {
-    const s = line.trim();
-    if (!s || s.startsWith('#')) continue;
-    const eq = s.indexOf('=');
+  const raw = String(text || '');
+  const segments = [];
+  let i = 0;
+  let cur = '';
+  const isSep2 = (c) => c === ',' || c === ';' || c === ' ' || c === '\t' || c === '\n' || c === '\r';
+  while (i < raw.length) {
+    const c = raw[i];
+    if (c === '"' || c === "'") {
+      const q = c;
+      cur += c;
+      i++;
+      while (i < raw.length && raw[i] !== q) {
+        if (raw[i] === '\\' && i + 1 < raw.length) { cur += raw[i] + raw[i + 1]; i += 2; }
+        else { cur += raw[i++]; }
+      }
+      if (i < raw.length) cur += raw[i++];
+      continue;
+    }
+    if (isSep2(c)) {
+      if (cur.trim()) segments.push(cur.trim());
+      cur = '';
+      while (i < raw.length && isSep2(raw[i])) i++;
+      continue;
+    }
+    cur += c;
+    i++;
+  }
+  if (cur.trim()) segments.push(cur.trim());
+  for (const seg of segments) {
+    if (seg.startsWith('#')) continue;
+    const eq = seg.indexOf('=');
     if (eq <= 0) continue;
-    const k = s.slice(0, eq).trim();
-    const v = s.slice(eq + 1);
-    if (k) map[k] = v;
+    const k = seg.slice(0, eq).trim();
+    let v = seg.slice(eq + 1).trim();
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+    if (!k || isReservedKeyName(k)) continue;
+    map[k] = v;
   }
   return map;
 }

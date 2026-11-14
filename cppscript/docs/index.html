@@ -67,6 +67,8 @@
 <p>CppScript 语法规范 v14.2（完整版）</p>
 <p>语言：CppScript　｜　版本：v14.2　｜　规则文件：任意文本（≤ 100 KB）</p>
 <p>面向 C++ 用户，无编译期、无指针、无宏；容器（含 list/multiset/multimap）与 &lt;algorithm&gt; / &lt;cmath&gt; / &lt;cstdio&gt; 风格函数可直接使用（无 #include）。</p>
+<p>前端：输入/输出框仅在<strong>真正执行到</strong> <code>in</code>/<code>out</code> 等时出现；key/query 若代码可能用到且参数未在 URL 中，会先显示并需点「确认并运行」（可留空）。
+源文件建议使用后缀 <code>.cpps</code>（如 <code>rule.cpps</code>）。通过 <code>?url=</code> 加载时<strong>不要求</strong>文件名必须是 <code>.cpps</code>，只要响应是纯文本源码即可。</p>
 <p>核心：<code>out()</code> 输出 body（可边执行边显示）；<code>return</code> 可返回跳转 URL 或状态码。</p>
 <p>运行方式两套：</p>
 <ul>

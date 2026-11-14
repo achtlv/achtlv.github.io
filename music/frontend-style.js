@@ -598,4 +598,34 @@ border-top-color:var(--primary);animation:spin .8s linear infinite}
 .empty-loading-text{opacity:.85}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
+
+/* 桌面端：整体卡片垂直水平居中，上下留白相等 */
+@media (min-width: 560px){
+html,body{height:100%;}
+body{
+display:flex!important;
+align-items:center!important;
+justify-content:center!important;
+background:var(--surface);
+}
+.app{
+height:min(900px, calc(100dvh - 48px))!important;
+max-height:calc(100dvh - 48px)!important;
+margin:0 auto!important;
+border-radius:28px;
+overflow:hidden;
+box-shadow:0 12px 40px rgba(0,0,0,.12);
+border:1px solid var(--outline-variant);
+position:relative;
+padding-bottom:0!important;
+}
+.tabbar{
+position:absolute!important;
+left:0!important;right:0!important;bottom:0!important;
+width:100%!important;
+}
+#pagePlayer.page-active,#pagePlaylists.page-active,#pageMe.page-active{
+padding-bottom:60px;
+}
+}
 `;

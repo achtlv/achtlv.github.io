@@ -129,8 +129,27 @@ if(ms2<0)return null;
 return n0*3600+n1*60+n2+ms2/1000;
 }
 
+
+function repairMojibake(s){
+if(!s||typeof s!=='string')return s||'';
+// 已含正常日/中文则不处理
+if(/[\u3040-\u30ff\u4e00-\u9fff]/.test(s)&&s.indexOf('\ufffd')===-1&&!/Ã.|Â.|ã.|ä./.test(s))return s;
+// UTF-8 被当成 latin1 再解释的常见乱码：按 latin1 取字节再按 utf-8 解
+try{
+if(/Ã.|Â.|å.|æ.|ç.|è.|é.|ä.|ã./.test(s)||s.indexOf('\ufffd')!==-1){
+var bytes=new Uint8Array(s.length);
+for(var i=0;i<s.length;i++)bytes[i]=s.charCodeAt(i)&0xff;
+var dec=new TextDecoder('utf-8',{fatal:false}).decode(bytes);
+if(dec&&dec.indexOf('\ufffd')<s.indexOf('\ufffd'))return dec;
+if(/[\u3040-\u30ff\u4e00-\u9fff]/.test(dec))return dec;
+}
+}catch(e){}
+return s;
+}
+
 function cleanLyricMeta(text){
 if(!text)return '';
+text=repairMojibake(String(text));
 // 去掉 UTF-8 BOM（酷狗 krc 常见）
 text=String(text).replace(/^\uFEFF/,'');
 var lines=text.split(/\r?\n/);
@@ -214,7 +233,7 @@ return '';
 
 function extractLyricMulti(r){
 if(!r)return {main:'',trans:'',roma:''};
-if(typeof r==='string')return {main:parseRichLyric(r),trans:'',roma:''};
+if(typeof r==='string')return {main:parseRichLyric(repairMojibake(r)),trans:'',roma:''};
 
 var candidates=[r,r.data,r.result,r.data&&r.data.data,r.result&&r.result.data];
 var main='',trans='',roma='';

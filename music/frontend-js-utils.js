@@ -221,9 +221,25 @@ if(lv==='exhigh'||lv==='320k'||lv==='higher')return ['320k'];
 if(lv==='standard'||lv==='128k')return ['128k'];
 return ['320k'];
 }
+function isCorsBrokenHost(url){
+return /zddyr\.top|wwwweb\.top|lxmusicapi\.onrender\.com|gdstudio\.xyz|vkeys\.cn|music-api\.|onrender\.com/i.test(String(url||''));
+}
 function localFetchJson(url,options,timeoutMs){
 options=options||{};
 timeoutMs=timeoutMs||12000;
+var u=String(url||'');
+// 已知无 CORS 的域名：直接走 Worker 代理，避免浏览器预检失败刷屏
+if(isCorsBrokenHost(u)&&u.indexOf('/api/proxyFetch')===-1){
+return fetch(toAbsoluteApiUrl('/api/proxyFetch'),{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({url:u,method:options.method||'GET',headers:options.headers||{},body:options.body,timeoutMs:timeoutMs})
+}).then(function(r){
+return r.json().then(function(j){
+return {ok:!!(j&&j.ok),status:(j&&j.status)||r.status,data:j&&j.data,text:j&&j.text};
+}).catch(function(){return {ok:false,status:0,data:null};});
+}).catch(function(){return {ok:false,status:0,data:null};});
+}
 var ctrl=typeof AbortController!=='undefined'?new AbortController():null;
 var timer=null;
 var opts={method:options.method||'GET',headers:options.headers||{}};
@@ -231,7 +247,7 @@ if(ctrl)opts.signal=ctrl.signal;
 if(options.body!==undefined)opts.body=options.body;
 return new Promise(function(resolve){
 if(ctrl)timer=setTimeout(function(){try{ctrl.abort();}catch(e){}},timeoutMs);
-fetch(url,opts).then(function(r){
+fetch(u,opts).then(function(r){
 return r.text().then(function(t){
 var data=null;
 try{data=JSON.parse(t);}catch(e){}
@@ -241,27 +257,20 @@ resolve({ok:r.ok,status:r.status,data:data,text:t});
 resolve({ok:false,status:0,data:null,error:String(e&&e.message||e),corsFail:true});
 }).then(function(v){if(timer)clearTimeout(timer);return v;});
 }).then(function(res){
-// CORS/网络失败时，对已知音源域名走 Worker 代理
 var needProxy=res&&(res.corsFail||res.status===0||(!res.ok&&!res.data&&res.status!==404));
-var u=String(url||'');
-var hostHit=/zddyr\.top|wwwweb\.top|lxmusicapi\.onrender\.com|gdstudio\.xyz|vkeys\.cn/i.test(u);
-if(needProxy&&hostHit&&u.indexOf('/api/proxyFetch')===-1){
+if(needProxy&&isCorsBrokenHost(u)&&u.indexOf('/api/proxyFetch')===-1){
 return fetch(toAbsoluteApiUrl('/api/proxyFetch'),{
 method:'POST',
 headers:{'Content-Type':'application/json'},
 body:JSON.stringify({url:u,method:options.method||'GET',headers:options.headers||{},body:options.body,timeoutMs:timeoutMs})
 }).then(function(r){return r.json().then(function(j){
-return {
-ok:!!(j&&j.ok),
-status:(j&&j.status)||r.status,
-data:j&&j.data,
-text:j&&j.text
-};
+return {ok:!!(j&&j.ok),status:(j&&j.status)||r.status,data:j&&j.data,text:j&&j.text};
 }).catch(function(){return res;});}).catch(function(){return res;});
 }
 return res;
 });
 }
+
 
 
 async function maybeCacheSideStandard(id,url,expi){

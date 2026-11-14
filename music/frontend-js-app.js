@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261114.06';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261115.01';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -971,6 +971,19 @@ try{logEvent('error','audio.play异常',String(e&&e.message||e));}catch(e2){}
 }
 
 // ==================== 进度条 ====================
+function resetProgressUI(){
+try{isSeeking=false;}catch(e){}
+try{
+if($('seek')){
+$('seek').value='0';
+$('seek').style.background='linear-gradient(to right, var(--primary) 0%, var(--outline-variant) 0%)';
+}
+}catch(e){}
+try{if($('curTime'))$('curTime').textContent='0:00';}catch(e){}
+try{if($('durTime'))$('durTime').textContent='0:00';}catch(e){}
+try{updateSeekBg(0);}catch(e){}
+}
+
 function updateSeekBg(pct){
 $('seek').style.background='linear-gradient(to right, var(--primary) '+pct+'%, var(--outline-variant) '+pct+'%)';
 }
@@ -1071,6 +1084,7 @@ render();
 
 if($('seek'))$('seek').addEventListener('input',function(){
 isSeeking=true;
+try{state._seekStartedAt=Date.now();}catch(e){}
 // 拖动中只更新 UI，松手后再真正 seek
 try{pendingSeekRatio=Number(this.value)/1000;pendingSeekFromUser=true;}catch(e){}
 var pct=parseFloat(this.value)/10;
@@ -1116,16 +1130,25 @@ pendingSeekRatio=null;
 try{if($('seek'))$('seek').value='0';}catch(e){}
 try{updateSeekBg(0);}catch(e){}
 try{if($('curTime'))$('curTime').textContent='0:00';}catch(e){}
+try{resetProgressUI();}catch(e){}
 try{nextSong(true,true);}catch(e){}
+// 多次强制清进度条，避免上一首满绿残留
+[0,50,150,400,800].forEach(function(ms){
 setTimeout(function(){
 try{resetProgressUI();}catch(e){}
-try{if($('seek'))$('seek').value='0';}catch(e){}
-try{updateSeekBg(0);}catch(e){}
-},50);
+// 若仍是播放意图但音频暂停，补一次 play
+try{
+if(state.playing&&audio&&audio.paused&&state.audioUrl&&!state.loadingUrl){
+var p=audio.play();if(p&&p.catch)p.catch(function(){});
+}
+}catch(e){}
+},ms);
+});
 setTimeout(function(){
 try{state._ignoreEnded=false;}catch(e){}
 try{state._seekEndLock=false;}catch(e){}
-},1200);
+try{state._finishSeekLock=false;}catch(e){}
+},1500);
 return;
 }
 else{try{audio.currentTime=Math.max(0,audio.duration-0.05);}catch(e){}updateSeekBg(100);try{if($('curTime'))$('curTime').textContent=fmt(audio.duration||0);}catch(e){}}
@@ -1140,8 +1163,13 @@ if($('seek'))$('seek').addEventListener('pointerup',finishSeek);
 if($('seek'))$('seek').addEventListener('touchend',finishSeek);
 
 function onTimeUpdate(){
+// isSeeking 卡住保护：超过 2s 强制解除
+if(isSeeking&&state._seekStartedAt&&Date.now()-state._seekStartedAt>2000){
+isSeeking=false;
+}
 // 切歌取链中不要用旧音频进度覆盖已重置的进度条
-if(state.loadingUrl||isSeeking)return;
+if(state.loadingUrl)return;
+if(isSeeking)return;
 if(!state.audioUrl&&!state.playing)return;
 var d=audio.duration||0;
 var c=audio.currentTime||0;

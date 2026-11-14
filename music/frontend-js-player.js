@@ -152,9 +152,17 @@ function onLoaded(){
 if(settled)return;
 settled=true;
 cleanup();
+try{audio.currentTime=0;}catch(e){}
 if(state&&state.playing){
 var p=audio.play();
 if(p&&p.catch)p.catch(function(){});
+// 再补两次，防止被 pause 竞态打断
+setTimeout(function(){
+try{if(state.playing&&audio.paused){var p2=audio.play();if(p2&&p2.catch)p2.catch(function(){});}}catch(e){}
+},80);
+setTimeout(function(){
+try{if(state.playing&&audio.paused){var p3=audio.play();if(p3&&p3.catch)p3.catch(function(){});}}catch(e){}
+},300);
 }else{
 try{audio.pause();}catch(e){}
 }

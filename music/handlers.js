@@ -126,6 +126,67 @@ export async function handleKgLyric(hash) {
   let h = String(hash || "").toLowerCase().replace(/^kg/, "").replace(/[^a-f0-9]/g, "");
   if (h.length !== 32) return json({ code: 400, msg: "无效 hash: " + String(hash) }, 400);
   const headers = { "User-Agent": UA, "Referer": "https://www.kugou.com/", "Accept": "*/*" };
+
+  // 1) 官方 lyrics.kugou.com 搜索 + 下载（charset=utf8，避免乱码）
+  try {
+    const searchUrl = "https://lyrics.kugou.com/search?ver=1&man=yes&client=pc&keyword=&duration=&hash=" + encodeURIComponent(h);
+    const sr = await fetchJson(searchUrl, { headers }, 10000);
+    const candidates = (sr.data && (sr.data.candidates || sr.data.data || sr.data)) || [];
+    const list = Array.isArray(candidates) ? candidates : [];
+    if (list.length) {
+      // 优先带翻译的
+      list.sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0));
+      const best = list[0];
+      const id = best.id || best.kid || best.lyric_id;
+      const accesskey = best.accesskey || best.accessKey || "";
+      if (id) {
+        // 先试 lrc utf8
+        const dl = "https://lyrics.kugou.com/download?ver=1&client=pc&id=" + encodeURIComponent(id) + "&accesskey=" + encodeURIComponent(accesskey) + "&fmt=lrc&charset=utf8";
+        const dr = await fetchJson(dl, { headers }, 10000);
+        let content = "";
+        if (dr.data && dr.data.content) content = dr.data.content;
+        else if (dr.data && typeof dr.data === "string") content = dr.data;
+        else if (typeof dr.text === "string" && dr.text.indexOf("[") >= 0) content = dr.text;
+        // content 可能是 base64
+        if (content && !/\[\d{1,2}:\d{2}/.test(content)) {
+          try {
+            const bin = atob(content);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            content = new TextDecoder("utf-8").decode(bytes);
+          } catch (e) {}
+        }
+        if (content && /\[\d{1,2}:\d{2}/.test(content)) {
+          // 尝试再拉翻译轨（部分歌曲 content 内已含）
+          let trans = "";
+          try {
+            const dl2 = "https://lyrics.kugou.com/download?ver=1&client=pc&id=" + encodeURIComponent(id) + "&accesskey=" + encodeURIComponent(accesskey) + "&fmt=lrc&charset=utf8&trans=1";
+            const tr = await fetchJson(dl2, { headers }, 8000);
+            let tc = (tr.data && tr.data.content) || "";
+            if (tc && !/\[\d{1,2}:\d{2}/.test(tc)) {
+              try {
+                const bin = atob(tc);
+                const bytes = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                tc = new TextDecoder("utf-8").decode(bytes);
+              } catch (e) {}
+            }
+            if (tc && /\[\d{1,2}:\d{2}/.test(tc) && tc !== content) trans = tc;
+          } catch (e) {}
+          return json({
+            code: 200,
+            data: {
+              lyric: content,
+              tlyric: trans || "",
+              romalrc: "",
+            },
+          });
+        }
+      }
+    }
+  } catch (e) {}
+
+  // 2) 回退 krc.php
   const krcUrls = [
     "https://m.kugou.com/app/i/krc.php?cmd=100&hash=" + encodeURIComponent(h) + "&timelength=999999&d=0.1",
     "https://m3ws.kugou.com/app/i/krc.php?cmd=100&hash=" + encodeURIComponent(h) + "&timelength=999999&d=0.1",
@@ -136,43 +197,18 @@ export async function handleKgLyric(hash) {
       let raw = "";
       if (r.text && String(r.text).trim()) raw = r.text;
       else if (typeof r.data === "string") raw = r.data;
-      raw = String(raw || "").replace(/^\uFEFF/, "");
-      if (raw && (/\[\d{1,2}:\d{2}/.test(raw) || (raw.indexOf("[") >= 0 && raw.length > 30))) {
-        return json({ code: 200, data: { lyric: raw, lrc: { lyric: raw } } });
+      else if (r.data && r.data.lyric) raw = r.data.lyric;
+      if (raw) {
+        raw = String(raw).replace(/^\uFEFF/, "");
+        if (/\[\d{1,2}:\d{2}/.test(raw)) {
+          return json({ code: 200, data: { lyric: raw, tlyric: "", romalrc: "" } });
+        }
       }
     } catch (e) {}
   }
-  try {
-    const searchUrl = "https://lyrics.kugou.com/search?ver=1&man=yes&client=pc&keyword=&duration=&hash=" + encodeURIComponent(h);
-    const sr = await fetchJson(searchUrl, { headers }, 12000);
-    const candidates = (sr.data && sr.data.candidates) || [];
-    if (candidates && candidates[0]) {
-      const c0 = candidates[0];
-      const id = c0.id || c0.Id;
-      const accesskey = c0.accesskey || c0.AccessKey;
-      if (id && accesskey) {
-        const dl = "https://lyrics.kugou.com/download?ver=1&client=pc&id=" + encodeURIComponent(id) +
-          "&accesskey=" + encodeURIComponent(accesskey) + "&fmt=lrc&charset=utf8";
-        const dr = await fetchJson(dl, { headers }, 12000);
-        let content = (dr.data && (dr.data.content || dr.data.lyric)) || "";
-        if (content && typeof content === "string") {
-          try {
-            if (!/\[\d{1,2}:\d{2}/.test(content) && content.length > 40) {
-              const decoded = atob(content);
-              const bytes = Uint8Array.from(decoded, c => c.charCodeAt(0));
-              content = new TextDecoder("utf-8").decode(bytes);
-            }
-          } catch (e) {}
-          content = String(content || "").replace(/^\uFEFF/, "");
-          if (content && content.length > 10) {
-            return json({ code: 200, data: { lyric: content, lrc: { lyric: content } } });
-          }
-        }
-      }
-    }
-  } catch (e) {}
   return json({ code: 404, msg: "暂无歌词" });
 }
+
 
 
 

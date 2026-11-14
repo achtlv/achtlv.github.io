@@ -138,7 +138,7 @@ a { color: var(--accent); }
       <textarea class="code" id="code" spellcheck="false" placeholder="auto main() { ... }"></textarea>
     </div>
     <div id="paneUrl" hidden>
-      <input type="url" id="ruleUrl" placeholder="https://.../rule.txt" />
+      <input type="url" id="ruleUrl" placeholder="https://.../rule.cpps" />
       <p class="hint">无协议自动补 https；http 升为 https。点「运行」会先保存到地址栏再执行。</p>
       <div class="row">
         <button type="button" class="secondary" id="btnLoad">加载到编辑器</button>
@@ -180,7 +180,12 @@ a { color: var(--accent); }
   <!-- 6. query -->
   <div class="card" id="cardQuery" hidden>
     <h2>Query 参数</h2>
-    <textarea id="queryBox" rows="4" placeholder="一行一个：&#10;a=1&#10;b=hello"></textarea>
+    <textarea id="queryBox" rows="4" placeholder="一行一个：&#10;a=1&#10;b=hello&#10;（无需分号）"></textarea>
+  </div>
+
+  <div id="paramConfirmBar" hidden style="margin-bottom:0.85rem">
+    <button type="button" id="btnParamConfirm" style="width:100%">确认并运行</button>
+    <p class="hint">key / query 可留空。确认后开始执行；输入输出框仅在真正执行到时出现。</p>
   </div>
 
   <p class="foot"><a href="./docs/">文档</a></p>
@@ -333,10 +338,9 @@ function openRedirectModal(url) {
   });
 }
 
-function analyzeNeeds(ast) {
-  let needsKey = false, needsIn = false, needsOut = false, needsQuery = false;
-  const IN_FNS = new Set(['getchar', 'scanf']);
-  const OUT_FNS = new Set(['out', 'printf', 'puts', 'putchar']);
+
+function analyzeKeyQuery(ast) {
+  let needsKey = false, needsQuery = false;
   const Q_BUILTINS = new Set(['keyword', 'repoPath', 'tag', 'selector', 'prerelease', 'p1', 'p2', 'p3', 'p4']);
   const walk = (n) => {
     if (!n || typeof n !== 'object') return;
@@ -345,16 +349,10 @@ function analyzeNeeds(ast) {
       if (n.name === 'key') needsKey = true;
       if (Q_BUILTINS.has(n.name)) needsQuery = true;
     }
-    if (n.type === 'In') needsIn = true;
-    if (n.type === 'Call' && n.callee && n.callee.type === 'Ident') {
-      const fn = n.callee.name;
-      if (IN_FNS.has(fn)) needsIn = true;
-      if (OUT_FNS.has(fn)) needsOut = true;
-      if (fn === 'q_get') {
-        const a0 = n.args && n.args[0];
-        if (a0 && a0.type === 'String' && a0.value === 'key') needsKey = true;
-        else needsQuery = true;
-      }
+    if (n.type === 'Call' && n.callee && n.callee.type === 'Ident' && n.callee.name === 'q_get') {
+      const a0 = n.args && n.args[0];
+      if (a0 && a0.type === 'String' && a0.value === 'key') needsKey = true;
+      else needsQuery = true;
     }
     for (const k of Object.keys(n)) {
       if (k === 'type') continue;
@@ -362,7 +360,7 @@ function analyzeNeeds(ast) {
     }
   };
   walk(ast);
-  return { needsKey, needsIn, needsOut, needsQuery };
+  return { needsKey, needsQuery };
 }
 
 function parseQueryBoxText(text) {
@@ -406,6 +404,7 @@ function hideRuntimePanels() {
   cardKey.hidden = true;
   cardQuery.hidden = true;
   cardIn.hidden = true;
+  $('paramConfirmBar').hidden = true;
 }
 
 /** 保存 URL 页内容到地址栏参数（不刷新） */
@@ -423,14 +422,12 @@ function saveUrlFromBox() {
 
 function showTab(name, { fromUser = false } = {}) {
   const isCode = name === 'code';
-  // 切到编辑器：若 URL 框或地址栏有 url，先保存
   if (isCode && fromUser) {
     const box = ruleUrlEl.value.trim();
     const param = new URL(location.href).searchParams.get('url');
     if (box || param) {
       const u = saveUrlFromBox() || (param ? ensureHttps(param) : '');
       if (u && !codeEl.value.trim()) {
-        // 有 URL 但编辑器空：尝试加载
         loadRule(u).catch(() => {});
       }
     }
@@ -486,6 +483,7 @@ codeEl.addEventListener('input', () => {
 
 let stream = null;
 let running = false;
+let pendingRun = null; // { src, options }
 
 function setInputEnabled(on) {
   lineIn.disabled = !on;
@@ -531,6 +529,61 @@ function setRunningUI(on) {
   }
 }
 
+function hasKeyParam() {
+  try {
+    if (new URL(location.href).searchParams.has('key')) return true;
+  } catch (_) {}
+  // 输入框有内容也算已提供（含故意留空时用户会点确认）
+  return false;
+}
+
+function hasQueryParams() {
+  const box = queryBox.value.trim();
+  if (box) return true;
+  try {
+    const u = new URL(location.href);
+    const skip = new Set(['url', 'key', 'in', 'run', 'server']);
+    for (const k of u.searchParams.keys()) {
+      if (!skip.has(k)) return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+/** 运行前：key/query 不齐则先展示并等确认 */
+function preflightKeyQuery(ast) {
+  const { needsKey, needsQuery } = analyzeKeyQuery(ast);
+  cardKey.hidden = true;
+  cardQuery.hidden = true;
+  $('paramConfirmBar').hidden = true;
+
+  let needConfirm = false;
+  const url = new URL(location.href);
+
+  if (needsKey) {
+    if (url.searchParams.has('key')) {
+      $('key').value = url.searchParams.get('key') || '';
+    } else {
+      cardKey.hidden = false;
+      needConfirm = true;
+    }
+  }
+  if (needsQuery) {
+    if (!hasQueryParams()) {
+      cardQuery.hidden = false;
+      needConfirm = true;
+    }
+  }
+  if (needConfirm) {
+    $('paramConfirmBar').hidden = false;
+  }
+  return needConfirm;
+}
+
+function pageUrlHasPrefillKey() {
+  try { return new URL(location.href).searchParams.has('key'); } catch { return false; }
+}
+
 async function runCode(src, options = {}) {
   if (running) return;
   if (!src || !src.trim()) {
@@ -543,16 +596,14 @@ async function runCode(src, options = {}) {
   setRunningUI(true);
   setStatus('运行中…', 'wait');
   hideRuntimePanels();
-  cardOut.hidden = true;
+  cardOut.hidden = true; // 绝不预开；只有真正 out 时才开
 
   const abortCtl = new AbortController();
   window.__cppsAbort = abortCtl;
 
-  let needs = { needsKey: false, needsIn: false, needsOut: false, needsQuery: false };
   let ast;
   try {
     ast = parse(src);
-    needs = analyzeNeeds(ast);
   } catch (e) {
     cardOut.hidden = false;
     outEl.value = '[error] ' + (e.message || e);
@@ -563,26 +614,25 @@ async function runCode(src, options = {}) {
     return;
   }
 
-  cardKey.hidden = !needs.needsKey;
-  cardQuery.hidden = !needs.needsQuery;
-  cardIn.hidden = !needs.needsIn;
-  // 仅当代码会真正写输出流时才预先显示输出框
-  if (needs.needsOut) cardOut.hidden = false;
+  // 输入流：始终 Interactive，真正 in 时再显示框
+  stream = new InteractiveInputStream(options.prefillIn || '');
+  setInputEnabled(false);
+  abortCtl.signal.addEventListener('abort', () => {
+    try { stream.finish(); } catch (_) {}
+  });
 
-  if (needs.needsIn) {
-    stream = new InteractiveInputStream(options.prefillIn || '');
-    setInputEnabled(true);
-    abortCtl.signal.addEventListener('abort', () => {
-      try { stream.finish(); } catch (_) {}
-    });
-  } else {
-    stream = new InputStream(options.prefillIn || '');
-    setInputEnabled(false);
-  }
-
-  const keyVal = needs.needsKey ? ($('key').value || '') : '';
+  const keyVal = $('key').value || '';
   const fake = new URL('https://local.cppscript/run');
-  if (needs.needsKey) fake.searchParams.set('key', keyVal);
+  fake.searchParams.set('key', keyVal);
+  // sync key to address bar without reload
+  if (keyVal !== '') setUrlParam('key', keyVal, false);
+  // query box → address bar
+  const qmap = parseQueryBoxText(queryBox.value);
+  try {
+    const u = new URL(location.href);
+    for (const [k, v] of Object.entries(qmap)) u.searchParams.set(k, v);
+    history.replaceState(null, '', u);
+  } catch (_) {}
 
   let hadStreamOut = false;
   try {
@@ -593,6 +643,10 @@ async function runCode(src, options = {}) {
       getQueryParam: getLiveQueryParam,
       abortSignal: abortCtl.signal,
       showModal: showModalConfirm,
+      onNeedInput: () => {
+        cardIn.hidden = false;
+        setInputEnabled(true);
+      },
       onChunk: (delta) => {
         hadStreamOut = true;
         if (cardOut.hidden) cardOut.hidden = false;
@@ -608,19 +662,19 @@ async function runCode(src, options = {}) {
       if (!outEl.value) outEl.value = interp.output;
     }
 
-    // 跳转不算输出：仅有 redirect 时不显示输出框（除非已有 out 内容）
     if (result && result.redirect && result.url) {
-      const mode = result.redirectMode || 'auto';
+      // 跳转不算输出：无 out 则不显示输出框
       if (hadStreamOut) {
         outEl.value += (outEl.value && !outEl.value.endsWith('\n') ? '\n' : '') +
-          '[redirect' + (mode === 'confirm' ? '·确认' : '') + '] ' + result.url;
+          '[redirect' + ((result.redirectMode || 'auto') === 'confirm' ? '·确认' : '') + '] ' + result.url;
       } else {
         cardOut.hidden = true;
+        outEl.value = '';
       }
       setStatus('完成 · 跳转', 'ok');
       showToast('运行完成');
-      if (mode === 'confirm') {
-        await openRedirectModal(result.url);
+      if ((result.redirectMode || 'auto') === 'confirm') {
+        await openRedirectModal(result.url); // 无延迟
       } else {
         setTimeout(() => { location.href = result.url; }, 1500);
       }
@@ -645,10 +699,48 @@ async function runCode(src, options = {}) {
   }
 }
 
+async function startRunPipeline(src, options = {}) {
+  // 解析并检查 key/query
+  let ast;
+  try {
+    ast = parse(src);
+  } catch (e) {
+    cardOut.hidden = false;
+    outEl.value = '[error] ' + (e.message || e);
+    setStatus('解析错误', 'err');
+    return;
+  }
+  const needConfirm = preflightKeyQuery(ast);
+  if (needConfirm) {
+    pendingRun = { src, options };
+    setStatus('请确认 key / query 后点「确认并运行」', 'wait');
+    return;
+  }
+  pendingRun = null;
+  await runCode(src, options);
+}
+
+$('btnParamConfirm').onclick = async () => {
+  if (!pendingRun) return;
+  const job = pendingRun;
+  pendingRun = null;
+  $('paramConfirmBar').hidden = true;
+  // 同步参数到地址栏
+  if (!cardKey.hidden) setUrlParam('key', $('key').value || '', false);
+  if (!cardQuery.hidden) {
+    const qmap = parseQueryBoxText(queryBox.value);
+    try {
+      const u = new URL(location.href);
+      for (const [k, v] of Object.entries(qmap)) u.searchParams.set(k, v);
+      history.replaceState(null, '', u);
+    } catch (_) {}
+  }
+  await runCode(job.src, job.options);
+};
+
 /** 运行入口：若在 URL 页则先保存参数并加载源码 */
 async function onRunClick() {
   if (running) return;
-  // 当前在 URL 页：先保存 URL 到地址栏，再加载再运行
   const onUrlTab = !$('paneUrl').hidden;
   if (onUrlTab) {
     const u = saveUrlFromBox();
@@ -663,15 +755,8 @@ async function onRunClick() {
       return;
     }
   }
-  await runCode(codeEl.value);
+  await startRunPipeline(codeEl.value);
 }
-
-btnStop.onclick = () => {
-  if (window.__cppsAbort) {
-    window.__cppsAbort.abort();
-    setStatus('正在停止…', 'wait');
-  }
-};
 
 btnRun.onclick = () => onRunClick();
 
@@ -699,7 +784,7 @@ if (preload) {
     try {
       await loadRule(fixed);
       // 仍停在 URL 页；用户点编辑器才会切换并保存
-      await runCode(codeEl.value, { prefillIn: pageUrl.searchParams.get('in') || '' });
+      await startRunPipeline(codeEl.value, { prefillIn: pageUrl.searchParams.get('in') || '' });
     } catch (e) {
       setStatus('加载失败: ' + e.message, 'err');
     }

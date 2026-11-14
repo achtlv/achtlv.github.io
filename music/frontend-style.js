@@ -167,8 +167,7 @@ font-variant-numeric:tabular-nums;min-width:38px}
 .progress-row span:first-child{text-align:left}
 .progress-row span:last-child{text-align:right}
 input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:6px;border-radius:3px;
-background:var(--outline-variant);outline:none;cursor:pointer;border:none;transition:background .2s}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+background:var(--outline-variant);outline:none;cursor:pointer;border:none;transition:none;width:14px;height:14px;border-radius:50%;
 background:var(--primary);cursor:pointer;border:none;transition:box-shadow .2s,transform .15s}
 input[type=range]:active::-webkit-slider-thumb{box-shadow:none;
 transform:scale(1.1)}

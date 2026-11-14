@@ -230,7 +230,11 @@ return '';
 
 function extractLyricMulti(r){
 if(!r)return {main:'',trans:'',roma:''};
-if(typeof r==='string')return {main:parseRichLyric(repairMojibake(r)),trans:'',roma:''};
+if(typeof r==='string'){
+var s0=repairMojibake(r);
+if(s0.indexOf('�')!==-1)s0=s0.replace(/�+/g,'');
+return {main:parseRichLyric(s0),trans:'',roma:''};
+}
 
 var candidates=[r,r.data,r.result,r.data&&r.data.data,r.result&&r.result.data];
 var main='',trans='',roma='';

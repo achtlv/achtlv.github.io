@@ -134,7 +134,7 @@ try  catch  throw</code></pre>
 <ul>
 <li><code>?url=</code> 规则文件 URL（必填）</li>
 <li><code>?in=</code> 输入流（可选：纯文本、或 <code>http(s)://</code> 远程文本）</li>
-<li><code>?key=</code> → 内置 <code>key</code>（可用 <code>?key=</code> 或 <code>?key0=&amp;key1=</code>；key0 优先于 key；禁止自定义变量名以 key 开头）（可选；可用逗号/换行分隔，无需大括号）</li>
+<li><code>?key=</code> → 内置 <code>key</code>（可用 <code>?key=</code> 或 <code>?key0=&amp;key1=</code>；key0 优先于 key；禁止变量名 key 或 key+纯数字（如 key0、key123）；keyboard 等允许）（可选；可用逗号/空格/换行分隔，连续分隔符合并，首尾可有分隔符；单引号等同双引号；无需大括号；赋值自动 trim）</li>
 <li><code>?in=</code> → 标准输入预置</li>
 <li>其它 query 可通过 <code>q_get("名")</code> 读取；内置还有 <code>keyword</code> <code>repoPath</code> <code>tag</code> <code>selector</code> <code>prerelease</code> 及路径段 <code>p1</code>–<code>p4</code></li>
 <li><code>?run=1</code> 强制跳过表单、立即执行</li>
@@ -491,7 +491,7 @@ for (number i = 0; i &lt; 3; i++) {
 <p>number m[3][4]; 原生二维数组</p>
 <hr />
 <p>8. 容器</p>
-<p>8.1 三种容器；其中 <code>deque&lt;auto&gt;</code> / <code>set&lt;auto&gt;</code> 在 push/insert 时按实参决定元素运行时类型（number/string/bool 可混用）。内置 <code>key</code>（可用 <code>?key=</code> 或 <code>?key0=&amp;key1=</code>；key0 优先于 key；禁止自定义变量名以 key 开头） 在花括号形式下为 <code>deque&lt;auto&gt;</code></p>
+<p>8.1 三种容器；其中 <code>deque&lt;auto&gt;</code> / <code>set&lt;auto&gt;</code> 在 push/insert 时按实参决定元素运行时类型（number/string/bool 可混用）。内置 <code>key</code>（可用 <code>?key=</code> 或 <code>?key0=&amp;key1=</code>；key0 优先于 key；禁止变量名 key 或 key+纯数字（如 key0、key123）；keyboard 等允许） 在花括号形式下为 <code>deque&lt;auto&gt;</code></p>
 <p>类型 说明</p>
 <p>deque&lt;T&gt; 双端队列，可重复，支持下标</p>
 <p>set&lt;T&gt; 去重，按插入顺序，支持下标</p>

@@ -25,10 +25,11 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
   background: var(--bg); color: var(--text); line-height: 1.55;
 }
+body.modal-open { overflow: hidden; touch-action: none; }
 .wrap { max-width: 960px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
 header {
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 1rem;
-  margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);
+  margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);
 }
 header h1 { font-size: 1.2rem; margin: 0; font-weight: 650; }
 .meta { color: var(--muted); font-size: 0.85rem; }
@@ -36,11 +37,14 @@ header h1 { font-size: 1.2rem; margin: 0; font-weight: 650; }
   background: var(--panel); border: 1px solid var(--border);
   border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 0.85rem;
 }
+.card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.5rem; margin-bottom: 0.5rem;
+}
 .card h2 {
-  font-size: 0.8rem; margin: 0 0 0.5rem; color: var(--muted);
+  font-size: 0.8rem; margin: 0; color: var(--muted);
   font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
 }
-label { display: block; font-size: 0.8rem; color: var(--muted); margin: 0.5rem 0 0.25rem; font-weight: 600; }
 textarea, input[type=text], input[type=url] {
   width: 100%;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -49,38 +53,7 @@ textarea, input[type=text], input[type=url] {
   border: 1px solid var(--border); border-radius: 8px; padding: 0.65rem 0.8rem;
 }
 textarea.code { min-height: 180px; resize: vertical; line-height: 1.45; }
-textarea.out { min-height: 160px; resize: vertical; white-space: pre-wrap; width: 100%; }
-.out-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.5rem; }
-.out-head h2 { margin: 0; }
-.out-head button { padding: 0.25rem 0.6rem; font-size: 0.78rem; }
-#btnRun { min-width: 4.5rem; }
-#btnRun.running { min-width: 5.5rem; }
-#btnStop { margin-left: auto; background: #b91c1c; }
-@media (prefers-color-scheme: dark) {
-  #btnStop { background: #dc2626; }
-}
-.modal-mask {
-  position: fixed; inset: 0; background: rgba(0,0,0,.45);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 9999; padding: 1rem;
-}
-.modal {
-  background: var(--panel); color: var(--text);
-  border: 1px solid var(--border); border-radius: 12px;
-  max-width: 480px; width: 100%; padding: 1rem 1.1rem;
-  box-shadow: 0 12px 40px rgba(0,0,0,.25);
-}
-.modal h3 { margin: 0 0 0.5rem; font-size: 1rem; }
-.modal .url {
-  word-break: break-all; font-family: ui-monospace, monospace;
-  font-size: 0.85rem; background: var(--code-bg);
-  border: 1px solid var(--border); border-radius: 8px;
-  padding: 0.6rem 0.75rem; margin: 0.5rem 0 0.85rem;
-}
-.modal .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; }
-.modal .actions button { font-size: 0.85rem; }
-.modal .actions .secondary { background: transparent; color: var(--accent); border: 1px solid var(--border); }
-
+textarea.out { min-height: 160px; resize: vertical; white-space: pre-wrap; }
 .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.6rem; }
 button {
   cursor: pointer; background: var(--accent); color: #fff; border: none;
@@ -107,6 +80,47 @@ a { color: var(--accent); }
 }
 .tabs button.active { color: var(--accent); border-color: var(--accent); }
 [hidden] { display: none !important; }
+#btnStopBar {
+  margin-bottom: 0.85rem;
+}
+#btnStop {
+  width: 100%; background: #b91c1c; padding: 0.65rem 1rem;
+}
+@media (prefers-color-scheme: dark) {
+  #btnStop { background: #dc2626; }
+}
+.out-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.5rem; }
+.out-head h2 { margin: 0; }
+.out-head button { padding: 0.25rem 0.6rem; font-size: 0.78rem; }
+.modal-mask {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 9999; padding: 1rem;
+  overflow: hidden;
+}
+.modal {
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: 12px;
+  max-width: 480px; width: 100%; padding: 1rem 1.1rem;
+  box-shadow: 0 12px 40px rgba(0,0,0,.25);
+}
+.modal h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+.modal .url {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: ui-monospace, monospace; font-size: 0.85rem;
+  background: var(--code-bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0.6rem 0.75rem; margin: 0.5rem 0 0.85rem;
+}
+.modal .msg { margin: 0.5rem 0 0.85rem; white-space: pre-wrap; word-break: break-word; }
+.modal .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; }
+.modal .actions button { font-size: 0.85rem; }
+.modal .actions .secondary { background: transparent; color: var(--accent); border: 1px solid var(--border); }
+.toast {
+  position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%);
+  background: var(--panel); border: 1px solid var(--ok); color: var(--ok);
+  padding: 0.55rem 1rem; border-radius: 999px; font-size: 0.9rem; font-weight: 600;
+  z-index: 10000; box-shadow: 0 8px 24px rgba(0,0,0,.2);
+}
 </style>
 </head>
 <body>
@@ -114,48 +128,48 @@ a { color: var(--accent); }
   <header>
     <h1>CppScript</h1>
     <span class="badge" id="status">就绪</span>
-    <span class="meta">浏览器执行 · 按需显示 key/输入 · get 可走同源代理</span>
+    <span class="meta">浏览器执行</span>
   </header>
 
-  <div class="card">
-    <h2>规则</h2>
+  <div id="btnStopBar" hidden>
+    <button type="button" id="btnStop">强行停止</button>
+  </div>
+
+  <div class="card" id="cardRule">
+    <div class="card-head">
+      <h2>规则</h2>
+      <button type="button" id="btnRun">运行</button>
+    </div>
     <div class="tabs">
-      <button type="button" class="active" id="tabCode" data-tab="code">源代码</button>
-      <button type="button" id="tabUrl" data-tab="url">规则 URL</button>
+      <button type="button" class="active" id="tabCode">源代码</button>
+      <button type="button" id="tabUrl">规则 URL</button>
     </div>
     <div id="paneCode">
       <textarea class="code" id="code" spellcheck="false" placeholder="auto main() { ... }"></textarea>
     </div>
     <div id="paneUrl" hidden>
       <input type="url" id="ruleUrl" placeholder="https://.../rule.txt" />
-      <p class="hint">加载远程规则（需 CORS 或同站代理）</p>
+      <p class="hint">无协议自动补 https；http 会升为 https</p>
       <div class="row">
         <button type="button" class="secondary" id="btnLoad">加载到编辑器</button>
       </div>
     </div>
   </div>
 
-  <div class="row" style="margin-bottom:0.85rem">
-    <button type="button" id="btnRun">运行</button>
-    <button type="button" id="btnStop" hidden>强行停止</button>
-  </div>
-
   <div class="card" id="cardKey" hidden>
     <h2>参数 key</h2>
     <input type="text" id="key" placeholder='例如 2^3 或 {1,"abc",false}' />
-    <p class="hint">使用 key / q_get("key") 时显示。运行中可随时修改，无「完成」按钮。</p>
   </div>
 
   <div class="card" id="cardQuery" hidden>
     <h2>Query 参数</h2>
     <textarea id="queryBox" rows="4" placeholder="一行一个：&#10;a=1&#10;b=hello"></textarea>
-    <p class="hint">使用 q_get("其它名") 或内置 keyword 等时显示。格式 <code>名=值</code>，一行一个。运行中可随时改。</p>
   </div>
 
   <div class="card" id="cardIn" hidden>
     <h2>标准输入</h2>
-    <p class="hint">规则使用了 <code>in()</code> / <code>getchar</code> / <code>scanf</code> 时显示。每行 Enter 提交；「完成」= EOF（会先提交当前行）。</p>
-    <div class="row" style="margin-top:0.5rem">
+    <p class="hint">Enter 提交一行；「完成」= EOF</p>
+    <div class="row">
       <input type="text" id="lineIn" placeholder="输入一行后按 Enter" style="flex:1;min-width:160px" disabled />
       <button type="button" id="btnDone" disabled>完成</button>
     </div>
@@ -167,25 +181,18 @@ a { color: var(--accent); }
       <h2>输出</h2>
       <button type="button" class="secondary" id="btnClearOut">清空输出</button>
     </div>
-    <textarea class="out" id="out" readonly placeholder="out / printf / puts 的输出"></textarea>
+    <textarea class="out" id="out" readonly></textarea>
   </div>
 
-  <p class="foot">
-    <a href="./docs/">文档</a> ·
-    带 <code>?url=</code> 时自动加载并运行（无需输入则不等待）
-  </p>
+  <p class="foot"><a href="./docs/">文档</a></p>
 </div>
 
-<div class="modal-mask" id="redirModal" hidden>
+<div class="modal-mask" id="appModal" hidden>
   <div class="modal" role="dialog" aria-modal="true">
-    <h3>确认跳转</h3>
-    <p class="hint" style="margin:0">程序有输出时可先查看输出区；可复制链接后取消，仅复制不跳转。</p>
-    <div class="url" id="redirUrl"></div>
-    <div class="actions">
-      <button type="button" class="secondary" id="redirCopy">复制链接</button>
-      <button type="button" class="secondary" id="redirCancel">取消</button>
-      <button type="button" id="redirGo">确认跳转</button>
-    </div>
+    <h3 id="modalTitle">提示</h3>
+    <div class="url" id="modalUrl" hidden></div>
+    <div class="msg" id="modalMsg" hidden></div>
+    <div class="actions" id="modalActions"></div>
   </div>
 </div>
 
@@ -193,6 +200,7 @@ a { color: var(--accent); }
 import { parse } from './src/parser.js';
 import { Interpreter } from './src/interpreter.js';
 import { InteractiveInputStream, InputStream } from './src/input.js';
+import { ensureHttps } from './src/request.js';
 
 const $ = (id) => document.getElementById(id);
 const statusEl = $('status');
@@ -201,11 +209,15 @@ const codeEl = $('code');
 const lineIn = $('lineIn');
 const btnDone = $('btnDone');
 const inHint = $('inHint');
+const cardRule = $('cardRule');
 const cardKey = $('cardKey');
 const cardQuery = $('cardQuery');
 const cardIn = $('cardIn');
 const cardOut = $('cardOut');
 const queryBox = $('queryBox');
+const btnRun = $('btnRun');
+const btnStop = $('btnStop');
+const btnStopBar = $('btnStopBar');
 
 const DEMO = `auto main() {
     out("name?\\n");
@@ -218,14 +230,117 @@ const DEMO = `auto main() {
 }
 `;
 
-/** 静态分析是否需要 key / 标准输入 */
+function setStatus(text, kind) {
+  statusEl.textContent = text;
+  statusEl.className = 'badge' + (
+    kind === 'err' || kind === true ? ' err'
+    : kind === 'wait' ? ' wait'
+    : kind === 'ok' || kind === false ? ' ok' : ''
+  );
+}
+
+function showToast(text) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = text;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1800);
+}
+
+function lockScroll(on) {
+  document.body.classList.toggle('modal-open', !!on);
+}
+
+function openModal({ title, url, message, buttons }) {
+  return new Promise((resolve) => {
+    const mask = $('appModal');
+    $('modalTitle').textContent = title || '提示';
+    const urlEl = $('modalUrl');
+    const msgEl = $('modalMsg');
+    const actions = $('modalActions');
+    actions.innerHTML = '';
+    if (url) {
+      urlEl.hidden = false;
+      urlEl.textContent = url;
+      urlEl.title = url;
+    } else {
+      urlEl.hidden = true;
+    }
+    if (message) {
+      msgEl.hidden = false;
+      msgEl.textContent = message;
+    } else {
+      msgEl.hidden = true;
+    }
+    const close = (val) => {
+      mask.hidden = true;
+      lockScroll(false);
+      resolve(val);
+    };
+    for (const b of buttons) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = b.label;
+      if (b.secondary) btn.className = 'secondary';
+      btn.onclick = async () => {
+        if (b.onClick) await b.onClick();
+        if (b.keepOpen) return;
+        close(b.value);
+      };
+      actions.appendChild(btn);
+    }
+    mask.hidden = false;
+    lockScroll(true);
+  });
+}
+
+function showModalConfirm(message) {
+  return openModal({
+    title: '确认',
+    message: String(message ?? ''),
+    buttons: [
+      { label: '取消', secondary: true, value: false },
+      { label: '确定', value: true },
+    ],
+  });
+}
+
+function openRedirectModal(url) {
+  return openModal({
+    title: '确认跳转',
+    url,
+    buttons: [
+      {
+        label: '复制链接',
+        secondary: true,
+        keepOpen: true,
+        onClick: async () => {
+          try {
+            await navigator.clipboard.writeText(url);
+            showToast('已复制');
+          } catch {
+            const ta = document.createElement('textarea');
+            ta.value = url;
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); showToast('已复制'); } catch (_) {}
+            ta.remove();
+          }
+        },
+      },
+      { label: '取消', secondary: true, value: false },
+      { label: '确认跳转', value: true },
+    ],
+  }).then((go) => {
+    if (go) location.href = url;
+    return go;
+  });
+}
+
 function analyzeNeeds(ast) {
-  let needsKey = false;
-  let needsIn = false;
-  let needsOut = false;
-  let needsQuery = false;
-  const IN_FNS = new Set(['getchar', 'scanf', 'fgetc', 'getchar']);
-  const OUT_FNS = new Set(['out', 'printf', 'puts', 'putchar', 'fputs']);
+  let needsKey = false, needsIn = false, needsOut = false, needsQuery = false;
+  const IN_FNS = new Set(['getchar', 'scanf']);
+  const OUT_FNS = new Set(['out', 'printf', 'puts', 'putchar']);
   const Q_BUILTINS = new Set(['keyword', 'repoPath', 'tag', 'selector', 'prerelease', 'p1', 'p2', 'p3', 'p4']);
   const walk = (n) => {
     if (!n || typeof n !== 'object') return;
@@ -242,8 +357,9 @@ function analyzeNeeds(ast) {
       if (fn === 'q_get') {
         const a0 = n.args && n.args[0];
         if (a0 && a0.type === 'String' && a0.value === 'key') needsKey = true;
-        else needsQuery = true; // q_get("其它") 或动态参数
+        else needsQuery = true;
       }
+      if (fn === 'modal') needsOut = needsOut; // no box required
     }
     for (const k of Object.keys(n)) {
       if (k === 'type') continue;
@@ -254,7 +370,6 @@ function analyzeNeeds(ast) {
   return { needsKey, needsIn, needsOut, needsQuery };
 }
 
-/** 解析 query 文本框：一行 name=value */
 function parseQueryBoxText(text) {
   const map = Object.create(null);
   for (const line of String(text || '').split(/\r?\n/)) {
@@ -263,7 +378,7 @@ function parseQueryBoxText(text) {
     const eq = s.indexOf('=');
     if (eq <= 0) continue;
     const k = s.slice(0, eq).trim();
-    const v = s.slice(eq + 1); // 保留右侧原样（可含 =）
+    const v = s.slice(eq + 1);
     if (k) map[k] = v;
   }
   return map;
@@ -271,7 +386,7 @@ function parseQueryBoxText(text) {
 
 function getLiveQueryParam(name) {
   if (name === 'key') return $('key').value || '';
-  const box = parseQueryBoxText(queryBox ? queryBox.value : '');
+  const box = parseQueryBoxText(queryBox.value);
   if (Object.prototype.hasOwnProperty.call(box, name)) return box[name];
   try {
     const u = new URL(location.href);
@@ -280,13 +395,22 @@ function getLiveQueryParam(name) {
   return '';
 }
 
-function setStatus(text, kind) {
-  statusEl.textContent = text;
-  statusEl.className = 'badge' + (
-    kind === true || kind === 'err' ? ' err'
-    : kind === 'wait' ? ' wait'
-    : kind === false || kind === 'ok' ? ' ok' : ''
-  );
+function setUrlParam(key, value, removeIfEmpty = true) {
+  try {
+    const u = new URL(location.href);
+    if (value == null || value === '') {
+      if (removeIfEmpty) u.searchParams.delete(key);
+    } else {
+      u.searchParams.set(key, value);
+    }
+    history.replaceState(null, '', u);
+  } catch (_) {}
+}
+
+function hideRuntimePanels() {
+  cardKey.hidden = true;
+  cardQuery.hidden = true;
+  cardIn.hidden = true;
 }
 
 function showTab(name) {
@@ -301,67 +425,54 @@ $('tabCode').onclick = () => showTab('code');
 $('tabUrl').onclick = () => showTab('url');
 
 async function loadRule(url) {
+  const fixed = ensureHttps(url);
   setStatus('加载规则…', 'wait');
-  const res = await fetch(url);
+  const res = await fetch(fixed);
   if (!res.ok) throw new Error('HTTP ' + res.status);
   codeEl.value = await res.text();
   setStatus('已加载', 'ok');
-  return codeEl.value;
+  return fixed;
 }
 
 $('btnLoad').onclick = async () => {
-  const u = $('ruleUrl').value.trim();
+  let u = $('ruleUrl').value.trim();
   if (!u) return alert('请填写规则 URL');
+  u = ensureHttps(u);
+  $('ruleUrl').value = u;
   try {
     await loadRule(u);
+    setUrlParam('url', u);
     showTab('code');
-    refreshNeedsUI();
+    hideRuntimePanels();
+    cardOut.hidden = true;
   } catch (e) {
-    setStatus('加载失败: ' + e.message, true);
+    setStatus('加载失败: ' + e.message, 'err');
   }
 };
 
-$('btnClearOut').onclick = () => { outEl.value = ''; };
+$('btnClearOut').onclick = () => {
+  outEl.value = '';
+  cardOut.hidden = true;
+};
+
+// 编辑源代码：清空 url 参数与 URL 输入框
+let codeEditTimer = null;
+codeEl.addEventListener('input', () => {
+  clearTimeout(codeEditTimer);
+  codeEditTimer = setTimeout(() => {
+    setUrlParam('url', '');
+    $('ruleUrl').value = '';
+  }, 200);
+});
 
 let stream = null;
 let running = false;
-let lastNeeds = { needsKey: false, needsIn: false };
-
-function refreshNeedsUI() {
-  const src = codeEl.value.trim();
-  if (!src) {
-    lastNeeds = { needsKey: false, needsIn: false, needsOut: false, needsQuery: false };
-    cardKey.hidden = true;
-    cardQuery.hidden = true;
-    cardIn.hidden = true;
-    cardOut.hidden = true;
-    return lastNeeds;
-  }
-  try {
-    const ast = parse(src);
-    lastNeeds = analyzeNeeds(ast);
-  } catch {
-    lastNeeds = { needsKey: true, needsIn: true, needsOut: true, needsQuery: true };
-  }
-  cardKey.hidden = !lastNeeds.needsKey;
-  cardQuery.hidden = !lastNeeds.needsQuery;
-  cardIn.hidden = !lastNeeds.needsIn;
-  cardOut.hidden = !lastNeeds.needsOut;
-  return lastNeeds;
-}
-
-codeEl.addEventListener('change', refreshNeedsUI);
-codeEl.addEventListener('blur', refreshNeedsUI);
 
 function setInputEnabled(on) {
   lineIn.disabled = !on;
   btnDone.disabled = !on;
-  if (on) {
-    inHint.textContent = '等待输入：Enter 提交一行；「完成」结束';
-    lineIn.focus();
-  } else {
-    inHint.textContent = '';
-  }
+  inHint.textContent = on ? 'Enter 提交一行；完成 = EOF' : '';
+  if (on) lineIn.focus();
 }
 
 function submitLine() {
@@ -369,14 +480,9 @@ function submitLine() {
   stream.pushLine(lineIn.value);
   lineIn.value = '';
 }
-
 lineIn.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    submitLine();
-  }
+  if (e.key === 'Enter') { e.preventDefault(); submitLine(); }
 });
-
 btnDone.addEventListener('click', () => {
   if (!stream) return;
   if (lineIn.value !== '') {
@@ -385,16 +491,24 @@ btnDone.addEventListener('click', () => {
   }
   stream.finish();
   setInputEnabled(false);
-  inHint.textContent = '已结束输入（EOF）';
-  setStatus('输入已结束', 'ok');
+  inHint.textContent = '输入已结束';
 });
 
 function fetchViaEnv() {
-  // 同源 Worker 代理；GitHub Pages 无此接口时会回退直连
-  try {
-    return location.origin + '/api/fetch?target=';
-  } catch {
-    return '';
+  try { return location.origin + '/api/fetch?target='; } catch { return ''; }
+}
+
+function setRunningUI(on) {
+  if (on) {
+    cardRule.hidden = true;
+    btnStopBar.hidden = false;
+    btnStop.disabled = false;
+  } else {
+    cardRule.hidden = false;
+    btnStopBar.hidden = true;
+    btnStop.disabled = true;
+    btnRun.disabled = false;
+    btnRun.textContent = '运行';
   }
 }
 
@@ -407,45 +521,41 @@ async function runCode(src, options = {}) {
 
   outEl.value = '';
   running = true;
-  const btnRun = $('btnRun');
-  const btnStop = $('btnStop');
-  btnRun.disabled = true;
-  btnRun.textContent = '运行中';
-  btnRun.classList.add('running');
-  btnStop.hidden = false;
-  btnStop.disabled = false;
+  setRunningUI(true);
   setStatus('运行中…', 'wait');
+  hideRuntimePanels();
+  cardOut.hidden = true;
 
   const abortCtl = new AbortController();
   window.__cppsAbort = abortCtl;
 
-  let needs;
+  let needs = { needsKey: false, needsIn: false, needsOut: false, needsQuery: false };
   let ast;
   try {
     ast = parse(src);
     needs = analyzeNeeds(ast);
   } catch (e) {
+    cardOut.hidden = false;
     outEl.value = '[error] ' + (e.message || e);
     setStatus('解析错误', 'err');
     running = false;
     window.__cppsAbort = null;
-    btnRun.disabled = false;
-    btnRun.textContent = '运行';
-    btnRun.classList.remove('running');
-    btnStop.hidden = true;
+    setRunningUI(false);
     return;
   }
 
-  lastNeeds = needs;
+  // 运行时按需显示
   cardKey.hidden = !needs.needsKey;
   cardQuery.hidden = !needs.needsQuery;
   cardIn.hidden = !needs.needsIn;
-  cardOut.hidden = !needs.needsOut;
+  if (needs.needsOut) cardOut.hidden = false;
 
-  // 输入流：不需要 in 时用空流直接跑
   if (needs.needsIn) {
     stream = new InteractiveInputStream(options.prefillIn || '');
     setInputEnabled(true);
+    abortCtl.signal.addEventListener('abort', () => {
+      try { stream.finish(); } catch (_) {}
+    });
   } else {
     stream = new InputStream(options.prefillIn || '');
     setInputEnabled(false);
@@ -456,21 +566,13 @@ async function runCode(src, options = {}) {
   if (needs.needsKey) fake.searchParams.set('key', keyVal);
 
   try {
-    const u = new URL(location.href);
-    if (keyVal) u.searchParams.set('key', keyVal);
-    history.replaceState(null, '', u);
-  } catch (_) {}
-
-  try {
     const interp = new Interpreter(ast, {
       url: fake,
-      env: {
-        // 仅 get/post with worker 时解释器才使用 FETCH_VIA
-        FETCH_VIA: fetchViaEnv(),
-      },
+      env: { FETCH_VIA: fetchViaEnv() },
       inputStream: stream,
       getQueryParam: getLiveQueryParam,
       abortSignal: abortCtl.signal,
+      showModal: showModalConfirm,
       onChunk: (delta) => {
         if (cardOut.hidden) cardOut.hidden = false;
         outEl.value += delta;
@@ -479,7 +581,6 @@ async function runCode(src, options = {}) {
     });
 
     const result = await interp.run();
-    // 允许既有 out 又有 redirect
     if (!outEl.value && interp.output) {
       if (cardOut.hidden) cardOut.hidden = false;
       outEl.value = interp.output;
@@ -491,6 +592,7 @@ async function runCode(src, options = {}) {
       outEl.value += (outEl.value && !outEl.value.endsWith('\n') ? '\n' : '') +
         '[redirect' + (mode === 'confirm' ? '·确认' : '') + '] ' + result.url;
       setStatus('完成 · 跳转', 'ok');
+      showToast('运行完成');
       if (mode === 'confirm') {
         await openRedirectModal(result.url);
       } else {
@@ -498,80 +600,38 @@ async function runCode(src, options = {}) {
       }
     } else {
       setStatus('完成 ' + ((result && result.status) || 200), 'ok');
+      showToast('运行完成');
     }
   } catch (e) {
     const msg = (e && e.message) ? e.message : String(e);
     if (cardOut.hidden) cardOut.hidden = false;
     outEl.value += (outEl.value ? '\n' : '') + '[error] ' + msg;
     setStatus(msg.includes('abort') ? '已停止' : '错误', 'err');
+    if (msg.includes('abort')) showToast('已强制停止');
   } finally {
     running = false;
     window.__cppsAbort = null;
-    const btnRun2 = $('btnRun');
-    const btnStop2 = $('btnStop');
-    btnRun2.disabled = false;
-    btnRun2.textContent = '运行';
-    btnRun2.classList.remove('running');
-    if (btnStop2) { btnStop2.hidden = true; btnStop2.disabled = true; }
+    setRunningUI(false);
     setInputEnabled(false);
     stream = null;
-    if (!needs.needsIn) inHint.textContent = '';
-    else inHint.textContent = '程序已结束';
+    // 运行结束隐藏 key/query/in；输出保留直到清空
+    hideRuntimePanels();
+    inHint.textContent = '';
   }
 }
 
-
-function openRedirectModal(url) {
-  return new Promise((resolve) => {
-    const mask = $('redirModal');
-    const urlEl = $('redirUrl');
-    urlEl.textContent = url;
-    mask.hidden = false;
-    const copyBtn = $('redirCopy');
-    const cancelBtn = $('redirCancel');
-    const goBtn = $('redirGo');
-    const cleanup = () => {
-      mask.hidden = true;
-      copyBtn.onclick = null;
-      cancelBtn.onclick = null;
-      goBtn.onclick = null;
-    };
-    copyBtn.onclick = async () => {
-      try {
-        await navigator.clipboard.writeText(url);
-        copyBtn.textContent = '已复制';
-        setTimeout(() => { copyBtn.textContent = '复制链接'; }, 1200);
-      } catch {
-        // fallback
-        const ta = document.createElement('textarea');
-        ta.value = url;
-        document.body.appendChild(ta);
-        ta.select();
-        try { document.execCommand('copy'); copyBtn.textContent = '已复制'; } catch (_) {}
-        document.body.removeChild(ta);
-        setTimeout(() => { copyBtn.textContent = '复制链接'; }, 1200);
-      }
-    };
-    cancelBtn.onclick = () => { cleanup(); resolve(false); };
-    goBtn.onclick = () => { cleanup(); location.href = url; resolve(true); };
-  });
-}
-
-$('btnStop').onclick = () => {
+btnStop.onclick = () => {
   if (window.__cppsAbort) {
     window.__cppsAbort.abort();
     setStatus('正在停止…', 'wait');
   }
 };
 
+btnRun.onclick = () => runCode(codeEl.value);
 
-$('btnRun').onclick = () => runCode(codeEl.value);
-
-// ---------- 启动：?url= 自动加载并运行 ----------
+// boot
 const pageUrl = new URL(location.href);
-if (pageUrl.searchParams.has('key')) {
-  $('key').value = pageUrl.searchParams.get('key') || '';
-}
+if (pageUrl.searchParams.has('key')) $('key').value = pageUrl.searchParams.get('key') || '';
 {
   const skip = new Set(['url', 'key', 'in', 'run', 'server']);
   const lines = [];
@@ -579,36 +639,25 @@ if (pageUrl.searchParams.has('key')) {
     if (skip.has(k)) continue;
     lines.push(k + '=' + v);
   }
-  if (lines.length && queryBox) queryBox.value = lines.join('\n');
+  if (lines.length) queryBox.value = lines.join('\n');
 }
 
 const preload = pageUrl.searchParams.get('url');
 if (preload) {
-  $('ruleUrl').value = preload;
+  const fixed = ensureHttps(preload);
+  $('ruleUrl').value = fixed;
+  if (fixed !== preload) setUrlParam('url', fixed);
   (async () => {
     try {
-      await loadRule(preload);
+      await loadRule(fixed);
       showTab('code');
-      const needs = refreshNeedsUI();
-      // 缺 key 且规则需要 key：不自动跑，等用户填
-      if (needs.needsKey && !pageUrl.searchParams.has('key')) {
-        setStatus('请填写 key 后点运行', 'wait');
-        cardKey.hidden = false;
-        return;
-      }
-      // 需要交互输入：仍自动开始跑（会停在 in 等待）
-      await runCode(codeEl.value, {
-        prefillIn: pageUrl.searchParams.get('in') || '',
-      });
+      await runCode(codeEl.value, { prefillIn: pageUrl.searchParams.get('in') || '' });
     } catch (e) {
-      setStatus('加载失败: ' + e.message, true);
+      setStatus('加载失败: ' + e.message, 'err');
     }
   })();
 } else if (!codeEl.value) {
   codeEl.value = DEMO;
-  refreshNeedsUI();
-} else {
-  refreshNeedsUI();
 }
 </script>
 </body>

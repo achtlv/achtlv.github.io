@@ -126,6 +126,12 @@ export class Interpreter {
     }
   }
 
+  ensureInputUI() {
+    if (this.ctx && typeof this.ctx.onNeedInput === 'function') {
+      this.ctx.onNeedInput();
+    }
+  }
+
   async run() {
     for (const node of this.ast.body) {
       if (node.type === 'StructDecl') this.structs.set(node.name, node);
@@ -531,6 +537,7 @@ export class Interpreter {
   }
 
   async execIn(node) {
+    if (this.ctx.onNeedInput) this.ctx.onNeedInput();
     const token = await this.ctx.inputStream.readToken();
     // EOF：仍写入默认值，避免 string name; in(name); 后 name 未初始化
     if (token === null) {
@@ -1027,6 +1034,7 @@ export class Interpreter {
   }
 
   async readLineFromInput() {
+    this.ensureInputUI();
     const stream = this.ctx.inputStream;
     if (!stream) return null;
     // 若有 readToken 路径：拼一行到 \\n 或 EOF
@@ -1767,7 +1775,10 @@ export class Interpreter {
         if (self.ctx.onChunk) self.ctx.onChunk(s);
         return null;
       },
-      getchar: async () => await self.ctx.inputStream.getchar(),
+      getchar: async () => {
+        if (self.ctx.onNeedInput) self.ctx.onNeedInput();
+        return await self.ctx.inputStream.getchar();
+      },
       q_get: (args) => self.resolveQueryParam(self.toStr(args[0])),
       json_str: (args) => self.jsonGet(args[0], args[1], 'string'),
       json_num: (args) => self.jsonGet(args[0], args[1], 'number'),

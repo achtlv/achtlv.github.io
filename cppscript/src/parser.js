@@ -24,7 +24,13 @@ export function parse(src) {
   /** 关键字不可作变量名；若误用则明确报错 */
   const expectIdentName = (what = 'identifier') => {
     const t = peek();
-    if (t.type === 'IDENT') return next().value;
+    if (t.type === 'IDENT') {
+      const name = t.value;
+      if (name === 'key' || /^key\d*$/.test(name) || name.startsWith('key')) {
+        err('E03', `variable name cannot start with 'key' (reserved for key/key0/key1...); got '${name}'`, t.line, t.col);
+      }
+      return next().value;
+    }
     if (t.type === 'KEYWORD') {
       err(
         'E03',
@@ -40,7 +46,7 @@ export function parse(src) {
   const isTypeStart = () => {
     const t = peek();
     if (t.type === 'KEYWORD') {
-      return ['number', 'string', 'bool', 'auto', 'void', 'deque', 'list', 'set', 'multiset', 'map', 'multimap', 'pair', 'tuple'].includes(t.value);
+      return ['number', 'string', 'bool', 'char', 'auto', 'void', 'deque', 'list', 'set', 'multiset', 'map', 'multimap', 'pair', 'tuple'].includes(t.value);
     }
     // struct 名作为类型：IDENT 后跟 IDENT 或 &
     if (t.type === 'IDENT' && (peek(1).type === 'IDENT' || (peek(1).type === 'OP' && peek(1).value === '&'))) {
@@ -57,7 +63,7 @@ export function parse(src) {
     }
     if (t.type !== 'KEYWORD') err('E10', `expected type, got ${t.value ?? t.type}`, t.line, t.col);
 
-    if (['number', 'string', 'bool', 'auto', 'void'].includes(t.value)) {
+    if (['number', 'string', 'bool', 'char', 'auto', 'void'].includes(t.value)) {
       next();
       return { kind: t.value };
     }
@@ -650,7 +656,7 @@ export function parse(src) {
         // 仅允许标量强制转换，避免与 (expr) 分组冲突（类型后必须是 ) 再跟一元式）
         try {
           const varType = parseType();
-          if (check('OP', ')') && ['number', 'string', 'bool', 'auto'].includes(varType.kind)) {
+          if (check('OP', ')') && ['number', 'string', 'bool', 'char', 'auto'].includes(varType.kind)) {
             next();
             return { type: 'Cast', varType, expr: unary() };
           }
@@ -697,6 +703,7 @@ export function parse(src) {
     const t = peek();
     if (t.type === 'NUMBER') { next(); return { type: 'Number', value: t.value }; }
     if (t.type === 'STRING') { next(); return { type: 'String', value: t.value }; }
+    if (t.type === 'CHAR') { next(); return { type: 'Char', value: t.value }; }
     if (t.type === 'KEYWORD' && t.value === 'true') { next(); return { type: 'Bool', value: true }; }
     if (t.type === 'KEYWORD' && t.value === 'false') { next(); return { type: 'Bool', value: false }; }
 

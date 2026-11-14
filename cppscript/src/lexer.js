@@ -2,7 +2,7 @@
 import { err } from './errors.js';
 
 const KEYWORDS = new Set([
-  'number', 'string', 'bool', 'auto', 'void', 'struct',
+  'number', 'string', 'bool', 'char', 'auto', 'void', 'struct',
   'deque', 'list', 'set', 'multiset', 'map', 'multimap', 'pair', 'tuple',
   'if', 'else', 'switch', 'case', 'default',
   'for', 'while', 'break', 'continue',
@@ -49,7 +49,7 @@ export function tokenize(src) {
       continue;
     }
 
-    // strings
+    // strings / char
     if (ch === '"' || ch === "'") {
       const quote = ch;
       advance();
@@ -67,7 +67,13 @@ export function tokenize(src) {
       }
       if (i >= src.length) err('E01', 'unclosed string');
       advance();
-      push('STRING', value);
+      if (quote === "'") {
+        // 单引号：必须恰好一个字符 → CHAR
+        if ([...value].length !== 1) err('E01', "single-quoted literal must be exactly one character");
+        push('CHAR', value);
+      } else {
+        push('STRING', value);
+      }
       continue;
     }
 

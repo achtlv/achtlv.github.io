@@ -146,14 +146,11 @@ export class Interpreter {
     }
 
     const main = this.functions.get('main');
-    if (!main) err('E14', 'missing auto main()');
-    // auto main（推荐）或 void main（兼容）；return 可返回 URL / 状态码 / 空
-    if (main.returnType.kind !== 'auto' && main.returnType.kind !== 'void') {
-      err('E14', 'main must be auto (or void for compatibility)');
-    }
+    if (!main) err('E14', 'missing main()');
+    // main 可为任意返回类型（含 auto/void）；参数仍须为空
     if (main.params.length !== 0) err('E14', 'main must have no parameters');
+    this.mainReturnType = main.returnType || { kind: 'auto' };
 
-    // 直接执行 main 体，保留 ReturnSignal（含 mods），供 finish 处理
     const saved = this.scope;
     this.scope = new Scope(this.global);
     let retSignal = null;
@@ -161,7 +158,11 @@ export class Interpreter {
       for (const stmt of main.body) await this.execStmt(stmt);
     } catch (e) {
       if (e instanceof ReturnSignal) retSignal = e;
-      else throw e;
+      else if (e && e.code === 'E60') {
+        // 强行停止：视为 main 正常结束
+        retSignal = null;
+        this._abortedClean = true;
+      } else throw e;
     } finally {
       this.scope = saved;
     }
@@ -193,7 +194,7 @@ export class Interpreter {
     this.global.declare('selector', q('selector') || '1');
     this.global.declare('prerelease', q('prerelease'));
     for (let i = 1; i <= 4; i++) this.global.declare(`p${i}`, p(i));
-    this.global.declare('key', this.parseKeyParam(q('key')));
+    this.global.declare('key', this.collectKeyFromUrl(url));
     for (const name of ['keyword', 'repoPath', 'tag', 'selector', 'prerelease', 'p1', 'p2', 'p3', 'p4', 'key']) {
       const v = this.global.vars.get(name);
       this.global.vars.set(name, { __readonly: true, value: v });
@@ -209,49 +210,77 @@ export class Interpreter {
    */
   parseKeyParam(raw) {
     if (raw == null || raw === '') return '';
-    const s = String(raw).trim();
-    if (!(s.startsWith('{') && s.endsWith('}'))) return s;
-
-    const inner = s.slice(1, -1).trim();
-    const d = new Deque();
-    if (!inner) {
+    let s = String(raw).trim();
+    if (s.startsWith('{') && s.endsWith('}')) s = s.slice(1, -1).trim();
+    if (!s) {
+      const d = new Deque();
       return { __container: d, __elemType: { kind: 'deque', elem: { kind: 'auto' } } };
     }
+    const parts = this.splitKeyTokens(s);
+    const rawStr = String(raw);
+    if (parts.length === 1 && !rawStr.includes(',') && !rawStr.includes('\n') && !rawStr.trim().startsWith('{')) {
+      return parts[0];
+    }
+    const d = new Deque();
+    for (const v of parts) d.push_back(v);
+    return { __container: d, __elemType: { kind: 'deque', elem: { kind: 'auto' } } };
+  }
 
-    // 按逗号拆分，尊重引号
+  splitKeyTokens(s) {
     const parts = [];
     let i = 0;
-    while (i < inner.length) {
-      while (i < inner.length && /\s/.test(inner[i])) i++;
-      if (i >= inner.length) break;
-      if (inner[i] === '"' || inner[i] === "'") {
-        const quote = inner[i++];
+    const n = s.length;
+    while (i < n) {
+      while (i < n && /[\s,]/.test(s[i])) i++;
+      if (i >= n) break;
+      if (s[i] === '"' || s[i] === "'") {
+        const quote = s[i++];
         let val = '';
-        while (i < inner.length && inner[i] !== quote) {
-          if (inner[i] === '\\' && i + 1 < inner.length) {
-            val += inner[i + 1];
-            i += 2;
-          } else {
-            val += inner[i++];
-          }
+        while (i < n && s[i] !== quote) {
+          if (s[i] === '\\' && i + 1 < n) { val += s[i + 1]; i += 2; }
+          else val += s[i++];
         }
-        if (i < inner.length) i++; // closing quote
-        parts.push({ kind: 'string', value: val });
+        if (i < n) i++;
+        parts.push(val);
       } else {
-        let start = i;
-        while (i < inner.length && inner[i] !== ',') i++;
-        const tok = inner.slice(start, i).trim();
-        if (tok === 'true') parts.push({ kind: 'bool', value: true });
-        else if (tok === 'false') parts.push({ kind: 'bool', value: false });
-        else if (/^-?\d+(\.\d+)?([eE][-+]?\d+)?$/.test(tok)) parts.push({ kind: 'number', value: Number(tok) });
-        else parts.push({ kind: 'string', value: tok });
+        let tok = '';
+        while (i < n && s[i] !== ',' && s[i] !== '\n' && s[i] !== '\r') tok += s[i++];
+        tok = tok.trim();
+        if (!tok) continue;
+        if (tok === 'true') parts.push(true);
+        else if (tok === 'false') parts.push(false);
+        else if (/^-?\d+(\.\d+)?([eE][-+]?\d+)?$/.test(tok)) parts.push(Number(tok));
+        else parts.push(tok);
       }
-      while (i < inner.length && /\s/.test(inner[i])) i++;
-      if (i < inner.length && inner[i] === ',') i++;
     }
+    return parts;
+  }
 
-    for (const part of parts) d.push_back(part.value);
-    return { __container: d, __elemType: { kind: 'deque', elem: { kind: 'auto' } } };
+  collectKeyFromUrl(url) {
+    const sp = url.searchParams;
+    const indexed = [];
+    for (const [k, v] of sp.entries()) {
+      const m = /^key(\d+)$/.exec(k);
+      if (m) indexed.push([parseInt(m[1], 10), v]);
+    }
+    indexed.sort((a, b) => a[0] - b[0]);
+    if (indexed.length) {
+      const map = new Map(indexed);
+      if (map.has(0)) {
+        const max = indexed[indexed.length - 1][0];
+        const arr = [];
+        for (let i = 0; i <= max; i++) arr.push(map.has(i) ? map.get(i) : '');
+        return this.parseKeyParam(arr.map((x) => {
+          if (typeof x === 'string' && /[",\n]/.test(x)) return JSON.stringify(x);
+          return x;
+        }).join(','));
+      }
+      return this.parseKeyParam(indexed.map(([, v]) => v).join(','));
+    }
+    const all = sp.getAll('key');
+    if (all.length > 1) return this.parseKeyParam(all.join(','));
+    if (all.length === 1) return this.parseKeyParam(all[0]);
+    return '';
   }
 
   async execTopDecl(node) {
@@ -576,6 +605,7 @@ export class Interpreter {
     switch (node.type) {
       case 'Number': return node.value;
       case 'String': return node.value;
+      case 'Char': return { __char: true, value: node.value };
       case 'Bool': return node.value;
       case 'Ident': return this.lookupIdent(node.name);
       case 'Binary': return await this.evalBinary(node);
@@ -642,7 +672,9 @@ export class Interpreter {
     const r = await this.evalExpr(node.right);
     switch (op) {
       case '+': {
-        if (typeof l === 'string' || typeof r === 'string') return this.toStr(l) + this.toStr(r);
+        if ((l && l.__char) || (r && r.__char) || typeof l === 'string' || typeof r === 'string') {
+          return this.toStr(l) + this.toStr(r);
+        }
         return this.toNum(l) + this.toNum(r);
       }
       case '-': return this.toNum(l) - this.toNum(r);
@@ -685,6 +717,7 @@ export class Interpreter {
     if (k === 'string') return this.toStr(v);
     if (k === 'number') return this.toNum(v);
     if (k === 'bool') return this.toBool(v);
+    if (k === 'char') return this.toChar(v);
     if (k === 'auto') return v;
     err('E10', `unsupported cast to ${k}`);
   }
@@ -1506,11 +1539,19 @@ export class Interpreter {
     err('E10', `cannot convert to number: ${JSON.stringify(v)}`);
   }
   toStr(v) {
+    if (v && v.__char) return v.value;
     if (typeof v === 'string') return v;
     if (typeof v === 'number') return Number.isInteger(v) ? String(v) : String(v);
     if (typeof v === 'boolean') return v ? 'true' : 'false';
     if (v && v.__ref) return this.toStr(v.__ref.get());
     return '';
+  }
+  toChar(v) {
+    if (v && v.__char) return v;
+    const s = this.toStr(v);
+    const chars = [...s];
+    if (!chars.length) return { __char: true, value: '\0' };
+    return { __char: true, value: chars[0] };
   }
   toBool(v) {
     if (typeof v === 'boolean') return v;
@@ -1525,7 +1566,7 @@ export class Interpreter {
     return this.toStr(a) === this.toStr(b);
   }
   compare(a, b) {
-    if (typeof a === 'string' || typeof b === 'string') {
+    if ((a && a.__char) || (b && b.__char) || typeof a === 'string' || typeof b === 'string') {
       const sa = this.toStr(a), sb = this.toStr(b);
       return sa < sb ? -1 : sa > sb ? 1 : 0;
     }
@@ -1536,6 +1577,7 @@ export class Interpreter {
     switch (type.kind) {
       case 'number': return 0;
       case 'string': return '';
+      case 'char': return { __char: true, value: '\0' };
       case 'bool': return false;
       case 'auto': return 0;
       case 'struct': {
@@ -1591,6 +1633,7 @@ export class Interpreter {
     if (type.kind === 'number') return this.toNum(v);
     if (type.kind === 'string') return this.toStr(v);
     if (type.kind === 'bool') return this.toBool(v);
+    if (type.kind === 'char') return this.toChar(v);
     if (type.kind === 'auto') return v;
     return v;
   }
@@ -1640,19 +1683,21 @@ export class Interpreter {
         headers: plainHeaders,
       };
     }
-    if (typeof value === 'number') {
-      return {
-        status: statusCode !== null ? statusCode : value,
-        body: this.output,
-        redirect: false,
-        headers: plainHeaders,
-      };
-    }
-    if (typeof value === 'string') {
+    // 按 main 声明类型强制转换
+    const mrt = this.mainReturnType || { kind: 'auto' };
+    let outVal = value;
+    if (mrt.kind === 'bool') outVal = this.toBool(value);
+    else if (mrt.kind === 'number') outVal = this.toNum(value);
+    else if (mrt.kind === 'string') outVal = this.toStr(value);
+    else if (mrt.kind === 'char') outVal = this.toChar(value);
+    else if (mrt.kind === 'void') outVal = null;
+
+    // 仅 auto main 且返回 string 才视为 URL 跳转
+    if (mrt.kind === 'auto' && typeof outVal === 'string') {
       if (statusCode !== null && (statusCode < 300 || statusCode >= 400)) {
         err('E44', 'cannot return body; use out() + return with N');
       }
-      let target = normalizeReturnUrl(value);
+      let target = normalizeReturnUrl(outVal);
       if (proxy) target = proxy.replace(/\/+$/, '') + '/' + target;
       assertSafeUrl(target, this.ctx.env);
       return {
@@ -1662,6 +1707,37 @@ export class Interpreter {
         url: target,
         body: this.output,
         headers: customHeaders,
+      };
+    }
+
+    if (outVal === null || mrt.kind === 'void') {
+      return {
+        status: statusCode !== null ? statusCode : 200,
+        body: this.output,
+        redirect: false,
+        headers: plainHeaders,
+      };
+    }
+    if (typeof outVal === 'number' || typeof outVal === 'boolean' || (outVal && outVal.__char)) {
+      // 非 URL：写入输出可选；状态码优先
+      return {
+        status: statusCode !== null ? statusCode : 200,
+        body: this.output,
+        redirect: false,
+        headers: plainHeaders,
+        value: outVal,
+      };
+    }
+    if (typeof outVal === 'string') {
+      // string main：返回字符串不跳转，可当 body 追加
+      if (this.output) {
+        return { status: statusCode !== null ? statusCode : 200, body: this.output, redirect: false, headers: plainHeaders };
+      }
+      return {
+        status: statusCode !== null ? statusCode : 200,
+        body: outVal,
+        redirect: false,
+        headers: plainHeaders,
       };
     }
     err('E13', 'return type mismatch');
@@ -1745,6 +1821,39 @@ export class Interpreter {
         }
         return true;
       },
+      // string / cstring 风格
+      strlen: (args) => [...self.toStr(args[0])].length,
+      strcmp: (args) => {
+        const a = self.toStr(args[0]), b = self.toStr(args[1]);
+        return a < b ? -1 : a > b ? 1 : 0;
+      },
+      strncmp: (args) => {
+        const n = Math.max(0, Math.trunc(self.toNum(args[2])));
+        const a = self.toStr(args[0]).slice(0, n);
+        const b = self.toStr(args[1]).slice(0, n);
+        return a < b ? -1 : a > b ? 1 : 0;
+      },
+      strcat: (args) => self.toStr(args[0]) + self.toStr(args[1]),
+      strcpy: (args) => self.toStr(args[1]),
+      strstr: (args) => {
+        const hay = self.toStr(args[0]), needle = self.toStr(args[1]);
+        const i = hay.indexOf(needle);
+        return i < 0 ? '' : hay.slice(i);
+      },
+      substr: (args) => {
+        const s = self.toStr(args[0]);
+        const start = Math.trunc(self.toNum(args[1]));
+        if (args.length > 2) return s.slice(start, start + Math.trunc(self.toNum(args[2])));
+        return s.slice(start);
+      },
+      char_at: (args) => {
+        const s = self.toStr(args[0]);
+        const i = Math.trunc(self.toNum(args[1]));
+        const chars = [...s];
+        if (i < 0 || i >= chars.length) return { __char: true, value: '\0' };
+        return { __char: true, value: chars[i] };
+      },
+
       sleep: async (args) => {
         let ms = self.toNum(args[0]);
         if (ms < 0) ms = 0;

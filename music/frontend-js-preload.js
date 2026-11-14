@@ -85,31 +85,17 @@ async function preloadSongLyric(song){
 if(!song||!song.id)return;
 var entry=getPreloadEntry(song.id);
 if(!entry)return;
-if(entry.lyricDone&&entry.lyric&&String(entry.lyric).trim()&&String(entry.lyric).indexOf('\ufffd')===-1){
-// 已有可用歌词，若当前曲目还在 loading，立刻落地
-var curX=state.playlist[state.current];
-if(curX&&String(curX.id)===String(song.id)&&state.lyricLoading){
-state.lyric=entry.lyric;
-state.lyricTrans=entry.lyricTrans||'';
-state.lyricRoma=entry.lyricRoma||'';
-state.lyricLoading=false;
-state._lastLyricKey=null;
-try{render();}catch(e){}
-}
-return;
-}
-if(song.external){
-entry.lyricDone=true;
-entry.lyric=entry.lyric||'外部音源，暂无歌词';
-if(state.playlist[state.current]&&String(state.playlist[state.current].id)===String(song.id)){
-state.lyric=entry.lyric;state.lyricLoading=false;render();
-}
-return;
+function isRealLyric(t){
+if(!t||!String(t).trim())return false;
+var s=String(t).trim();
+if(s==='暂无歌词'||s==='外部音源，暂无歌词'||s==='视频音源，暂无歌词')return false;
+if(s.indexOf('\ufffd')!==-1)return false;
+return true;
 }
 function applyToState(main,trans,roma){
 var cur=state.playlist[state.current];
 if(!cur||String(cur.id)!==String(song.id))return;
-state.lyric=(main&&String(main).trim())?main:'暂无歌词';
+state.lyric=isRealLyric(main)?main:'暂无歌词';
 state.lyricTrans=trans||'';
 if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;
 state.lyricRoma=roma||'';
@@ -117,9 +103,24 @@ state.lyricLoading=false;
 state._lastLyricKey=null;
 try{render();}catch(e){}
 }
+// 已有真实歌词才跳过网络
+if(entry.lyricDone&&isRealLyric(entry.lyric)){
+var curX=state.playlist[state.current];
+if(curX&&String(curX.id)===String(song.id)){
+if(state.lyricLoading||!isRealLyric(state.lyric))applyToState(entry.lyric,entry.lyricTrans||'',entry.lyricRoma||'');
+}
+return;
+}
+if(song.external){
+entry.lyricDone=true;
+entry.lyric='外部音源，暂无歌词';
+applyToState(entry.lyric,'','');
+return;
+}
+// 本地缓存
 try{
 var cached=await getCachedLyric(song.id);
-if(cached&&cached.main&&String(cached.main).trim()&&String(cached.main).indexOf('\ufffd')===-1){
+if(cached&&isRealLyric(cached.main)){
 entry.lyric=cached.main||'';
 entry.lyricTrans=cached.trans||'';
 entry.lyricRoma=cached.roma||'';
@@ -128,26 +129,29 @@ applyToState(entry.lyric,entry.lyricTrans,entry.lyricRoma);
 return;
 }
 }catch(e){}
+// 网络
 try{
 var lr=await post('/api/getSongLyric',{id:song.id});
 var m=(typeof extractLyricMulti==='function')?extractLyricMulti(lr):{main:'',trans:'',roma:''};
 var main=m.main||'';
-// 拒绝乱码缓存
-if(main&&String(main).indexOf('\ufffd')!==-1)main='';
-entry.lyric=main;
-entry.lyricTrans=m.trans||'';
-entry.lyricRoma=m.roma||'';
-entry.lyricDone=true; // 无论有无歌词都标记完成，避免一直「获取中」
-try{
-if(main&&typeof saveLyricToCache==='function')await saveLyricToCache(song.id,main,m.trans||'',m.roma||'');
-}catch(e){}
-applyToState(main,m.trans||'',m.roma||'');
+var trans=m.trans||'';
+var roma=m.roma||'';
+if(isRealLyric(main)){
+entry.lyric=main;entry.lyricTrans=trans;entry.lyricRoma=roma;entry.lyricDone=true;
+try{if(typeof saveLyricToCache==='function')await saveLyricToCache(song.id,main,trans,roma);}catch(e){}
+applyToState(main,trans,roma);
+}else{
+// 失败不永久占住：允许下次再拉
+entry.lyricDone=false;
+entry.lyric='';
+applyToState('暂无歌词','','');
+}
 }catch(e){
-entry.lyricDone=true;
-entry.lyric=entry.lyric||'暂无歌词';
-applyToState(entry.lyric||'暂无歌词','','');
+entry.lyricDone=false;
+applyToState('暂无歌词','','');
 }
 }
+
 
 
 

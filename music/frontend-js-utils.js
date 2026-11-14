@@ -596,15 +596,12 @@ if(hash.length!==32)return {code:400,msg:'无效酷狗 hash'};
 try{
 if(typeof getLocalLyricOnly==='function'){
 var locK=getLocalLyricOnly(songId);
-if(locK&&locK.main&&String(locK.main).trim()&&String(locK.main).trim()!=='暂无歌词'){
-var bad=String(locK.main).indexOf('�')!==-1;
-if(!bad){
+if(locK&&locK.main&&String(locK.main).trim()&&String(locK.main).trim()!=='暂无歌词'&&String(locK.main).indexOf('�')===-1&&String(locK.main).length>8){
 return {code:200,data:{
 lrc:{lyric:ensureHttpsInText(locK.main||'')},
 tlyric:{lyric:ensureHttpsInText(locK.trans||'')},
 romalrc:{lyric:ensureHttpsInText(locK.roma||'')}
 }};
-}
 }
 }
 }catch(e){}
@@ -660,7 +657,7 @@ return {code:404,msg:'暂无歌词',data:{lrc:{lyric:''},tlyric:{lyric:''},romal
 try{
 if(typeof getLocalLyricOnly==='function'){
 var loc=getLocalLyricOnly(songId);
-if(loc&&loc.main&&String(loc.main).trim()&&String(loc.main).trim()!=='暂无歌词'){
+if(loc&&loc.main&&String(loc.main).trim()&&String(loc.main).trim()!=='暂无歌词'&&String(loc.main).indexOf('�')===-1&&String(loc.main).length>8){
 return {code:200,data:{
 lrc:{lyric:ensureHttpsInText(loc.main||'')},
 tlyric:{lyric:ensureHttpsInText(loc.trans||'')},

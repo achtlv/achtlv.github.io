@@ -1,4 +1,4 @@
-export const BODY_INNER = String.raw`<div class="app">
+export const BODY = String.raw`<div class="app">
 <div class="page page-active" id="pagePlayer">
 <header>
 <button class="icon-btn" id="shareBtn" title="分享" aria-label="分享"></button>
@@ -51,7 +51,10 @@ export const BODY_INNER = String.raw`<div class="app">
 
 <div class="progress-row">
 <span id="curTime">0:00</span>
+<div class="seek-wrap">
+<div class="seek-fill" id="seekFill"></div>
 <input type="range" id="seek" min="0" max="1000" value="0" step="1" aria-label="播放进度">
+</div>
 <span id="durTime">0:00</span>
 </div>
 

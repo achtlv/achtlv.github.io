@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261115.08';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261115.09';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -3503,7 +3503,7 @@ return;
 if(remoteVer||bundleVer){
 try{localStorage.setItem('m3_app_version',remoteVer||bundleVer);}catch(e){}
 }
-try{toast('媒体缓存已清理');}catch(e){}
+try{toast('正在更新');}catch(e){}
 try{if(typeof restorePlaylist==='function')restorePlaylist();}catch(e){}
 try{if(typeof savePlaylist==='function')savePlaylist();}catch(e){}
 try{logEvent('action','刷新完成','list='+(state.playlist?state.playlist.length:0));}catch(e){}

@@ -626,8 +626,6 @@ width:100%!important;
 padding-bottom:60px;
 }
 }
-
-</style>
 .seek-wrap{position:relative;flex:1;height:22px;display:flex;align-items:center;}
 .seek-fill{position:absolute;left:0;top:50%;transform:translateY(-50%);height:6px;border-radius:3px;
 background:var(--primary);width:0%;max-width:100%;pointer-events:none;z-index:0;will-change:width;}
@@ -639,4 +637,5 @@ background:transparent!important;-webkit-appearance:none;appearance:none;height:
 background:var(--primary);cursor:pointer;border:none;margin-top:-4px;position:relative;z-index:2;}
 .seek-wrap input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--primary);
 border:none;cursor:pointer;}
+</style>
 `;

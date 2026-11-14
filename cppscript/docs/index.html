@@ -118,7 +118,8 @@ if  else  switch  case  default
 for  while  break  continue
 return  delete  in  out  getchar
 true  false
-with  param  header  proxy  UA</code></pre>
+with  param  header  proxy  UA
+try  catch  throw</code></pre>
 <p>类型名 <code>deque</code> / <code>list</code> / <code>set</code> / <code>multiset</code> / <code>map</code> / <code>multimap</code> / <code>pair</code> / <code>tuple</code> 也是关键字，不能作变量名。</p>
 <p><strong>关键字不能作变量名 / 参数名 / 字段名。</strong>例如 <code>string UA = &quot;...&quot;</code> 会报 E03，应改成 <code>string userAgent = &quot;...&quot;</code>，再用 <code>with UA userAgent</code>。</p>
 <p>1.4 最小示例</p>
@@ -192,7 +193,7 @@ https://cpps.example/?url=https://example.com/cpps.txt&amp;key=2%5E3
 <p>map&lt;K, V&gt; — 键值映射（一键一值）</p>
 <p>multimap&lt;K, V&gt; — 一键多值映射</p>
 <p>pair&lt;T1, T2&gt; — 二元组，成员 first / second</p>
-<p>tuple&lt;T...&gt; — 不定长元组，下标或 get(t,i)</p>
+<p>tuple&lt;T...&gt; — 不定长元组，下标或 tget(t,i)</p>
 <p>struct 名 — 自定义结构体（可嵌套）</p>
 <p>T a[n]... — 原生数组（最高 4 维）</p>
 <p>T&amp; — 引用</p>
@@ -756,6 +757,21 @@ sin cos tan asin acos atan atan2(y,x)
 sinh cosh tanh
 floor ceil round trunc fmod(x,y) copysign(mag,sgn)
 pow(base,exp)  // 已有</code></pre>
+<p>12.9b 控制与请求</p>
+<pre><code>sleep(ms);                 // 最多 60s；可被「强行停止」打断
+get(url);                  // 浏览器直连（可能 CORS）
+get(url) with worker;      // 经 Worker /api/fetch 代理
+post(url, body) with worker;
+get_all(urls);             // 并发 GET，urls 为 deque&lt;string&gt;
+get_all(urls, true);       // 第二参数 true 时并发走 Worker 代理
+
+try { ... } catch (e) { out(e); }
+throw "message";
+
+return url with 302;              // 自动跳转（延迟 1.5s）
+return url with 302 with confirm; // 弹窗确认
+return url with 302 with auto;    // 显式自动
+</code></pre>
 <p>12.10 &lt;cstdio&gt; 子集</p>
 <pre><code>puts(s)              // 等价 out(s+"\n")，返回 0
 printf(fmt, ...)     // 写入输出；支持 flags(-+0#)、width、.prec、*、diouxXfFeEgGaAcsp%%
@@ -769,7 +785,7 @@ out(to_str(p.first) + p.second);  // first / second 可读写
 
 tuple&lt;number, number, string&gt; t = make_tuple(1, 2, "x");
 out(to_str(t[0]));                 // 下标
-out(to_str(get(t, 2)));            // get(tuple, i)；pair 可用 get(p,0|1)
+out(to_str(tget(t, 2)));            // tget(tuple, i)；pair 可用 tget(p,0|1)
 
 pair&lt;number, number&gt; q;            // 默认 first=0, second=0
 q.first = 3;

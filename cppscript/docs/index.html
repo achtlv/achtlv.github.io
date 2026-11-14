@@ -422,12 +422,12 @@ auto main() {
 <li>响应状态码固定 200</li>
 <li>Content-Type: text/plain; charset=utf-8（固定）</li>
 <li>return with N / return N 中的 N 被忽略（已经 200 了）</li>
-<li>return &quot;url&quot; → E47：流式模式下不能重定向，末尾追加 [E47: cannot redirect after out()]</li>
+<li>return &quot;url&quot; → 302 跳转（可与 out 同时使用；前端先显示输出再跳转）</li>
 <li>出错时：流末尾追加 [error: &lt;message&gt;] 并关闭连接</li>
 </ul>
 <p>6.4.4 对比</p>
 <p>场景 buffer 模式 流式模式</p>
-<p>return &quot;url&quot; 302 E47 提示追加末尾</p>
+<p>return &quot;url&quot; 302（可先 out）</p>
 <p>return with N N + body 200（N 忽略）</p>
 <p>return; / 自然结束 200 + body 200（已推送完）</p>
 <p>输出时机 一次性 逐 chunk</p>
@@ -762,11 +762,13 @@ pow(base,exp)  // 已有</code></pre>
 get(url);                  // 浏览器直连（可能 CORS）
 get(url) with worker;      // 经 Worker /api/fetch 代理
 post(url, body) with worker;
-get_all(urls);             // 并发 GET，urls 为 deque&lt;string&gt;
-get_all(urls, true);       // 第二参数 true 时并发走 Worker 代理
+get_all(urls) with UA &quot;...&quot; with worker;  // 并发 GET，支持与 get 相同的 with
+post_all(urls, bodies) with header { ... }; // 并发 POST；bodies 与 urls 等长的 deque
 
 try { ... } catch (e) { out(e); }
 throw "message";
+modal("是否继续？");       // 弹窗确认，返回 bool（仅前端有效）
+(string)x; (number)s;      // 强制类型转换
 
 out("说明文字\n");
 return url with 302;              // 可先 out 再跳转；自动跳转延迟 1.5s
@@ -894,7 +896,7 @@ deque&lt;number&gt; vs = mm.equal_range("a");  // {1,2}</code></pre>
 <p>E44 main 的 return 字符串 + 2xx/4xx/5xx</p>
 <p>E45 ++/-- 的操作数不是 number/bool 类型的左值</p>
 <p>E46 对右值赋值 / 自增</p>
-<p>E47 流式模式下 return &quot;url&quot;（不能重定向）</p>
+<p>E47 （已取消：允许 out 后 return 跳转）</p>
 <p>E48 in(x) 的 x 不是可声明变量</p>
 <p>E49 修改 / delete 只读内置变量</p>
 <p>E50 ?in= 远程拉取 HTTP 失败</p>
@@ -949,7 +951,7 @@ auto main() {
     out(&quot;no match\n&quot;);
     return with 404;
 }</code></pre>
-<p>注意：这个例子调用了 out，所以会进入流式模式。如果 return url 成功，因为 out 已经触发流式，会走 E47。正确写法是把 out 从成功路径移除：</p>
+<p>可与 out 同用：先输出再 return URL 跳转。</p>
 <pre><code>auto main() {
     if (key == &quot;&quot;) {
         return with 401;      // 无 out，走 buffer 模式
@@ -1091,10 +1093,10 @@ void main() { }             // ✓ 兼容</code></pre>
 <pre><code>// return &quot;hello&quot;;         // ✗ E43
 // return &quot;hello world&quot;;   // ✗ E43
 return &quot;example.com/a&quot;;    // ✓ 302</code></pre>
-<p>坑 3：out 和 return &quot;url&quot; 不能混用</p>
+<p>坑 3：out 和 return &quot;url&quot; 可以同用</p>
 <pre><code>auto main() {
     out(&quot;hello\n&quot;);                          // 触发流式
-    return &quot;https://x.com/a&quot;;                // ✗ E47（流式模式不能重定向）
+    return &quot;https://x.com/a&quot;;                // ✗ E47（流式模式可跳转）
 }</code></pre>
 <p>正确做法：要 302 就别 out；要输出就别 return &quot;url&quot;。</p>
 <p>坑 4：流式模式状态码固定 200</p>

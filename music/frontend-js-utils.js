@@ -597,11 +597,14 @@ try{
 if(typeof getLocalLyricOnly==='function'){
 var locK=getLocalLyricOnly(songId);
 if(locK&&locK.main&&String(locK.main).trim()&&String(locK.main).trim()!=='暂无歌词'){
+var bad=String(locK.main).indexOf('�')!==-1;
+if(!bad){
 return {code:200,data:{
 lrc:{lyric:ensureHttpsInText(locK.main||'')},
 tlyric:{lyric:ensureHttpsInText(locK.trans||'')},
 romalrc:{lyric:ensureHttpsInText(locK.roma||'')}
 }};
+}
 }
 }
 }catch(e){}

@@ -132,20 +132,17 @@ return n0*3600+n1*60+n2+ms2/1000;
 
 function repairMojibake(s){
 if(!s||typeof s!=='string')return s||'';
-// 已含正常日/中文则不处理
-if(/[\u3040-\u30ff\u4e00-\u9fff]/.test(s)&&s.indexOf('\ufffd')===-1&&!/Ã.|Â.|ã.|ä./.test(s))return s;
-// UTF-8 被当成 latin1 再解释的常见乱码：按 latin1 取字节再按 utf-8 解
+// 含替换符才尝试修复；正常中日文直接返回
+if(s.indexOf('\ufffd')===-1)return s;
 try{
-if(/Ã.|Â.|å.|æ.|ç.|è.|é.|ä.|ã./.test(s)||s.indexOf('\ufffd')!==-1){
 var bytes=new Uint8Array(s.length);
 for(var i=0;i<s.length;i++)bytes[i]=s.charCodeAt(i)&0xff;
 var dec=new TextDecoder('utf-8',{fatal:false}).decode(bytes);
 if(dec&&dec.indexOf('\ufffd')<s.indexOf('\ufffd'))return dec;
-if(/[\u3040-\u30ff\u4e00-\u9fff]/.test(dec))return dec;
-}
 }catch(e){}
 return s;
 }
+
 
 function cleanLyricMeta(text){
 if(!text)return '';

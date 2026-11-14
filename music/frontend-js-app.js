@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261115.02';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261115.03';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -40,106 +40,33 @@ window._urlShareHandled=true;
 function bindMediaSessionActions(){
 if(!('mediaSession' in navigator))return;
 try{
-// 通知栏点击 = 点击网页播放按钮，再跟随网页按钮状态
 navigator.mediaSession.setActionHandler('play',function(){
-try{
-if(state.loadingUrl&&!state.playing){state.playing=true;render();
-try{navigator.mediaSession.playbackState='playing';}catch(e1){}
-try{syncMediaSessionFromUi();}catch(e2){}
-return;}
-if(!state.playing){
-if(typeof togglePlay==='function')togglePlay();
-}else{
-try{if(audio.paused&&state.audioUrl){var p=audio.play();if(p&&p.catch)p.catch(function(){});}}catch(e3){}
-}
-}catch(e){}
-try{navigator.mediaSession.playbackState='playing';}catch(e){}
-try{syncMediaSessionFromUi();}catch(e){}
+try{if(!state.playing)togglePlay();}catch(e){}
+try{navigator.mediaSession.playbackState=state.playing?'playing':'paused';}catch(e){}
 });
+}catch(e){}
+try{
 navigator.mediaSession.setActionHandler('pause',function(){
-try{
-state.playing=false;
-state.loadingUrl=false;
-try{playToken++;}catch(e0){}
-try{audio.pause();}catch(e1){}
-try{navigator.mediaSession.playbackState='paused';}catch(e2){}
-render();
-}catch(e){}
-try{syncMediaSessionFromUi();}catch(e){}
+try{if(state.playing)togglePlay();}catch(e){}
+try{navigator.mediaSession.playbackState=state.playing?'playing':'paused';}catch(e){}
 });
-navigator.mediaSession.setActionHandler('previoustrack',function(){if(typeof prevSong==='function')prevSong();});
-navigator.mediaSession.setActionHandler('nexttrack',function(){if(typeof nextSong==='function')nextSong();});
+}catch(e){}
+try{
+navigator.mediaSession.setActionHandler('previoustrack',function(){
+if(typeof prevSong==='function')prevSong();
+});
+}catch(e){}
+try{
+navigator.mediaSession.setActionHandler('nexttrack',function(){
+if(typeof nextSong==='function')nextSong();
+});
+}catch(e){}
 try{
 navigator.mediaSession.setActionHandler('stop',function(){
-state.playing=false;
-state.loadingUrl=false;
-try{playToken++;}catch(e){}
-try{audio.pause();audio.currentTime=0;}catch(e){}
-try{syncMediaSessionFromUi();}catch(e){}
-try{render();}catch(e){}
+try{if(state.playing)togglePlay();}catch(e){}
+try{navigator.mediaSession.playbackState='paused';}catch(e){}
 });
 }catch(e){}
-}catch(e){}
-}
-function updateMediaSessionMetadata(){
-if(!('mediaSession' in navigator))return;
-try{
-bindMediaSessionActions();
-var song=state.playlist[state.current];
-if(!song){
-navigator.mediaSession.metadata=new MediaMetadata({
-title:SITE_TITLE,
-artist:'',
-album:'',
-artwork:[{src:DEFAULT_ICON,sizes:'96x96',type:'image/png'}]
-});
-return;
-}
-var artwork=[];
-if(song.pic){
-artwork.push({src:song.pic,sizes:'512x512',type:'image/jpeg'});
-artwork.push({src:song.pic,sizes:'256x256',type:'image/jpeg'});
-artwork.push({src:song.pic,sizes:'192x192',type:'image/jpeg'});
-artwork.push({src:song.pic,sizes:'96x96',type:'image/jpeg'});
-}else{
-artwork.push({src:DEFAULT_ICON,sizes:'96x96',type:'image/png'});
-}
-navigator.mediaSession.metadata=new MediaMetadata({
-title:song.name||'未知歌曲',
-artist:song.artist||'未知歌手',
-album:SITE_TITLE,
-artwork:artwork
-});
-}catch(e){}
-}
-
-function updateMediaSessionPlaybackState(){
-if(!('mediaSession' in navigator))return;
-try{
-var ps=state.playing?'playing':'paused';
-// 某些系统会忽略同值写入，先写反再写回
-try{navigator.mediaSession.playbackState=ps==='playing'?'paused':'playing';}catch(e0){}
-navigator.mediaSession.playbackState=ps;
-try{
-if(audio&&audio.duration&&isFinite(audio.duration)&&audio.duration>0){
-navigator.mediaSession.setPositionState({
-duration:audio.duration,
-playbackRate:audio.playbackRate||1,
-position:Math.max(0,Math.min(audio.currentTime||0,audio.duration))
-});
-}
-}catch(e2){}
-}catch(e){}
-}
-// 多次延迟同步，抵消 Android 系统在 action 回调后自动改回的状态
-function syncMediaSessionFromUi(){
-try{if(typeof setupMediaSession==='function')setupMediaSession();}catch(e){}
-try{updateMediaSessionPlaybackState();}catch(e){}
-setTimeout(function(){try{updateMediaSessionPlaybackState();}catch(e){}},0);
-setTimeout(function(){try{updateMediaSessionPlaybackState();}catch(e){}},30);
-setTimeout(function(){try{updateMediaSessionPlaybackState();}catch(e){}},120);
-setTimeout(function(){try{updateMediaSessionPlaybackState();}catch(e){}},300);
-setTimeout(function(){try{updateMediaSessionPlaybackState();}catch(e){}},600);
 }
 
 function setupMediaSession(){
@@ -1121,22 +1048,20 @@ if(state.playing){try{var pR=audio.play();if(pR&&pR.catch)pR.catch(function(){})
 pendingSeekFromUser=false;pendingSeekRatio=null;return;
 }
 if(state.playing){
-// 防连切：seek 末尾 + ended 事件只允许触发一次切歌
 if(state._seekEndLock){pendingSeekFromUser=false;pendingSeekRatio=null;return;}
 state._seekEndLock=true;
 state._ignoreEnded=true;
+state._progressLock=true; // 阻止旧音频 onTimeUpdate 把进度写回末尾
 pendingSeekFromUser=false;
 pendingSeekRatio=null;
-try{if($('seek'))$('seek').value='0';}catch(e){}
-try{updateSeekBg(0);}catch(e){}
-try{if($('curTime'))$('curTime').textContent='0:00';}catch(e){}
+// 立刻切断旧音频，避免 timeupdate 回写
+try{audio.pause();}catch(e){}
+try{audio.removeAttribute('src');audio.load();}catch(e){}
 try{resetProgressUI();}catch(e){}
 try{nextSong(true,true);}catch(e){}
-// 多次强制清进度条，避免上一首满绿残留
-[0,50,150,400,800].forEach(function(ms){
+[0,40,120,300,600].forEach(function(ms){
 setTimeout(function(){
 try{resetProgressUI();}catch(e){}
-// 若仍是播放意图但音频暂停，补一次 play
 try{
 if(state.playing&&audio&&audio.paused&&state.audioUrl&&!state.loadingUrl){
 var p=audio.play();if(p&&p.catch)p.catch(function(){});
@@ -1148,7 +1073,8 @@ setTimeout(function(){
 try{state._ignoreEnded=false;}catch(e){}
 try{state._seekEndLock=false;}catch(e){}
 try{state._finishSeekLock=false;}catch(e){}
-},1500);
+try{state._progressLock=false;}catch(e){}
+},1800);
 return;
 }
 else{try{audio.currentTime=Math.max(0,audio.duration-0.05);}catch(e){}updateSeekBg(100);try{if($('curTime'))$('curTime').textContent=fmt(audio.duration||0);}catch(e){}}
@@ -1163,11 +1089,10 @@ if($('seek'))$('seek').addEventListener('pointerup',finishSeek);
 if($('seek'))$('seek').addEventListener('touchend',finishSeek);
 
 function onTimeUpdate(){
-// isSeeking 卡住保护：超过 2s 强制解除
+if(state._progressLock||state._seekEndLock)return;
 if(isSeeking&&state._seekStartedAt&&Date.now()-state._seekStartedAt>2000){
 isSeeking=false;
 }
-// 切歌取链中不要用旧音频进度覆盖已重置的进度条
 if(state.loadingUrl)return;
 if(isSeeking)return;
 if(!state.audioUrl&&!state.playing)return;

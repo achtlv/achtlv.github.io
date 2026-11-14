@@ -61,8 +61,28 @@ function endAfterPort(s, colon) {
 }
 
 /* ---------- 请求执行 ---------- */
+/** 无协议则补 https://；http:// 升为 https://（localhost/内网除外） */
+export function ensureHttps(raw) {
+  let s = String(raw || '').trim();
+  if (!s) return s;
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(s)) s = 'https://' + s;
+  try {
+    const u = new URL(s);
+    if (u.protocol === 'http:') {
+      const h = u.hostname.toLowerCase();
+      if (h !== 'localhost' && h !== '127.0.0.1' && h !== '[::1]') {
+        u.protocol = 'https:';
+      }
+      return u.href;
+    }
+    return u.href;
+  } catch {
+    return s;
+  }
+}
+
 export async function doRequest(url, opts = {}, env) {
-  let finalUrl = url;
+  let finalUrl = ensureHttps(url);
 
   // 1. 合并 params 到 URL
   if (opts.params && Object.keys(opts.params).length > 0) {

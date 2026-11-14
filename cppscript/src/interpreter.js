@@ -77,6 +77,20 @@ const WITH_SUPPORT = {
     proxy: 'proxy URL prefix',
     worker: 'send request via Worker proxy',
   },
+  get_all: {
+    param: 'query parameters',
+    header: 'request headers',
+    ua: 'User-Agent',
+    proxy: 'proxy URL prefix',
+    worker: 'send request via Worker proxy',
+  },
+  post_all: {
+    param: 'query parameters',
+    header: 'request headers',
+    ua: 'User-Agent',
+    proxy: 'proxy URL prefix',
+    worker: 'send request via Worker proxy',
+  },
   return: {
     status: 'HTTP status code',
     header: 'response headers',
@@ -559,6 +573,7 @@ export class Interpreter {
       case 'Ident': return this.lookupIdent(node.name);
       case 'Binary': return await this.evalBinary(node);
       case 'Unary': return await this.evalUnary(node);
+      case 'Cast': return await this.evalCast(node);
       case 'Assign': return await this.evalAssign(node);
       case 'PrefixInc': return await this.evalIncDec(node, true);
       case 'PostfixInc': return await this.evalIncDec(node, false);
@@ -655,6 +670,16 @@ export class Interpreter {
     if (n !== Math.floor(n)) err('E34', `bit operation requires integer, got ${n}`);
     if (n < -0x80000000 || n > 0x7fffffff) err('E34', `bit operation out of int32 range: ${n}`);
     return n | 0;
+  }
+
+  async evalCast(node) {
+    const v = await this.evalExpr(node.expr);
+    const k = node.varType && node.varType.kind;
+    if (k === 'string') return this.toStr(v);
+    if (k === 'number') return this.toNum(v);
+    if (k === 'bool') return this.toBool(v);
+    if (k === 'auto') return v;
+    err('E10', `unsupported cast to ${k}`);
   }
 
   async evalUnary(node) {
@@ -1386,6 +1411,9 @@ export class Interpreter {
       if (fnName === 'get' || fnName === 'post') {
         return await this.evalRequestWithMods(base, node.mods);
       }
+      if (fnName === 'get_all' || fnName === 'post_all') {
+        return await this.evalRequestAllWithMods(base, node.mods, fnName);
+      }
       err('E52', `with modifiers for ${fnName}() are declared but not implemented`);
     }
 
@@ -1681,27 +1709,33 @@ export class Interpreter {
         });
       },
       get_all: async (args) => {
-        // 并发 GET：参数为 deque/数组 of url 字符串
         const urls = self.unwrapSeq(args[0], 'get_all');
-        self.checkAbort();
-        const env = { ...(self.ctx.env || {}) };
-        delete env.FETCH_VIA; // 直连；需要代理时对每个 URL 用 get(...) with worker
-        const useWorker = args.length > 1 && self.toBool(args[1]);
-        if (useWorker && self.ctx.env && self.ctx.env.FETCH_VIA) {
-          env.FETCH_VIA = self.ctx.env.FETCH_VIA;
-        }
-        const tasks = urls.map(async (u) => {
-          if (++self.fetchCount > MAX_FETCH) err('E24', 'fetch count exceeds 20');
-          const r = await doRequest(self.toStr(u), {
-            method: 'GET',
-            signal: self.ctx.abortSignal,
-          }, env);
-          return r.body;
-        });
+        const tasks = urls.map((u) => self.doHttpGet('GET', self.toStr(u), null, {
+          headers: {}, params: {}, ua: null, proxy: null, useWorker: false,
+        }));
         const bodies = await Promise.all(tasks);
         const d = new Deque();
         for (const b of bodies) d.push_back(b);
         return { __container: d, __elemType: { kind: 'deque', elem: { kind: 'string' } } };
+      },
+      post_all: async (args) => {
+        const urls = self.unwrapSeq(args[0], 'post_all');
+        const bodies = self.unwrapSeq(args[1], 'post_all bodies');
+        if (urls.length !== bodies.length) err('E09', 'post_all length mismatch');
+        const tasks = urls.map((u, i) => self.doHttpGet('POST', self.toStr(u), self.toStr(bodies[i]), {
+          headers: {}, params: {}, ua: null, proxy: null, useWorker: false,
+        }));
+        const results = await Promise.all(tasks);
+        const d = new Deque();
+        for (const b of results) d.push_back(b);
+        return { __container: d, __elemType: { kind: 'deque', elem: { kind: 'string' } } };
+      },
+      modal: async (args) => {
+        const msg = self.toStr(args[0] ?? '');
+        if (self.ctx && typeof self.ctx.showModal === 'function') {
+          return await self.ctx.showModal(msg);
+        }
+        return true;
       },
       sleep: async (args) => {
         let ms = self.toNum(args[0]);

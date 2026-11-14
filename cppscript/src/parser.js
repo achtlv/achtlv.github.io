@@ -642,6 +642,22 @@ export function parse(src) {
       const op = next().value;
       return { type: 'PrefixInc', op, target: unary() };
     }
+    // C 风格强制转换：(number)x (string)x (bool)x
+    if (check('OP', '(')) {
+      const save = pos;
+      next();
+      if (isTypeStart()) {
+        // 仅允许标量强制转换，避免与 (expr) 分组冲突（类型后必须是 ) 再跟一元式）
+        try {
+          const varType = parseType();
+          if (check('OP', ')') && ['number', 'string', 'bool', 'auto'].includes(varType.kind)) {
+            next();
+            return { type: 'Cast', varType, expr: unary() };
+          }
+        } catch (_) {}
+      }
+      pos = save;
+    }
     return postfix();
   };
 

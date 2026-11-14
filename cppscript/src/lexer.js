@@ -9,6 +9,7 @@ const KEYWORDS = new Set([
   'return', 'delete', 'in', 'out', 'getchar',
   'true', 'false',
   'with', 'param', 'header', 'proxy', 'UA',
+  'try', 'catch', 'throw',
 ]);
 
 export function tokenize(src) {

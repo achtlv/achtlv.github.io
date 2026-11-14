@@ -229,6 +229,8 @@ export function parse(src) {
     if (check('KEYWORD', 'continue')) { next(); expect('OP', ';'); return { type: 'Continue' }; }
     if (check('KEYWORD', 'delete')) return deleteStmt();
     if (check('KEYWORD', 'in')) return inStmt();
+    if (check('KEYWORD', 'try')) return tryStmt();
+    if (check('KEYWORD', 'throw')) return throwStmt();
     if (check('KEYWORD', 'struct')) err('E03', 'struct must be declared at top level', peek().line, peek().col);
 
     // 局部声明
@@ -419,16 +421,19 @@ export function parse(src) {
         err('E52', `with ${t.value} not allowed in return`, t.line, t.col);
       } else if (check('OP', '{')) {
         err('E52', 'with { ... } not allowed in return; use with param', peek().line, peek().col);
+      } else if (check('IDENT') && (peek().value === 'confirm' || peek().value === 'auto')) {
+        const mode = next().value;
+        mods.push({ kind: 'redirectMode', value: mode });
       } else {
         // 状态码：with 301
         mods.push({ kind: 'status', value: unary() });
       }
     }
 
-    // return 只允许 status / header / proxy
+    // return 允许 status / header / proxy / redirectMode
     for (const m of mods) {
-      if (m.kind !== 'status' && m.kind !== 'header' && m.kind !== 'proxy') {
-        err('E52', `with ${m.kind} is not defined for return; allowed: status, header, proxy`);
+      if (m.kind !== 'status' && m.kind !== 'header' && m.kind !== 'proxy' && m.kind !== 'redirectMode') {
+        err('E52', `with ${m.kind} is not defined for return; allowed: status, header, proxy, confirm, auto`);
       }
     }
 
@@ -451,6 +456,28 @@ export function parse(src) {
     expect('OP', ')');
     expect('OP', ';');
     return { type: 'In', name };
+  };
+
+  const tryStmt = () => {
+    expect('KEYWORD', 'try');
+    const body = block();
+    expect('KEYWORD', 'catch');
+    let catchName = null;
+    if (check('OP', '(')) {
+      next();
+      if (!check('IDENT')) err('E03', 'catch needs a variable name', peek().line, peek().col);
+      catchName = next().value;
+      expect('OP', ')');
+    }
+    const catchBody = block();
+    return { type: 'Try', body, catchName, catchBody };
+  };
+
+  const throwStmt = () => {
+    expect('KEYWORD', 'throw');
+    const value = expression();
+    expect('OP', ';');
+    return { type: 'Throw', value };
   };
 
   /* ---------- 表达式 ---------- */
@@ -495,6 +522,12 @@ export function parse(src) {
       } else if (check('KEYWORD', 'proxy')) {
         next();
         mods.push({ kind: 'proxy', value: unary() });
+      } else if (check('IDENT') && peek().value === 'worker') {
+        next();
+        mods.push({ kind: 'worker', value: true });
+      } else if (check('IDENT') && (peek().value === 'confirm' || peek().value === 'auto')) {
+        const mode = next().value;
+        mods.push({ kind: 'redirectMode', value: mode });
       } else if (check('OP', '{')) {
         next();
         const params = headerLiteral();

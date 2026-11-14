@@ -68,19 +68,27 @@ const WITH_SUPPORT = {
     header: 'request headers',
     ua: 'User-Agent',
     proxy: 'proxy URL prefix',
+    worker: 'send request via Worker proxy',
   },
   post: {
     param: 'query parameters',
     header: 'request headers',
     ua: 'User-Agent',
     proxy: 'proxy URL prefix',
+    worker: 'send request via Worker proxy',
   },
   return: {
     status: 'HTTP status code',
     header: 'response headers',
     proxy: 'redirect URL proxy prefix',
+    redirectMode: 'auto or confirm redirect',
   },
 };
+
+class ThrowSignal {
+  constructor(value) { this.value = value; }
+}
+
 
 export class Interpreter {
   constructor(ast, ctx) {
@@ -96,6 +104,12 @@ export class Interpreter {
     this.lastStatus = 0;
     this.lastHeaders = null;
     this._builtins = null;
+  }
+
+  checkAbort() {
+    if (this.ctx && this.ctx.abortSignal && this.ctx.abortSignal.aborted) {
+      err('E60', 'execution aborted');
+    }
   }
 
   async run() {
@@ -336,7 +350,35 @@ export class Interpreter {
       }
       case 'Delete': return await this.execDelete(node);
       case 'In': return await this.execIn(node);
+      case 'Try': return await this.execTry(node);
+      case 'Throw': {
+        const v = await this.evalExpr(node.value);
+        throw new ThrowSignal(v);
+      }
       default: err('E03', `unknown statement: ${node.type}`);
+    }
+  }
+
+  async execTry(node) {
+    try {
+      await this.execStmt(node.body);
+    } catch (e) {
+      if (e instanceof ReturnSignal || e instanceof BreakSignal || e instanceof ContinueSignal) throw e;
+      if (e instanceof ThrowSignal || (e && e.code) || e instanceof Error) {
+        const msg = e instanceof ThrowSignal
+          ? (typeof e.value === 'string' ? e.value : this.toStr(e.value))
+          : (e.message || String(e));
+        const saved = this.scope;
+        this.scope = new Scope(saved);
+        try {
+          if (node.catchName) this.scope.declare(node.catchName, msg);
+          await this.execStmt(node.catchBody);
+        } finally {
+          this.scope = saved;
+        }
+        return;
+      }
+      throw e;
     }
   }
 
@@ -367,6 +409,7 @@ export class Interpreter {
       let iters = 0;
       while (true) {
         if (node.cond && !this.toBool(await this.evalExpr(node.cond))) break;
+        this.checkAbort();
         if (++iters > MAX_LOOP) err('E21', 'loop iteration exceeds 10000');
         try {
           await this.execStmt(node.body);
@@ -1362,7 +1405,7 @@ export class Interpreter {
     const body = args.length > 1 && call.callee.name === 'post' ? this.toStr(args[1]) : null;
     const method = call.callee.name === 'post' ? 'POST' : 'GET';
 
-    const opts = { method, proxy: null, ua: null, headers: {}, params: {} };
+    const opts = { method, proxy: null, ua: null, headers: {}, params: {}, useWorker: false };
     for (const m of mods) {
       switch (m.kind) {
         case 'param':
@@ -1373,6 +1416,7 @@ export class Interpreter {
           break;
         case 'ua': opts.ua = this.toStr(await this.evalExpr(m.value)); break;
         case 'proxy': opts.proxy = this.toStr(await this.evalExpr(m.value)); break;
+        case 'worker': opts.useWorker = true; break;
         default:
           err('E52', `with ${m.kind} is not defined for ${call.callee.name}()`);
       }
@@ -1381,7 +1425,11 @@ export class Interpreter {
   }
 
   async doHttpGet(method, url, body, opts) {
+    this.checkAbort();
     if (++this.fetchCount > MAX_FETCH) err('E24', 'fetch count exceeds 20');
+    const env = { ...(this.ctx.env || {}) };
+    // 仅 with worker 时使用 FETCH_VIA；默认浏览器/本地直连
+    if (!opts.useWorker) delete env.FETCH_VIA;
     const r = await doRequest(url, {
       method,
       body,
@@ -1389,7 +1437,8 @@ export class Interpreter {
       ua: opts.ua,
       proxy: opts.proxy,
       params: opts.params,
-    }, this.ctx.env);
+      signal: this.ctx.abortSignal,
+    }, env);
     this.lastStatus = r.status;
     this.lastHeaders = r.headers;
     return r.body;
@@ -1525,13 +1574,16 @@ export class Interpreter {
 
     let statusCode = null;
     let proxy = null;
+    let redirectMode = 'auto';
     const customHeaders = {};
     const FORBIDDEN = new Set(['location', 'content-length', 'transfer-encoding']);
 
     for (const m of mods) {
       if (m.kind === 'status') statusCode = this.toNum(await this.evalExpr(m.value));
       else if (m.kind === 'proxy') proxy = this.toStr(await this.evalExpr(m.value));
-      else if (m.kind === 'header') {
+      else if (m.kind === 'redirectMode') {
+        redirectMode = typeof m.value === 'string' ? m.value : 'auto';
+      } else if (m.kind === 'header') {
         for (const h of m.value) {
           const k = h.key.toLowerCase();
           if (FORBIDDEN.has(k)) err('E53', `forbidden response header: ${h.key}`);
@@ -1570,7 +1622,9 @@ export class Interpreter {
       return {
         status: statusCode !== null ? statusCode : 302,
         redirect: true,
+        redirectMode,
         url: target,
+        body: this.output,
         headers: customHeaders,
       };
     }
@@ -1616,21 +1670,59 @@ export class Interpreter {
     const self = this;
     this._builtins = {
       get: async (args) => {
-        if (++self.fetchCount > MAX_FETCH) err('E24', 'fetch count exceeds 20');
-        const url = self.toStr(args[0]);
-        const r = await doRequest(url, { method: 'GET' }, self.ctx.env);
-        self.lastStatus = r.status;
-        self.lastHeaders = r.headers;
-        return r.body;
+        return await self.doHttpGet('GET', self.toStr(args[0]), null, {
+          headers: {}, params: {}, ua: null, proxy: null, useWorker: false,
+        });
       },
       post: async (args) => {
-        if (++self.fetchCount > MAX_FETCH) err('E24', 'fetch count exceeds 20');
-        const url = self.toStr(args[0]);
         const body = args.length > 1 ? self.toStr(args[1]) : '';
-        const r = await doRequest(url, { method: 'POST', body }, self.ctx.env);
-        self.lastStatus = r.status;
-        self.lastHeaders = r.headers;
-        return r.body;
+        return await self.doHttpGet('POST', self.toStr(args[0]), body, {
+          headers: {}, params: {}, ua: null, proxy: null, useWorker: false,
+        });
+      },
+      get_all: async (args) => {
+        // 并发 GET：参数为 deque/数组 of url 字符串
+        const urls = self.unwrapSeq(args[0], 'get_all');
+        self.checkAbort();
+        const env = { ...(self.ctx.env || {}) };
+        delete env.FETCH_VIA; // 直连；需要代理时对每个 URL 用 get(...) with worker
+        const useWorker = args.length > 1 && self.toBool(args[1]);
+        if (useWorker && self.ctx.env && self.ctx.env.FETCH_VIA) {
+          env.FETCH_VIA = self.ctx.env.FETCH_VIA;
+        }
+        const tasks = urls.map(async (u) => {
+          if (++self.fetchCount > MAX_FETCH) err('E24', 'fetch count exceeds 20');
+          const r = await doRequest(self.toStr(u), {
+            method: 'GET',
+            signal: self.ctx.abortSignal,
+          }, env);
+          return r.body;
+        });
+        const bodies = await Promise.all(tasks);
+        const d = new Deque();
+        for (const b of bodies) d.push_back(b);
+        return { __container: d, __elemType: { kind: 'deque', elem: { kind: 'string' } } };
+      },
+      sleep: async (args) => {
+        let ms = self.toNum(args[0]);
+        if (ms < 0) ms = 0;
+        if (ms > 60000) ms = 60000;
+        const signal = self.ctx.abortSignal;
+        await new Promise((resolve, reject) => {
+          const t = setTimeout(resolve, ms);
+          if (signal) {
+            if (signal.aborted) {
+              clearTimeout(t);
+              reject(Object.assign(new Error('execution aborted'), { code: 'E60' }));
+              return;
+            }
+            signal.addEventListener('abort', () => {
+              clearTimeout(t);
+              reject(Object.assign(new Error('execution aborted'), { code: 'E60' }));
+            }, { once: true });
+          }
+        });
+        return null;
       },
       status: () => self.lastStatus,
       // ★ 流式 out：每次调用触发 onChunk

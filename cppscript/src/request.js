@@ -93,7 +93,7 @@ export async function doRequest(url, opts = {}, env) {
   const init = {
     method: opts.method || 'GET',
     headers,
-    signal: AbortSignal.timeout(10000),
+    signal: opts.signal || AbortSignal.timeout(15000),
   };
   if (opts.body != null && init.method !== 'GET') {
     init.body = opts.body;
@@ -115,7 +115,7 @@ export async function doRequest(url, opts = {}, env) {
           headers: headers,
           body: opts.body != null && init.method !== 'GET' ? String(opts.body) : null,
         }),
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(15000),
       };
       res = await fetch(viaUrl, viaInit);
       // 代理本身 404 时回退直连

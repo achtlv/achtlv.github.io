@@ -329,7 +329,7 @@ async function serveStaticPath(pathname, env) {
 async function serveDocs(env) {
   const docsUrl = (env && env.DOCS_URL) || DEFAULT_DOCS_URL;
   try {
-    const res = await fetch(docsUrl, { signal: AbortSignal.timeout(10000) });
+    const res = await fetch(docsUrl, { signal: AbortSignal.timeout(15000) });
     if (res.ok) {
       let html = await res.text();
       if (!/color-scheme/i.test(html.slice(0, 800))) {
@@ -467,7 +467,7 @@ export default {
 
       let ruleText;
       try {
-        const ruleRes = await fetch(ruleUrl, { signal: AbortSignal.timeout(10000) });
+        const ruleRes = await fetch(ruleUrl, { signal: AbortSignal.timeout(15000) });
         if (!ruleRes.ok) fail(502, `rule fetch failed: ${ruleRes.status}`);
         ruleText = await ruleRes.text();
       } catch (e) {

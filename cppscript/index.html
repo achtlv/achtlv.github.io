@@ -615,13 +615,16 @@ async function runCode(src, options = {}) {
   stream = new InteractiveInputStream(options.prefillIn || '');
   setInputEnabled(false);
   abortCtl.signal.addEventListener('abort', () => {
-    try { stream.finish(); } catch (_) {}
+    try {
+      if (stream && stream.abort) stream.abort();
+      else if (stream) stream.finish();
+    } catch (_) {}
   });
 
   const keyVal = $('key').value || '';
   const fake = new URL('https://local.cppscript/run');
   // 支持逗号/换行多 key → 使用 key0,key1... 优先于 key
-  const keyParts = keyVal.split(/[\n,]/).map(s => s.trim()).filter(s => s !== '');
+  const keyParts = keyVal.split(/[\n,\s]+/).map(s => s.trim()).filter(s => s !== '');
   if (keyParts.length > 1) {
     keyParts.forEach((v, i) => fake.searchParams.set('key' + i, v.replace(/^["']|["']$/g, '')));
   } else if (keyVal !== '') {
@@ -772,6 +775,29 @@ async function onRunClick() {
   }
   await startRunPipeline(codeEl.value);
 }
+
+btnStop.onclick = () => {
+  const ctl = window.__cppsAbort;
+  if (!ctl) return;
+  try { ctl.abort(); } catch (_) {}
+  if (stream && typeof stream.abort === 'function') {
+    try { stream.abort(); } catch (_) {}
+  } else if (stream && typeof stream.finish === 'function') {
+    try { stream.finish(); } catch (_) {}
+  }
+  setStatus('完成', 'ok');
+  showToast('运行完成');
+  // 立即恢复 UI（解释器会随后结束）
+  running = false;
+  window.__cppsAbort = null;
+  setRunningUI(false);
+  setInputEnabled(false);
+  hideRuntimePanels();
+  cardOut.hidden = true;
+  outEl.value = '';
+  inHint.textContent = '';
+  stream = null;
+};
 
 btnRun.onclick = () => onRunClick();
 

@@ -49,7 +49,17 @@ textarea, input[type=text], input[type=url] {
   border: 1px solid var(--border); border-radius: 8px; padding: 0.65rem 0.8rem;
 }
 textarea.code { min-height: 180px; resize: vertical; line-height: 1.45; }
-textarea.out { min-height: 160px; resize: vertical; white-space: pre-wrap; }
+textarea.out { min-height: 160px; resize: vertical; white-space: pre-wrap; width: 100%; }
+.out-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.5rem; }
+.out-head h2 { margin: 0; }
+.out-head button { padding: 0.25rem 0.6rem; font-size: 0.78rem; }
+#btnRun { min-width: 4.5rem; }
+#btnRun.running { min-width: 5.5rem; }
+#btnStop { margin-left: auto; background: #b91c1c; }
+@media (prefers-color-scheme: dark) {
+  #btnStop { background: #dc2626; }
+}
+
 .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.6rem; }
 button {
   cursor: pointer; background: var(--accent); color: #fff; border: none;
@@ -106,7 +116,7 @@ a { color: var(--accent); }
 
   <div class="row" style="margin-bottom:0.85rem">
     <button type="button" id="btnRun">运行</button>
-    <button type="button" class="secondary" id="btnClearOut">清空输出</button>
+    <button type="button" id="btnStop" hidden>强行停止</button>
   </div>
 
   <div class="card" id="cardKey" hidden>
@@ -132,7 +142,10 @@ a { color: var(--accent); }
   </div>
 
   <div class="card" id="cardOut" hidden>
-    <h2>输出</h2>
+    <div class="out-head">
+      <h2>输出</h2>
+      <button type="button" class="secondary" id="btnClearOut">清空输出</button>
+    </div>
     <textarea class="out" id="out" readonly placeholder="out / printf / puts 的输出"></textarea>
   </div>
 
@@ -360,8 +373,17 @@ async function runCode(src, options = {}) {
 
   outEl.value = '';
   running = true;
-  $('btnRun').disabled = true;
+  const btnRun = $('btnRun');
+  const btnStop = $('btnStop');
+  btnRun.disabled = true;
+  btnRun.textContent = '运行中';
+  btnRun.classList.add('running');
+  btnStop.hidden = false;
+  btnStop.disabled = false;
   setStatus('运行中…', 'wait');
+
+  const abortCtl = new AbortController();
+  window.__cppsAbort = abortCtl;
 
   let needs;
   let ast;
@@ -372,7 +394,11 @@ async function runCode(src, options = {}) {
     outEl.value = '[error] ' + (e.message || e);
     setStatus('解析错误', 'err');
     running = false;
-    $('btnRun').disabled = false;
+    window.__cppsAbort = null;
+    btnRun.disabled = false;
+    btnRun.textContent = '运行';
+    btnRun.classList.remove('running');
+    btnStop.hidden = true;
     return;
   }
 
@@ -405,10 +431,12 @@ async function runCode(src, options = {}) {
     const interp = new Interpreter(ast, {
       url: fake,
       env: {
+        // 仅 get/post with worker 时解释器才使用 FETCH_VIA
         FETCH_VIA: fetchViaEnv(),
       },
       inputStream: stream,
       getQueryParam: getLiveQueryParam,
+      abortSignal: abortCtl.signal,
       onChunk: (delta) => {
         if (cardOut.hidden) cardOut.hidden = false;
         outEl.value += delta;
@@ -417,6 +445,7 @@ async function runCode(src, options = {}) {
     });
 
     const result = await interp.run();
+    // 允许既有 out 又有 redirect
     if (!outEl.value && interp.output) {
       if (cardOut.hidden) cardOut.hidden = false;
       outEl.value = interp.output;
@@ -424,28 +453,48 @@ async function runCode(src, options = {}) {
 
     if (result && result.redirect && result.url) {
       if (cardOut.hidden) cardOut.hidden = false;
-      outEl.value += (outEl.value && !outEl.value.endsWith('\n') ? '\n' : '') + '[redirect] ' + result.url;
+      const mode = result.redirectMode || 'auto';
+      outEl.value += (outEl.value && !outEl.value.endsWith('\n') ? '\n' : '') +
+        '[redirect' + (mode === 'confirm' ? '·确认' : '') + '] ' + result.url;
       setStatus('完成 · 跳转', 'ok');
-      setTimeout(() => { location.href = result.url; }, 400);
+      if (mode === 'confirm') {
+        if (window.confirm('是否跳转到：\n' + result.url)) {
+          location.href = result.url;
+        }
+      } else {
+        setTimeout(() => { location.href = result.url; }, 1500);
+      }
     } else {
       setStatus('完成 ' + ((result && result.status) || 200), 'ok');
     }
   } catch (e) {
     const msg = (e && e.message) ? e.message : String(e);
+    if (cardOut.hidden) cardOut.hidden = false;
     outEl.value += (outEl.value ? '\n' : '') + '[error] ' + msg;
-    setStatus('错误', 'err');
+    setStatus(msg.includes('abort') ? '已停止' : '错误', 'err');
   } finally {
     running = false;
-    $('btnRun').disabled = false;
-    if (stream && typeof stream.finish === 'function' && !stream.eof) {
-      // 程序已结束
-    }
+    window.__cppsAbort = null;
+    const btnRun2 = $('btnRun');
+    const btnStop2 = $('btnStop');
+    btnRun2.disabled = false;
+    btnRun2.textContent = '运行';
+    btnRun2.classList.remove('running');
+    if (btnStop2) { btnStop2.hidden = true; btnStop2.disabled = true; }
     setInputEnabled(false);
     stream = null;
     if (!needs.needsIn) inHint.textContent = '';
     else inHint.textContent = '程序已结束';
   }
 }
+
+$('btnStop').onclick = () => {
+  if (window.__cppsAbort) {
+    window.__cppsAbort.abort();
+    setStatus('正在停止…', 'wait');
+  }
+};
+
 
 $('btnRun').onclick = () => runCode(codeEl.value);
 

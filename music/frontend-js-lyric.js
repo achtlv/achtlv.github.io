@@ -434,8 +434,10 @@ var pure=String(text).replace(/\[[^\]]*\]/g,' ').replace(/\s+/g,' ').trim();
 return pure.length>0&&pure!=='暂无歌词';
 }
 function updateLyricToolbar(){
-var hasTrans=hasMeaningfulLyricText(state.lyricTrans);
-var hasRoma=hasMeaningfulLyricText(state.lyricRoma);
+// 主歌词无效时不显示翻译/罗马音按钮
+var mainOk=hasMeaningfulLyricText(state.lyric);
+var hasTrans=mainOk&&hasMeaningfulLyricText(state.lyricTrans);
+var hasRoma=mainOk&&hasMeaningfulLyricText(state.lyricRoma);
 var tb=$('transBtn');
 var rb=$('romaBtn');
 if(tb){

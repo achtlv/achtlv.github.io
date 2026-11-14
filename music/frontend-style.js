@@ -167,12 +167,12 @@ font-variant-numeric:tabular-nums;min-width:38px}
 .progress-row span:first-child{text-align:left}
 .progress-row span:last-child{text-align:right}
 input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:6px;border-radius:3px;
-background:var(--outline-variant);outline:none;cursor:pointer;border:none;transition:none;width:14px;height:14px;border-radius:50%;
-background:var(--primary);cursor:pointer;border:none;transition:box-shadow .2s,transform .15s}
-input[type=range]:active::-webkit-slider-thumb{box-shadow:none;
-transform:scale(1.1)}
+background:var(--outline-variant);outline:none;cursor:pointer;border:none;transition:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+background:var(--primary);cursor:pointer;border:none;transition:transform .12s}
+input[type=range]:active::-webkit-slider-thumb{box-shadow:none;transform:scale(1.1)}
 input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--primary);
-border:none;cursor:pointer;transition:box-shadow .2s}
+border:none;cursor:pointer}
 .controls{display:flex;align-items:center;justify-content:center;gap:20px;padding:10px 0 6px;flex-shrink:0}
 .controls .icon-btn{width:54px;height:54px}
 .controls .icon-btn svg{width:32px;height:32px}

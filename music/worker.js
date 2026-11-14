@@ -11,7 +11,7 @@ import { PLAYLISTS_SCRIPT } from './frontend-js-playlists.js';
 import { AUTH_SCRIPT } from './frontend-js-auth.js';
 import { APP_SCRIPT } from './frontend-js-app.js';
 import {
-  handleCacheGet, handleCacheSet, handleSearchKg, handleKgLyric,
+  handleCacheGet, handleCacheSet, handleSearchKg, handleKgLyric, handleCheckAudio, handleProxyFetch,
 } from './handlers.js';
 
 const JS_HEADERS = { 'Content-Type': 'application/javascript;charset=UTF-8', 'Cache-Control': 'no-store, no-cache, must-revalidate' };
@@ -49,7 +49,7 @@ export default {
     }
     if (url.pathname === '/icon.png') return await handleIcon();
     if (url.pathname === '/api/version') {
-      return new Response(JSON.stringify({ version: '20261114.03' }), { headers: {
+      return new Response(JSON.stringify({ version: '20261114.05' }), { headers: {
         'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store'
       }});
     }
@@ -72,6 +72,16 @@ export default {
       const body = await request.json().catch(() => ({}));
       return handleKgLyric(body.hash || body.id || '');
     }
+    
+    if (url.pathname === '/api/checkAudio' && request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      return handleCheckAudio(body.url || '');
+    }
+    if (url.pathname === '/api/proxyFetch' && request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      return handleProxyFetch(body || {});
+    }
+
     return new Response('Not Found', { status: 404 });
   }
 };

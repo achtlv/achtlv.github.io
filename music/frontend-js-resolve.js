@@ -358,13 +358,18 @@ return null;
 }
 
 async function tryThirdPartyLink(url){
-var check=await post('/api/checkAudio',{url:url});
+url=String(url||'').trim();
+if(!url)return null;
+if(url.indexOf('//')===0)url='https:'+url;
+if(/^http:\/\//i.test(url))url=url.replace(/^http:\/\//i,'https://');
+var check=null;
+try{check=await post('/api/checkAudio',{url:url});}catch(e){check=null;}
+// 兼容旧 Worker 无此接口：本地软判定
+var softMedia=/bilivideo\.com|\.m4s(?:\?|$)|\.m4a(?:\?|$)|\.mp3(?:\?|$)|\.flac(?:\?|$)|\.mp4(?:\?|$)|\.m3u8(?:\?|$)|\.aac(?:\?|$)|\.ogg(?:\?|$)|\.wav(?:\?|$)/i.test(url);
 if(check&&check.ok){
-var fmt=check.format||getFormatFromUrl(url);
+var fmt=check.format||getFormatFromUrl(url)||(softMedia&&/\.m4s/i.test(url)?'m4s':'');
 var pic='';
-try{
-pic=await extractCoverFromUrl(check.url||url);
-}catch(e){pic='';}
+try{pic=await extractCoverFromUrl(check.url||url);}catch(e){pic='';}
 return {
 id:uid(),
 name:check.name||'外部音源',
@@ -373,12 +378,29 @@ pic:pic,
 external:true,
 url:check.url||url,
 srcUrl:url,
-format:fmt,
+format:fmt||'m4s',
+quality:'external'
+};
+}
+if(softMedia){
+var fmt2=getFormatFromUrl(url);
+if(!fmt2&&/\.m4s/i.test(url))fmt2='m4s';
+if(!fmt2&&/bilivideo\.com/i.test(url))fmt2='m4s';
+return {
+id:uid(),
+name:'外部音源',
+artist:isVideoFormat(fmt2)?'视频音源':'外部音源',
+pic:'',
+external:true,
+url:url,
+srcUrl:url,
+format:fmt2||'m4s',
 quality:'external'
 };
 }
 return null;
 }
+
 
 async function resolveInput(text){
 text=(text||'').trim();

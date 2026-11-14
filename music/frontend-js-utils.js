@@ -238,10 +238,31 @@ try{data=JSON.parse(t);}catch(e){}
 resolve({ok:r.ok,status:r.status,data:data,text:t});
 });
 }).catch(function(e){
-resolve({ok:false,status:0,data:null,error:String(e&&e.message||e)});
+resolve({ok:false,status:0,data:null,error:String(e&&e.message||e),corsFail:true});
 }).then(function(v){if(timer)clearTimeout(timer);return v;});
+}).then(function(res){
+// CORS/网络失败时，对已知音源域名走 Worker 代理
+var needProxy=res&&(res.corsFail||res.status===0||(!res.ok&&!res.data&&res.status!==404));
+var u=String(url||'');
+var hostHit=/zddyr\.top|wwwweb\.top|lxmusicapi\.onrender\.com|gdstudio\.xyz|vkeys\.cn/i.test(u);
+if(needProxy&&hostHit&&u.indexOf('/api/proxyFetch')===-1){
+return fetch(toAbsoluteApiUrl('/api/proxyFetch'),{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({url:u,method:options.method||'GET',headers:options.headers||{},body:options.body,timeoutMs:timeoutMs})
+}).then(function(r){return r.json().then(function(j){
+return {
+ok:!!(j&&j.ok),
+status:(j&&j.status)||r.status,
+data:j&&j.data,
+text:j&&j.text
+};
+}).catch(function(){return res;});}).catch(function(){return res;});
+}
+return res;
 });
 }
+
 
 async function maybeCacheSideStandard(id,url,expi){
 if(!id||!url)return;
@@ -594,6 +615,7 @@ method:'POST',
 headers:{'Content-Type':'application/json'},
 body:JSON.stringify({hash:hash,id:songId})
 },15000);
+try{if(typeof logAction==='function')logAction('酷狗歌词请求','hash='+hash+' st='+(rk&&rk.status)+' code='+(rk&&rk.data&&rk.data.code));}catch(e){}
 var rawK='';
 var body=rk&&rk.data;
 if(body&&body.code===200&&body.data){

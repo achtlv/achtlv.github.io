@@ -346,6 +346,11 @@ if(url.indexOf('//')===0)url='https:'+url;
 if(/^http:\/\//i.test(url))url=url.replace(/^http:\/\//i,'https://');
 }
 if(typeof upgradeNeteaseUrl==='function')url=upgradeNeteaseUrl(url);
+// m4s：B站 DASH 音轨（fMP4），按普通媒体加载
+if((format&&String(format).toLowerCase()==='m4s')||(url&&/\.m4s(?:\?|$)/i.test(url))){
+return loadPlainMedia(url);
+}
+
 if(isFlvFormat(url,format)){
 if(audio.canPlayType('video/x-flv')){
 return loadPlainMedia(url);

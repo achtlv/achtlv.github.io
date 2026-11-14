@@ -123,31 +123,153 @@ export async function proxy() { return new Response("not found", { status: 404 }
 
 
 export async function handleKgLyric(hash) {
-  const h = String(hash || "").toLowerCase().replace(/[^a-f0-9]/g, "");
-  if (h.length !== 32) return json({ code: 400, msg: "无效 hash" }, 400);
-  const tryUrls = [
+  let h = String(hash || "").toLowerCase().replace(/^kg/, "").replace(/[^a-f0-9]/g, "");
+  if (h.length !== 32) return json({ code: 400, msg: "无效 hash: " + String(hash) }, 400);
+  const headers = { "User-Agent": UA, "Referer": "https://www.kugou.com/", "Accept": "*/*" };
+  const krcUrls = [
     "https://m.kugou.com/app/i/krc.php?cmd=100&hash=" + encodeURIComponent(h) + "&timelength=999999&d=0.1",
-    "http://m.kugou.com/app/i/krc.php?cmd=100&hash=" + encodeURIComponent(h) + "&timelength=999999&d=0.1",
+    "https://m3ws.kugou.com/app/i/krc.php?cmd=100&hash=" + encodeURIComponent(h) + "&timelength=999999&d=0.1",
   ];
-  for (let i = 0; i < tryUrls.length; i++) {
+  for (let i = 0; i < krcUrls.length; i++) {
     try {
-      const r = await fetchJson(tryUrls[i], {
-        headers: { "User-Agent": UA, "Referer": "https://www.kugou.com/", "Accept": "*/*" },
-      }, 12000);
+      const r = await fetchJson(krcUrls[i], { headers }, 12000);
       let raw = "";
       if (r.text && String(r.text).trim()) raw = r.text;
       else if (typeof r.data === "string") raw = r.data;
-      else if (r.data && r.data.lyric) raw = String(r.data.lyric);
-      // 去掉 BOM
       raw = String(raw || "").replace(/^\uFEFF/, "");
-      if (raw && /\[\d{1,2}:\d{2}/.test(raw)) {
-        return json({ code: 200, data: { lyric: raw, lrc: { lyric: raw } } });
-      }
-      if (raw && raw.length > 20 && raw.indexOf("[") >= 0) {
+      if (raw && (/\[\d{1,2}:\d{2}/.test(raw) || (raw.indexOf("[") >= 0 && raw.length > 30))) {
         return json({ code: 200, data: { lyric: raw, lrc: { lyric: raw } } });
       }
     } catch (e) {}
   }
+  try {
+    const searchUrl = "https://lyrics.kugou.com/search?ver=1&man=yes&client=pc&keyword=&duration=&hash=" + encodeURIComponent(h);
+    const sr = await fetchJson(searchUrl, { headers }, 12000);
+    const candidates = (sr.data && sr.data.candidates) || [];
+    if (candidates && candidates[0]) {
+      const c0 = candidates[0];
+      const id = c0.id || c0.Id;
+      const accesskey = c0.accesskey || c0.AccessKey;
+      if (id && accesskey) {
+        const dl = "https://lyrics.kugou.com/download?ver=1&client=pc&id=" + encodeURIComponent(id) +
+          "&accesskey=" + encodeURIComponent(accesskey) + "&fmt=lrc&charset=utf8";
+        const dr = await fetchJson(dl, { headers }, 12000);
+        let content = (dr.data && (dr.data.content || dr.data.lyric)) || "";
+        if (content && typeof content === "string") {
+          try {
+            if (!/\[\d{1,2}:\d{2}/.test(content) && content.length > 40) {
+              const decoded = atob(content);
+              const bytes = Uint8Array.from(decoded, c => c.charCodeAt(0));
+              content = new TextDecoder("utf-8").decode(bytes);
+            }
+          } catch (e) {}
+          content = String(content || "").replace(/^\uFEFF/, "");
+          if (content && content.length > 10) {
+            return json({ code: 200, data: { lyric: content, lrc: { lyric: content } } });
+          }
+        }
+      }
+    }
+  } catch (e) {}
   return json({ code: 404, msg: "暂无歌词" });
 }
 
+
+
+
+export async function handleCheckAudio(url) {
+  let u = String(url || "").trim();
+  if (!u) return json({ ok: false, msg: "缺少 url" }, 400);
+  if (u.indexOf("//") === 0) u = "https:" + u;
+  if (/^http:\/\//i.test(u)) u = u.replace(/^http:\/\//i, "https://");
+  if (!/^https?:\/\//i.test(u)) return json({ ok: false, msg: "无效链接" }, 400);
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 12000);
+    let res;
+    try {
+      res = await fetch(u, {
+        method: "GET",
+        headers: {
+          "User-Agent": UA,
+          "Range": "bytes=0-1023",
+          "Referer": "https://www.bilibili.com/",
+        },
+        signal: ctrl.signal,
+        redirect: "follow",
+      });
+    } catch (e) {
+      // retry without range
+      res = await fetch(u, {
+        method: "HEAD",
+        headers: { "User-Agent": UA, "Referer": "https://www.bilibili.com/" },
+        signal: ctrl.signal,
+        redirect: "follow",
+      });
+    }
+    clearTimeout(timer);
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+    const ok = res.ok || res.status === 206 || res.status === 200;
+    // infer format
+    let format = "";
+    const path = u.split("?")[0].toLowerCase();
+    const m = path.match(/\.([a-z0-9]+)$/);
+    if (m) format = m[1];
+    if (!format && ct) {
+      if (ct.indexOf("mpegurl") >= 0 || ct.indexOf("m3u8") >= 0) format = "m3u8";
+      else if (ct.indexOf("mp4") >= 0) format = "mp4";
+      else if (ct.indexOf("mpeg") >= 0 || ct.indexOf("mp3") >= 0) format = "mp3";
+      else if (ct.indexOf("flac") >= 0) format = "flac";
+      else if (ct.indexOf("ogg") >= 0) format = "ogg";
+      else if (ct.indexOf("webm") >= 0) format = "webm";
+      else if (ct.indexOf("aac") >= 0) format = "aac";
+    }
+    // bilibili m4s
+    if (!format && /bilivideo\.com|\.m4s/i.test(u)) format = "m4s";
+    // soft ok: if status weird but bilibili/media extension
+    const softOk = ok || /bilivideo\.com|\.m4s|\.m4a|\.mp3|\.flac|\.mp4|\.m3u8/i.test(u);
+    let name = "外部音源";
+    try {
+      const segs = path.split("/");
+      const last = segs[segs.length - 1] || "";
+      if (last && last.length < 80) name = decodeURIComponent(last);
+    } catch (e) {}
+    return json({
+      ok: !!softOk,
+      url: u,
+      format: format || "",
+      contentType: ct,
+      status: res.status,
+      name: name,
+    });
+  } catch (e) {
+    // still allow known media URLs
+    const soft = /bilivideo\.com|\.m4s(?:\?|$)|\.m4a(?:\?|$)|\.mp3(?:\?|$)|\.flac(?:\?|$)|\.mp4(?:\?|$)/i.test(u);
+    if (soft) {
+      let format = "m4s";
+      const path = u.split("?")[0].toLowerCase();
+      const m = path.match(/\.([a-z0-9]+)$/);
+      if (m) format = m[1];
+      return json({ ok: true, url: u, format, name: "外部音源", soft: true });
+    }
+    return json({ ok: false, msg: String(e.message || e) });
+  }
+}
+
+export async function handleProxyFetch(body) {
+  const url = String((body && body.url) || "").trim();
+  if (!url || !/^https?:\/\//i.test(url)) return json({ ok: false, msg: "无效 url" }, 400);
+  const method = (body && body.method) || "GET";
+  const headers = Object.assign({ "User-Agent": UA }, (body && body.headers) || {});
+  try {
+    const r = await fetchJson(url, { method, headers, body: body.body }, body.timeoutMs || 15000);
+    return json({
+      ok: r.ok,
+      status: r.status,
+      data: r.data,
+      text: r.text || (typeof r.data === "string" ? r.data : null),
+    });
+  } catch (e) {
+    return json({ ok: false, status: 0, msg: String(e.message || e) });
+  }
+}

@@ -170,7 +170,7 @@ var URL_SAFETY_BUFFER=60;
 var DEFAULT_EXPI=1200;
 var COVER_LYRIC_TTL_MS=7*24*3600*1000;
 
-var AUDIO_FORMATS=['mp3','m4a','aac','flac','wav','ogg','opus','wma','weba','oga','mka','aiff','aif','ape','alac','amr','3ga'];
+var AUDIO_FORMATS=['mp3','m4a','m4s','aac','flac','wav','ogg','opus','wma','weba','oga','mka','aiff','aif','ape','alac','amr','3ga'];
 var VIDEO_FORMATS=['m3u8','mp4','flv','wmv','mkv','webm','mov','avi','m4v','ts','3gp','3g2','ogv','mpg','mpeg','m2ts','f4v','rm','rmvb','asf'];
 
 var DOWNLOAD_LEVELS=[

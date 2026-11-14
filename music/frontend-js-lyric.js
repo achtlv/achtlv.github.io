@@ -298,7 +298,7 @@ var scrollEl=$('lyricScroll')||$('lyricBox');
 function isPlaceholderText(t){
 if(!t)return true;
 var s=String(t).trim();
-return s===''||s==='暂无歌词'||s==='正在加载歌词...'||s==='外部音源，暂无歌词'||s==='视频音源，暂无歌词'||s==='歌词加载中…';
+return s===''||s==='暂无歌词'||s==='获取中...'||s==='外部音源，暂无歌词'||s==='视频音源，暂无歌词'||s==='获取中...';
 }
 
 var showEmpty=!mainLines.length||state.lyricLoading||(!parsed.hasTime&&mainLines.length===1&&isPlaceholderText(mainLines[0].text));
@@ -317,14 +317,14 @@ bodyEl.className='line-body';
 var dm=document.createElement('div');
 dm.className='line-main';
 if(state.lyricLoading){
-dm.textContent='正在加载歌词...';
+dm.textContent='获取中...';
 }else{
 var msg='';
 if(mainLines.length)msg=mainLines[0].text||'';
 else msg=state.lyric||'';
 if(isPlaceholderText(msg)){
 if(state.lyricLoading){
-msg='歌词加载中…';
+msg='获取中...';
 }else if(state.playlist&&state.playlist.length){
 msg='暂无歌词';
 }else{

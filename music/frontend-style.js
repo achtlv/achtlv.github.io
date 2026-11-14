@@ -597,7 +597,6 @@ border:3px solid color-mix(in srgb,var(--primary) 25%,transparent);
 border-top-color:var(--primary);animation:spin .8s linear infinite}
 .empty-loading-text{opacity:.85}
 @keyframes spin{to{transform:rotate(360deg)}}
-</style>
 
 /* 桌面端：整体卡片垂直水平居中，上下留白相等 */
 @media (min-width: 560px){
@@ -628,4 +627,5 @@ width:100%!important;
 padding-bottom:60px;
 }
 }
-`;
+
+</style>`;

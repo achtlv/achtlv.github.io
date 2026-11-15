@@ -1,17 +1,16 @@
 export const LYRIC_SCRIPT = String.raw`function recenterCurrentLyric(){
 try{
 state.lyricUserScrolled=false;
-ensureLyricCenterPadding();
-// 布局完成后再滚
-var run=function(){
+// 只回正一次：等布局稳定后执行，避免多次 smooth 叠在一起跳动
+if(state._recenterTimer){try{clearTimeout(state._recenterTimer);}catch(e){}}
 try{ensureLyricCenterPadding();}catch(e){}
+state._recenterTimer=setTimeout(function(){
+state._recenterTimer=null;
+try{ensureLyricCenterPadding();}catch(e){}
+// 清掉防抖，保证这一次一定滚
+try{state._lyricScrollAt=0;state._lyricScrollTarget=null;}catch(e){}
 try{updateLyricScroll(true);}catch(e){}
-};
-run();
-try{requestAnimationFrame(function(){run();requestAnimationFrame(run);});}catch(e){}
-setTimeout(run,60);
-setTimeout(run,180);
-setTimeout(run,360);
+},48);
 }catch(e){}
 }
 function ensureLyricCenterPadding(){
@@ -462,12 +461,12 @@ if(!hasRoma)state.romaEnabled=false;
 function updateLyricScroll(force){
 if(!state.lyricHasTime)return;
 if(!state.lyricLines.length)return;
-var t=audio.currentTime||0;
+var now=audio.currentTime||0;
 var cur=-1;
 for(var i=0;i<state.lyricLines.length;i++){
 var lt=state.lyricLines[i].time;
 if(lt===null)continue;
-if(lt<=t)cur=i;
+if(lt<=now)cur=i;
 else break;
 }
 var lineChanged=(cur!==state.lyricCurrent);
@@ -482,7 +481,7 @@ if(i===cur)lines[i].classList.add('current');
 else lines[i].classList.remove('current');
 }
 if(cur<0)return;
-// 用户手动滚动中：仅更新高亮，不抢滚动
+// 用户手动滚动中：仅更新高亮
 if(state.lyricUserScrolled&&!force)return;
 if(force)state.lyricUserScrolled=false;
 var el=lines[cur];
@@ -493,15 +492,16 @@ var outerRect=outer.getBoundingClientRect();
 var elRect=el.getBoundingClientRect();
 var target=outer.scrollTop+(elRect.top-outerRect.top)-outer.clientHeight/2+el.clientHeight/2;
 if(target<0)target=0;
-// 已接近目标则不滚动，避免反复 smooth 造成跳动
-if(Math.abs((outer.scrollTop||0)-target)<14&&!force)return;
-// force（切页/回正）瞬时到位；行切换用平滑
-if(force||!lineChanged){
-try{outer.scrollTop=target;}catch(e){}
-}else{
+// 防抖：同一目标短时间不重复滚动
+var prevTarget=state._lyricScrollTarget;
+var prevAt=state._lyricScrollAt||0;
+if(typeof prevTarget==='number'&&Math.abs(prevTarget-target)<8&&(Date.now()-prevAt)<400&&!force)return;
+if(Math.abs((outer.scrollTop||0)-target)<10&&!force)return;
+state._lyricScrollTarget=target;
+state._lyricScrollAt=Date.now();
+// 行切换 / 强制回正 都使用平滑动画
 try{outer.scrollTo({top:target,behavior:'smooth'});}
 catch(e){try{outer.scrollTop=target;}catch(e2){}}
-}
 }
 
 function markLyricUserScrolled(){

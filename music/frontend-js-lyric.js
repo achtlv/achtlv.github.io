@@ -470,28 +470,38 @@ if(lt===null)continue;
 if(lt<=t)cur=i;
 else break;
 }
-if(cur===state.lyricCurrent&&!force)return;
+var lineChanged=(cur!==state.lyricCurrent);
+if(!lineChanged&&!force)return;
 state.lyricCurrent=cur;
 
 var box=$('lyricText');
+if(!box)return;
 var lines=box.children;
 for(var i=0;i<lines.length;i++){
 if(i===cur)lines[i].classList.add('current');
 else lines[i].classList.remove('current');
 }
 if(cur<0)return;
-// force 时强制回正（切换到歌词页），忽略用户滚动锁
+// 用户手动滚动中：仅更新高亮，不抢滚动
 if(state.lyricUserScrolled&&!force)return;
 if(force)state.lyricUserScrolled=false;
 var el=lines[cur];
 if(!el)return;
 var outer=$('lyricScroll')||$('lyricBox');
+if(!outer)return;
 var outerRect=outer.getBoundingClientRect();
 var elRect=el.getBoundingClientRect();
 var target=outer.scrollTop+(elRect.top-outerRect.top)-outer.clientHeight/2+el.clientHeight/2;
 if(target<0)target=0;
-try{outer.scrollTo({top:target,behavior:'smooth'})}
-catch(e){outer.scrollTop=target}
+// 已接近目标则不滚动，避免反复 smooth 造成跳动
+if(Math.abs((outer.scrollTop||0)-target)<14&&!force)return;
+// force（切页/回正）瞬时到位；行切换用平滑
+if(force||!lineChanged){
+try{outer.scrollTop=target;}catch(e){}
+}else{
+try{outer.scrollTo({top:target,behavior:'smooth'});}
+catch(e){try{outer.scrollTop=target;}catch(e2){}}
+}
 }
 
 function markLyricUserScrolled(){

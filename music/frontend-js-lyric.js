@@ -327,6 +327,7 @@ if(state._lyricScrollTimer){clearTimeout(state._lyricScrollTimer);state._lyricSc
 var box=$('lyricText');
 box.innerHTML='';
 var scrollEl=$('lyricScroll')||$('lyricBox');
+try{if(scrollEl){state._lyricProgScroll=true;scrollEl.scrollTop=0;setTimeout(function(){state._lyricProgScroll=false;},80);}}catch(e){}
 
 function isPlaceholderText(t){
 if(!t)return true;
@@ -523,19 +524,25 @@ if(typeof prevTarget==='number'&&Math.abs(prevTarget-target)<8&&(Date.now()-prev
 if(Math.abs((outer.scrollTop||0)-target)<12&&!force)return;
 state._lyricScrollTarget=target;
 state._lyricScrollAt=Date.now();
+try{
+state._lyricProgScroll=true;
 try{outer.scrollTo({top:target,behavior:'smooth'});}
 catch(e){try{outer.scrollTop=target;}catch(e2){}}
+setTimeout(function(){try{state._lyricProgScroll=false;}catch(e){}},120);
+}catch(e){try{state._lyricProgScroll=false;}catch(e2){}}
 }
 
 function markLyricUserScrolled(){
 if(!state.lyricHasTime)return;
+// 程序滚动（回正/切歌）不记为用户滚动，避免 5s/10s 后反复强制回正
+if(state._lyricProgScroll)return;
 state.lyricUserScrolled=true;
 if(state._lyricScrollTimer)clearTimeout(state._lyricScrollTimer);
 state._lyricScrollTimer=setTimeout(function(){
 state._lyricScrollTimer=null;
 state.lyricUserScrolled=false;
-try{ensureLyricCenterPadding();}catch(e){}
-updateLyricScroll(true);
+// 仅恢复跟随当前行，不 force 动画叠加重心跳动
+try{updateLyricScroll(false);}catch(e){}
 },LYRIC_RESUME_DELAY);
 }
 

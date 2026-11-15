@@ -176,38 +176,63 @@ if(!entry)return;
 if(song.external){
 entry.url=song.url;entry.quality='external';entry.urlExpireAt=0;entry.urlDone=true;return;
 }
-if(entry.urlDone&&entry.quality==='exhigh'&&entry.url)return;
+// 已有合法 https 极高链且未过期
+if(entry.urlDone&&String(entry.url).indexOf('http')===0&&entry.quality==='exhigh'&&entry.urlExpireAt&&entry.urlExpireAt>Date.now()+5000){
+entry.urlDone=true;
+return;
+}
+// 防并发重复
+if(entry._urlLoading)return;
+entry._urlLoading=true;
 var dur=song.duration&&song.duration>0?song.duration:360;
 var needRemain=dur+(typeof URL_SAFETY_BUFFER==='number'?URL_SAFETY_BUFFER:30);
-// 本地已有极高且未过期：不再发请求
 try{
-var locUrl=null;
-if(typeof getLocalAudioUrlOnly==='function')locUrl=getLocalAudioUrlOnly(song.id,'exhigh',5);
-else if(typeof getCachedAudioUrl==='function')locUrl=await getCachedAudioUrl(song.id,'exhigh',5);
-if(locUrl){
-entry.url=(typeof ensureHttps==='function'?ensureHttps(locUrl):locUrl);
+// 本地缓存（返回 {url,expireAt}）
+try{
+var loc=null;
+if(typeof getLocalAudioUrlOnly==='function')loc=getLocalAudioUrlOnly(song.id,'exhigh',5);
+if(loc&&loc.url){
+entry.url=(typeof ensureHttps==='function'?ensureHttps(loc.url):loc.url);
+entry.quality='exhigh';
+entry.urlExpireAt=loc.expireAt||(Date.now()+20*60*1000);
+entry.urlDone=true;
+return;
+}
+if(typeof getCachedAudioUrl==='function'){
+var cu=await getCachedAudioUrl(song.id,'exhigh',5);
+if(cu){
+entry.url=(typeof ensureHttps==='function'?ensureHttps(cu):cu);
 entry.quality='exhigh';
 entry.urlExpireAt=Date.now()+20*60*1000;
 entry.urlDone=true;
 return;
 }
+}
 }catch(e){}
-// 内存 preload 缓存
-if(entry.url&&entry.quality==='exhigh'&&entry.urlExpireAt&&entry.urlExpireAt>Date.now()+5000){
-entry.urlDone=true;
+// 网络：优先 tryGetLevelWithCache（本地+API+TextDB），否则 fetchPlayUrl
+var r=null;
+try{
+if(typeof tryGetLevelWithCache==='function')r=await tryGetLevelWithCache(song.id,'exhigh',needRemain);
+}catch(e){}
+if((!r||!r.url)&&typeof fetchPlayUrl==='function'){
+try{r=await fetchPlayUrl(song.id,dur);}catch(e){}
+}
+if(r&&r.url){
+var uu=(typeof ensureHttps==='function'?ensureHttps(r.url):r.url);
+if(typeof isTrialAudioUrl==='function'&&isTrialAudioUrl(uu)){
+entry.urlDone=false;
 return;
 }
-try{
-var r=null;
-if(typeof fetchPlayUrl==='function')r=await fetchPlayUrl(song.id,dur);
-else if(typeof tryGetLevelWithCache==='function')r=await tryGetLevelWithCache(song.id,'exhigh',needRemain);
-if(r&&r.url){
-entry.url=(typeof ensureHttps==='function'?ensureHttps(r.url):r.url);
-entry.quality=r.level||'exhigh';
+entry.url=uu;
+entry.quality=r.level||r.quality||'exhigh';
 entry.urlExpireAt=Date.now()+((r.expi||DEFAULT_EXPI||1200)*1000);
 entry.urlDone=true;
 }
-}catch(e){}
+}catch(e){
+entry.urlDone=false;
+}finally{
+entry._urlLoading=false;
+}
 }
 
 function schedulePreloadRetry(song,type){
@@ -237,7 +262,7 @@ return s.length>4;
 }
 var needPic=!(song.pic||(entry&&entry.pic));
 var needLyric=!(entry&&entry.lyricDone&&isReal(entry.lyric));
-var needUrl=!(entry&&entry.urlDone&&entry.url&&entry.quality==='exhigh');
+var needUrl=!(entry&&entry.urlDone&&entry.url&&String(entry.url).indexOf('http')===0&&entry.quality==='exhigh');
 if(entry&&entry.url&&entry.urlExpireAt&&entry.urlExpireAt<Date.now()+5000)needUrl=true;
 return {pic:needPic,lyric:needLyric,url:needUrl};
 }

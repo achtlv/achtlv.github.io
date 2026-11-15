@@ -95,10 +95,18 @@ return true;
 function applyToState(main,trans,roma){
 var cur=state.playlist[state.current];
 if(!cur||String(cur.id)!==String(song.id))return;
-state.lyric=isRealLyric(main)?main:'暂无歌词';
-state.lyricTrans=trans||'';
+// 禁止用空结果覆盖已有有效歌词（并发失败会把歌词闪成「暂无歌词」）
+if(!isRealLyric(main)){
+if(isRealLyric(state.lyric))return;
+state.lyric='暂无歌词';
+state.lyricTrans='';
+state.lyricRoma='';
+}else{
+state.lyric=main;
+if(trans)state.lyricTrans=trans;
+if(roma)state.lyricRoma=roma;
+}
 if(state.lyricTrans&&String(state.lyricTrans).trim()&&!state._transUserSet)state.transEnabled=true;
-state.lyricRoma=roma||'';
 state.lyricLoading=false;
 state._lastLyricKey=null;
 try{render();}catch(e){}

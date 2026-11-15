@@ -315,12 +315,12 @@ else if(gotBr&&gotBr<=400)gq='320k';
 if(u)return {url:ensureHttps(u),quality:gq,expi:0};
 throw new Error('GD无结果');
 }},
-{name:'星海',run:async function(q){
-var url='https://yy.zddyr.top/lx/api/?source=wy&songmid='+encodeURIComponent(songId)+'&quality='+encodeURIComponent(q);
-var r=await localFetchJson(url,{method:'GET'});
-var u=(r.data&&(r.data.url||(r.data.data&&r.data.data.url)))||'';
-if(u)return {url:ensureHttps(u),quality:(r.data&&r.data.quality)||q,expi:(r.data&&r.data.expi)||0};
-throw new Error((r.data&&(r.data.msg||r.data.message))||'星海无结果');
+{name:'oiapi',run:async function(q){
+var r=await localFetchJson('https://oiapi.net/api/Music_163?id='+encodeURIComponent(songId),{method:'GET'});
+var u='';
+if(r.data&&r.data.data&&r.data.data[0])u=r.data.data[0].url||'';
+if(u)return {url:ensureHttps(u),quality:q,expi:0};
+throw new Error('oiapi无结果');
 }},
 {name:'ikun',run:async function(q){
 var r=await localFetchJson('https://c.wwwweb.top/music/url',{
@@ -340,12 +340,12 @@ return {url:ensureHttps(r.data.url),quality:rq,expi:0};
 }
 throw new Error((r.data&&r.data.msg)||'Huibq无结果');
 }},
-{name:'oiapi',run:async function(q){
-var r=await localFetchJson('https://oiapi.net/api/Music_163?id='+encodeURIComponent(songId),{method:'GET'});
-var u='';
-if(r.data&&r.data.data&&r.data.data[0])u=r.data.data[0].url||'';
-if(u)return {url:ensureHttps(u),quality:q,expi:0};
-throw new Error('oiapi无结果');
+{name:'星海',run:async function(q){
+var url='https://yy.zddyr.top/lx/api/?source=wy&songmid='+encodeURIComponent(songId)+'&quality='+encodeURIComponent(q);
+var r=await localFetchJson(url,{method:'GET'});
+var u=(r.data&&(r.data.url||(r.data.data&&r.data.data.url)))||'';
+if(u)return {url:ensureHttps(u),quality:(r.data&&r.data.quality)||q,expi:(r.data&&r.data.expi)||0};
+throw new Error((r.data&&(r.data.msg||r.data.message))||'星海无结果');
 }}
 ];
 // 并发：textdb 缓存 + 各解析接口，先到先得
@@ -626,17 +626,24 @@ body:JSON.stringify({hash:hash,id:songId})
 },15000);
 try{if(typeof logAction==='function')logAction('酷狗歌词请求','hash='+hash+' st='+(rk&&rk.status)+' code='+(rk&&rk.data&&rk.data.code));}catch(e){}
 var rawK='';
+var transK='';
+var romaK='';
 var body=rk&&rk.data;
 if(body&&body.code===200&&body.data){
 rawK=body.data.lyric||(body.data.lrc&&(body.data.lrc.lyric||body.data.lrc))||'';
+transK=body.data.tlyric||body.data.trans||(body.data.tlyric&&body.data.tlyric.lyric)||'';
+if(typeof transK==='object')transK=transK.lyric||'';
+romaK=body.data.romalrc||body.data.roma||'';
+if(typeof romaK==='object')romaK=romaK.lyric||'';
 }
 if(!rawK&&rk&&rk.text){
-try{var pj=JSON.parse(rk.text);if(pj&&pj.data)rawK=pj.data.lyric||'';}catch(e){rawK=rk.text;}
+try{var pj=JSON.parse(rk.text);if(pj&&pj.data){rawK=pj.data.lyric||'';transK=pj.data.tlyric||pj.data.trans||'';romaK=pj.data.romalrc||'';}}catch(e){rawK=rk.text;}
 }
 rawK=String(rawK||'').replace(/^\uFEFF/,'');
+transK=String(transK||'');
+romaK=String(romaK||'');
 if(rawK&&rawK.trim()){
 var cleaned=typeof cleanLyricMeta==='function'?cleanLyricMeta(rawK):rawK;
-// 若误删成空，回退到仅去元信息行的简单处理
 if(!cleaned||!String(cleaned).trim()){
 cleaned=rawK.split(/\r?\n/).filter(function(line){
 var t=String(line).trim();
@@ -645,9 +652,11 @@ if(/^\[[a-zA-Z$][^\]]*:/.test(t)&&!/^\[\d{1,2}:\d{2}/.test(t))return false;
 return true;
 }).join('\n');
 }
-if(cleaned&&String(cleaned).trim()){
-try{if(typeof saveLyricToCache==='function')await saveLyricToCache(songId,cleaned,'','');}catch(e){}
-return {code:200,data:{lrc:{lyric:ensureHttpsInText(cleaned)},tlyric:{lyric:''},romalrc:{lyric:''}}};
+if(cleaned&&String(cleaned).trim()&&String(cleaned).indexOf('\uFFFD')===-1){
+var cleanedT=transK?(typeof cleanLyricMeta==='function'?cleanLyricMeta(transK):transK):'';
+var cleanedR=romaK?(typeof cleanLyricMeta==='function'?cleanLyricMeta(romaK):romaK):'';
+try{if(typeof saveLyricToCache==='function')await saveLyricToCache(songId,cleaned,cleanedT||'',cleanedR||'');}catch(e){}
+return {code:200,data:{lrc:{lyric:ensureHttpsInText(cleaned)},tlyric:{lyric:ensureHttpsInText(cleanedT||'')},romalrc:{lyric:ensureHttpsInText(cleanedR||'')}}};
 }
 }
 }catch(e){}
@@ -680,12 +689,25 @@ var rg=await localFetchJson('https://music-api.gdstudio.xyz/api.php?types=lyric&
 if(rg.data&&rg.data.lyric)return {code:200,data:{lrc:{lyric:ensureHttpsInText(rg.data.lyric||'')},tlyric:{lyric:ensureHttpsInText(rg.data.tlyric||rg.data.trans||'')},romalrc:{lyric:''}}};
 }catch(e){}return null;});
 var results=await Promise.all(tasks.map(function(fn){return fn().catch(function(){return null;});}));
-var best=null;
+var best=null;var bestScore=-1;
+function lyricScore(r){
+if(!r||!r.data)return -1;
+var main=r.data.lrc&&r.data.lrc.lyric?String(r.data.lrc.lyric):'';
+var trans=r.data.tlyric&&r.data.tlyric.lyric?String(r.data.tlyric.lyric):'';
+var roma=r.data.romalrc&&r.data.romalrc.lyric?String(r.data.romalrc.lyric):'';
+if(!main.trim()||main.indexOf('\ufffd')!==-1||main.indexOf('\uFFFD')!==-1||main.indexOf('\ufffd')!==-1)return -1;
+if(main.indexOf(String.fromCharCode(0xFFFD))!==-1)return -1;
+if(main.trim()==='暂无歌词')return -1;
+var sc=1;
+if(trans.trim())sc+=4;
+if(roma.trim())sc+=2;
+if(main.length>40)sc+=1;
+return sc;
+}
 for(var i=0;i<results.length;i++){
 var r=results[i];if(!r||r.code!==200||!r.data)continue;
-var hasMain=r.data.lrc&&r.data.lrc.lyric&&String(r.data.lrc.lyric).trim();
-var hasRoma=r.data.romalrc&&r.data.romalrc.lyric&&String(r.data.romalrc.lyric).trim();
-if(hasMain&&hasRoma){best=r;break;}if(hasMain&&!best)best=r;
+var sc=lyricScore(r);
+if(sc>bestScore){bestScore=sc;best=r;}
 }
 if(best){
 try{var bm=best.data.lrc&&best.data.lrc.lyric||'';var bt=best.data.tlyric&&best.data.tlyric.lyric||'';var br=best.data.romalrc&&best.data.romalrc.lyric||'';

@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261115.09';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261115.10';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -191,6 +191,7 @@ position:Math.min(Math.max(0,audio.currentTime||0),audio.duration)
 });
 }
 }catch(e){}
+try{if(typeof bindMediaSessionActions==='function')bindMediaSessionActions();}catch(e){}
 }
 
 function syncMediaSessionFromUi(){
@@ -203,34 +204,36 @@ setTimeout(function(){try{updateMediaSessionPlaybackState();}catch(e){}},500);
 
 function bindMediaSessionActions(){
 if(!('mediaSession' in navigator))return;
-// 每次重新绑定，避免系统丢 handler
+// 通知按钮 = 直接调用网页 togglePlay，再强制同步 playbackState
 function onPlay(){
 try{
-// 视为点击网页播放键：若当前暂停则 toggle
-if(!state.playing){
-if(typeof togglePlay==='function')togglePlay();
-}else{
-// 已在播放意图但 audio 暂停，也走 toggle 恢复
-try{if(audio&&audio.paused&&typeof togglePlay==='function')togglePlay();}catch(e){}
+if(typeof togglePlay==='function'){
+// 仅在暂停时触发，避免连点把歌暂停
+if(!state.playing){togglePlay();}
+else if(audio&&audio.paused){try{audio.play().catch(function(){});}catch(e){}}
 }
 }catch(e){}
+try{navigator.mediaSession.playbackState=state.playing?'playing':'paused';}catch(e){}
 try{syncMediaSessionFromUi();}catch(e){}
 }
 function onPause(){
 try{
-if(state.playing){
-if(typeof togglePlay==='function')togglePlay();
+if(typeof togglePlay==='function'){
+if(state.playing){togglePlay();}
+else if(audio&&!audio.paused){try{audio.pause();}catch(e){}}
 }
 }catch(e){}
+try{navigator.mediaSession.playbackState=state.playing?'playing':'paused';}catch(e){}
 try{syncMediaSessionFromUi();}catch(e){}
 }
 try{navigator.mediaSession.setActionHandler('play',onPlay);}catch(e){}
 try{navigator.mediaSession.setActionHandler('pause',onPause);}catch(e){}
-try{navigator.mediaSession.setActionHandler('previoustrack',function(){if(typeof prevSong==='function')prevSong();});}catch(e){}
-try{navigator.mediaSession.setActionHandler('nexttrack',function(){if(typeof nextSong==='function')nextSong();});}catch(e){}
+try{navigator.mediaSession.setActionHandler('previoustrack',function(){if(typeof prevSong==='function')prevSong();try{syncMediaSessionFromUi();}catch(e){}});}catch(e){}
+try{navigator.mediaSession.setActionHandler('nexttrack',function(){if(typeof nextSong==='function')nextSong();try{syncMediaSessionFromUi();}catch(e){}});}catch(e){}
 try{navigator.mediaSession.setActionHandler('stop',function(){
 try{if(state.playing&&typeof togglePlay==='function')togglePlay();}catch(e){}
 try{navigator.mediaSession.playbackState='paused';}catch(e){}
+try{syncMediaSessionFromUi();}catch(e){}
 });}catch(e){}
 }
 
@@ -1267,13 +1270,9 @@ song.duration=audio.duration;
 onTimeUpdate();
 });
 audio.addEventListener('durationchange',onTimeUpdate);
-audio.addEventListener('play',function(){try{if(state.playing)updateMediaSessionPlaybackState();}catch(e){}});
-audio.addEventListener('play_OLD_PLACEHOLDER',function(){try{if(state.playing)navigator.mediaSession&&(navigator.mediaSession.playbackState='playing');}catch(e){}
-// 不强制改写用户暂停意图；仅在已是播放意图时同步
-if(state.playing){
-try{if(typeof updateMediaSessionPlaybackState==='function')updateMediaSessionPlaybackState();}catch(e){}
-try{if(typeof updateMediaSessionMetadata==='function')updateMediaSessionMetadata();}catch(e){}
-}
+audio.addEventListener('play',function(){
+try{if(state.playing)updateMediaSessionPlaybackState();}catch(e){}
+try{if(typeof bindMediaSessionActions==='function')bindMediaSessionActions();}catch(e){}
 });
 audio.addEventListener('pause',function(){
 // 播放意图只由按钮/切歌逻辑控制，audio.pause 事件不得清掉 playing
@@ -3451,7 +3450,6 @@ var _origToast=typeof toast==='function'?toast:null;
 
 // ==================== 强制刷新（先同步，再版本检测） ====================
 async function forceRefreshApp(){
-try{toast('正在更新');}catch(e){}
 try{localStorage.removeItem(typeof MEDIA_CACHE_KEY!=='undefined'?MEDIA_CACHE_KEY:'m3_media_cache');}catch(e){}
 try{
 if(typeof preloadCache==='object'&&preloadCache){
@@ -3503,7 +3501,7 @@ return;
 if(remoteVer||bundleVer){
 try{localStorage.setItem('m3_app_version',remoteVer||bundleVer);}catch(e){}
 }
-try{toast('正在更新');}catch(e){}
+try{toast('已清除缓存');}catch(e){}
 try{if(typeof restorePlaylist==='function')restorePlaylist();}catch(e){}
 try{if(typeof savePlaylist==='function')savePlaylist();}catch(e){}
 try{logEvent('action','刷新完成','list='+(state.playlist?state.playlist.length:0));}catch(e){}

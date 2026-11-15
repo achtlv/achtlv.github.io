@@ -497,6 +497,12 @@ if(i===cur)lines[i].classList.add('current');
 else lines[i].classList.remove('current');
 }
 if(cur<0)return;
+// 切歌后短时间内禁止回正到中央（避免反复跳动），只保持在顶部
+if(state._suppressLyricRecenterUntil&&Date.now()<state._suppressLyricRecenterUntil){
+var outer0=$('lyricScroll')||$('lyricBox');
+if(outer0&&force){try{outer0.scrollTop=0;}catch(e){}}
+return;
+}
 // 用户手动滚动中：仅更新高亮
 if(state.lyricUserScrolled&&!force)return;
 if(force)state.lyricUserScrolled=false;

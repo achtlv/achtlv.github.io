@@ -224,50 +224,76 @@ else preloadSongUrl(song);
 },PRELOAD_RETRY);
 }
 
-function triggerPreloadNeighbors(){
+function songPreloadNeeds(song){
+if(!song||!song.id)return {pic:false,lyric:false,url:false};
+if(song.external)return {pic:false,lyric:false,url:false};
+var entry=getPreloadEntry(song.id);
+function isReal(t){
+if(!t||!String(t).trim())return false;
+var s=String(t).trim();
+if(s==='暂无歌词'||s.indexOf('外部音源')===0||s.indexOf('视频音源')===0)return false;
+if(s.indexOf('\ufffd')!==-1)return false;
+return s.length>4;
+}
+var needPic=!(song.pic||(entry&&entry.pic));
+var needLyric=!(entry&&entry.lyricDone&&isReal(entry.lyric));
+var needUrl=!(entry&&entry.urlDone&&entry.url&&entry.quality==='exhigh');
+if(entry&&entry.url&&entry.urlExpireAt&&entry.urlExpireAt<Date.now()+5000)needUrl=true;
+return {pic:needPic,lyric:needLyric,url:needUrl};
+}
+function collectNeighborSongs(){
 var len=state.playlist.length;
 var curIdx=state.current;
-if(curIdx<0||len<1)return;
-var curSong=state.playlist[curIdx];
-if(curSong){
-try{preloadSongPic(curSong);}catch(e){}
-try{preloadSongLyric(curSong);}catch(e){}
-}
-var scheduledIdx=curIdx;
-setTimeout(function(){
-if(state.current!==scheduledIdx)return;
-var curSong2=state.playlist[curIdx];
-if(!curSong2)return;
-var targets=[];
+var out=[];
 var seen={};
 function addIdx(idx){
 if(idx==null||idx<0||idx>=len)return;
-if(idx===curIdx)return;
 if(seen[idx])return;
 seen[idx]=true;
 var s=state.playlist[idx];
-if(s)targets.push(s);
+if(s)out.push(s);
 }
+if(curIdx>=0)addIdx(curIdx);
 if(state.mode==='shuffle'&&state.shuffleOrder&&state.shuffleOrder.length){
 var sp=(typeof state.shufflePos==='number'?state.shufflePos:0);
 if(sp<0)sp=0;
 var sn=state.shuffleOrder.length;
-var nextId=state.shuffleOrder[(sp+1)%sn];
-var prevId=state.shuffleOrder[(sp-1+sn)%sn];
 function idToIdx(id){for(var ii=0;ii<len;ii++){if(state.playlist[ii]&&String(state.playlist[ii].id)===String(id))return ii;}return -1;}
-addIdx(idToIdx(nextId));
-addIdx(idToIdx(prevId));
+addIdx(idToIdx(state.shuffleOrder[(sp+1)%sn]));
+addIdx(idToIdx(state.shuffleOrder[(sp-1+sn)%sn]));
 }
-// 原列表下一首、上一首
+if(len>0&&curIdx>=0){
 addIdx((curIdx+1)%len);
 addIdx((curIdx-1+len)%len);
+}
+return out;
+}
+var _preloadPollTimer=null;
+var _preloadPollForIdx=-1;
+function triggerPreloadNeighbors(){
+var len=state.playlist.length;
+var curIdx=state.current;
+if(curIdx<0||len<1)return;
+_preloadPollForIdx=curIdx;
+if(_preloadPollTimer){try{clearTimeout(_preloadPollTimer);}catch(e){}_preloadPollTimer=null;}
+function tick(){
+if(state.current!==_preloadPollForIdx)return;
+var targets=collectNeighborSongs();
+var still=false;
 for(var i=0;i<targets.length;i++){
-try{preloadSongPic(targets[i]);}catch(e){}
-try{preloadSongLyric(targets[i]);}catch(e){}
-try{preloadSongUrl(targets[i]);}catch(e){}
+var song=targets[i];
+var need=songPreloadNeeds(song);
+if(need.pic){still=true;try{preloadSongPic(song);}catch(e){}}
+if(need.lyric){still=true;try{preloadSongLyric(song);}catch(e){}}
+if(need.url){still=true;try{preloadSongUrl(song);}catch(e){}}
 }
-},80);
+if(still){
+_preloadPollTimer=setTimeout(tick,1800);
 }
+}
+tick();
+}
+
 
 
 `;

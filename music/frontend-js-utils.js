@@ -184,6 +184,13 @@ if(/^([a-z0-9.-]+\.(?:music\.126\.net|netease\.com|kugou\.com|kt\.com))\//i.test
 if(/^http:\/\//i.test(u))u=u.replace(/^http:\/\//i,'https://');
 return u;
 }
+function isTrialAudioUrl(url){
+if(!url)return false;
+var u=String(url);
+if(/musicrep-ts/i.test(u))return true;
+if(/[?&](trial|freeTrial)=1\b/i.test(u))return true;
+return false;
+}
 function ensureHttps(u){
 if(!u||typeof u!=='string')return u;
 return upgradeMediaUrl(u);
@@ -324,22 +331,20 @@ var gotBr=(r.data&&r.data.br)||0;
 var gq=q;
 if(gotBr&&gotBr>0&&gotBr<=160)gq='128k';
 else if(gotBr&&gotBr<=400)gq='320k';
+if(u&&typeof isTrialAudioUrl==='function'&&isTrialAudioUrl(u))throw new Error('GD试听链');
 if(u)return {url:ensureHttps(u),quality:gq,expi:0};
 throw new Error('GD无结果');
-}},
-{name:'oiapi',run:async function(q){
-var r=await localFetchJson('https://oiapi.net/api/Music_163?id='+encodeURIComponent(songId),{method:'GET'});
-var u='';
-if(r.data&&r.data.data&&r.data.data[0])u=r.data.data[0].url||'';
-if(u)return {url:ensureHttps(u),quality:q,expi:0};
-throw new Error('oiapi无结果');
 }},
 {name:'ikun',run:async function(q){
 var r=await localFetchJson('https://c.wwwweb.top/music/url',{
 method:'POST',headers:{'Content-Type':'application/json'},
 body:JSON.stringify({source:'wy',musicId:songId,quality:q})
 });
-if(r.data&&Number(r.data.code)===200&&r.data.url)return {url:ensureHttps(r.data.url),quality:r.data.quality||q,expi:0};
+if(r.data&&Number(r.data.code)===200&&r.data.url){
+var uu=ensureHttps(r.data.url);
+if(typeof isTrialAudioUrl==='function'&&isTrialAudioUrl(uu))throw new Error('ikun试听链');
+return {url:uu,quality:r.data.quality||q,expi:0};
+}
 throw new Error((r.data&&r.data.message)||'ikun无结果');
 }},
 {name:'Huibq',run:async function(q){
@@ -348,7 +353,9 @@ var url='https://lxmusicapi.onrender.com/url/wy/'+encodeURIComponent(songId)+'/'
 var r=await localFetchJson(url,{method:'GET',headers:{'X-Request-Key':'share-v3','User-Agent':'lx-music-desktop/2.10.0'}});
 if(r.data&&Number(r.data.code)===0&&r.data.url){
 var rq=(r.data.extra&&r.data.extra.quality&&r.data.extra.quality.result)||q;
-return {url:ensureHttps(r.data.url),quality:rq,expi:0};
+var uu=ensureHttps(r.data.url);
+if(typeof isTrialAudioUrl==='function'&&isTrialAudioUrl(uu))throw new Error('Huibq试听链');
+return {url:uu,quality:rq,expi:0};
 }
 throw new Error((r.data&&r.data.msg)||'Huibq无结果');
 }},
@@ -356,8 +363,22 @@ throw new Error((r.data&&r.data.msg)||'Huibq无结果');
 var url='https://yy.zddyr.top/lx/api/?source=wy&songmid='+encodeURIComponent(songId)+'&quality='+encodeURIComponent(q);
 var r=await localFetchJson(url,{method:'GET'});
 var u=(r.data&&(r.data.url||(r.data.data&&r.data.data.url)))||'';
-if(u)return {url:ensureHttps(u),quality:(r.data&&r.data.quality)||q,expi:(r.data&&r.data.expi)||0};
+if(u){
+var uu=ensureHttps(u);
+if(typeof isTrialAudioUrl==='function'&&isTrialAudioUrl(uu))throw new Error('星海试听链');
+return {url:uu,quality:(r.data&&r.data.quality)||q,expi:(r.data&&r.data.expi)||0};
+}
 throw new Error((r.data&&(r.data.msg||r.data.message))||'星海无结果');
+}},
+{name:'oiapi',run:async function(q){
+// 实测 VIP 曲常返回 musicrep-ts 试听，优先级最低且拒绝试听链
+var r=await localFetchJson('https://oiapi.net/api/Music_163?id='+encodeURIComponent(songId),{method:'GET'});
+var u='';
+if(r.data&&r.data.data&&r.data.data[0])u=r.data.data[0].url||'';
+if(!u)throw new Error('oiapi无结果');
+var uu=ensureHttps(u);
+if(typeof isTrialAudioUrl==='function'&&isTrialAudioUrl(uu))throw new Error('oiapi试听链');
+return {url:uu,quality:'128k',expi:0};
 }}
 ];
 // 并发：textdb 缓存 + 各解析接口，先到先得

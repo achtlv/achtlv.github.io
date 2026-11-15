@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261115.14';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261115.15';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -147,9 +147,9 @@ render();
 
 function setNotificationPlaying(playing){
 if(!('mediaSession' in navigator))return;
-try{
-navigator.mediaSession.playbackState=playing?'playing':'paused';
-}catch(e){}
+try{navigator.mediaSession.playbackState=playing?'playing':'paused';}catch(e){}
+// 连点后安卓可能丢 handler，轻量重绑
+try{if(typeof bindMediaSessionActions==='function')bindMediaSessionActions();}catch(e){}
 }
 
 function updateMediaSessionMetadata(){
@@ -493,14 +493,19 @@ try{savePlaylist();}catch(e){}
 if(typeof updateFavBtn==='function')updateFavBtn();
 state.showLyric=false;
 state.audioUrl='';state.quality='';
-// 切歌：歌词立刻回顶，并短时禁止自动回正（防止取链后连跳）
+// 切歌：立刻清空歌词 DOM 并滚顶（不依赖播放链接，避免停在上一首中间）
 try{
 state.lyricCurrent=-1;
 state.lyricUserScrolled=false;
-state._suppressLyricRecenterUntil=Date.now()+1000;
+state.lyricLines=[];
+state.lyricHasTime=false;
+state._lastLyricKey=null;
 state._lyricScrollAt=0;state._lyricScrollTarget=null;
+if(state._recenterTimer){clearTimeout(state._recenterTimer);state._recenterTimer=null;}
 var outerL=$('lyricScroll')||$('lyricBox');
 if(outerL)outerL.scrollTop=0;
+var lt=$('lyricText');
+if(lt)lt.innerHTML='';
 }catch(e){}
 // 再次确认，防止 stopAudio 期间被改掉
 state.playing=wantPlay;
@@ -973,6 +978,9 @@ audio.play().catch(function(){});
 }
 
 async function togglePlay(){
+if(state._toggleLock)return;
+state._toggleLock=true;
+setTimeout(function(){try{state._toggleLock=false;}catch(e){}},350);
 try{if(!state.playlist||!state.playlist.length)restorePlaylist();}catch(e){}
 try{state.playlistLoading=false;}catch(e){}
 if(!state.playlist.length){openAdd();return}
@@ -1079,9 +1087,10 @@ try{isSeeking=false;}catch(e){}
 try{
 if($('seek')){
 $('seek').value='0';
-$('seek').style.background='linear-gradient(to right, var(--primary) 0%, var(--outline-variant) 0%)';
+$('seek').style.background='transparent';
 }
 }catch(e){}
+try{if($('seekFill'))$('seekFill').style.width='0%';}catch(e){}
 try{if($('curTime'))$('curTime').textContent='0:00';}catch(e){}
 try{if($('durTime'))$('durTime').textContent='0:00';}catch(e){}
 try{updateSeekBg(0);}catch(e){}
@@ -1237,36 +1246,19 @@ if(state.playing){
 if(state._seekEndLock){pendingSeekFromUser=false;pendingSeekRatio=null;return;}
 state._seekEndLock=true;
 state._ignoreEnded=true;
-state._progressLock=true;
 pendingSeekFromUser=false;
 pendingSeekRatio=null;
-// 保持播放意图：不要 audio.pause()，否则下一首容易停住
 state.playing=true;
 try{isSeeking=false;}catch(e){}
-try{resetProgressUI();}catch(e){}
-try{updateSeekBg(0);}catch(e){}
-try{if($('curTime'))$('curTime').textContent='0:00';}catch(e){}
-try{if($('durTime'))$('durTime').textContent='0:00';}catch(e){}
-// 切断旧音频（不触发 pause 状态机）
+// 先切断旧音频，避免旧 currentTime 把绿条拉满
 try{audio.removeAttribute('src');audio.load();}catch(e){}
-try{nextSong(true,true);}catch(e){}
-[0,40,120,300,600].forEach(function(ms){
-setTimeout(function(){
 try{resetProgressUI();}catch(e){}
-try{
-if(state.playing&&audio&&audio.paused&&state.audioUrl&&!state.loadingUrl){
-var p=audio.play();if(p&&p.catch)p.catch(function(){});
-}
-}catch(e){}
-},ms);
-});
+try{nextSong(true,true);}catch(e){}
 setTimeout(function(){
 try{state._ignoreEnded=false;}catch(e){}
-try{state._progressLock=false;}catch(e){}
 try{state._seekEndLock=false;}catch(e){}
 try{state._finishSeekLock=false;}catch(e){}
-try{state._progressLock=false;}catch(e){}
-},1800);
+},300);
 return;
 }
 else{try{audio.currentTime=Math.max(0,audio.duration-0.05);}catch(e){}updateSeekBg(100);try{if($('curTime'))$('curTime').textContent=fmt(audio.duration||0);}catch(e){}}
@@ -1281,16 +1273,17 @@ if($('seek'))$('seek').addEventListener('pointerup',finishSeek);
 if($('seek'))$('seek').addEventListener('touchend',finishSeek);
 
 function onTimeUpdate(){
-if(state._progressLock||state._seekEndLock||state._ignoreEnded){
-try{updateSeekBg(0);if($('seek'))$('seek').value='0';}catch(e){}
-return;
-}
+// 无有效播放源时忽略（切歌切断 src 后旧 timeupdate 会把进度拉满）
+if(!state.audioUrl)return;
+try{
+if(!audio||!audio.src||audio.src==='about:blank'||audio.getAttribute('src')==='')return;
+}catch(e){return;}
+if(state._seekEndLock||state._ignoreEnded)return;
 if(isSeeking&&state._seekStartedAt&&Date.now()-state._seekStartedAt>2000){
 isSeeking=false;
 }
 if(state.loadingUrl)return;
 if(isSeeking)return;
-if(!state.audioUrl&&!state.playing)return;
 var d=audio.duration||0;
 var c=audio.currentTime||0;
 if(d>0&&isFinite(d)){
@@ -1365,7 +1358,7 @@ nextSong(true,true);
 });
 
 // ==================== 事件绑定 ====================
-if($('playBtn'))$('playBtn').addEventListener('click',function(){try{togglePlay();}catch(e){}try{setNotificationPlaying(!!state.playing);}catch(e){}setTimeout(function(){try{setNotificationPlaying(!!state.playing);}catch(e){}},0);});
+if($('playBtn'))$('playBtn').addEventListener('click',function(){var intend=!state.playing;try{setNotificationPlaying(intend);}catch(e){}try{togglePlay();}catch(e){}try{setNotificationPlaying(!!state.playing);}catch(e){}setTimeout(function(){try{setNotificationPlaying(!!state.playing);}catch(e){}},0);});
 if($('prevBtn'))$('prevBtn').addEventListener('click',prevSong);
 if($('nextBtn'))$('nextBtn').addEventListener('click',nextSong);
 
@@ -3888,11 +3881,13 @@ if(!('mediaSession' in navigator))return;
 setInterval(function(){
 try{
 if(!state)return;
-var want=state.playing?'playing':'paused';
+var playing=!!state.playing;
+try{if(audio&&audio.paused&&!state.loadingUrl)playing=false;}catch(e){}
+var want=playing?'playing':'paused';
 if(navigator.mediaSession.playbackState!==want){
 navigator.mediaSession.playbackState=want;
 }
 }catch(e){}
-},800);
+},400);
 })();
 `;

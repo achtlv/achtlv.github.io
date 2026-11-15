@@ -1,16 +1,14 @@
 export const LYRIC_SCRIPT = String.raw`function recenterCurrentLyric(){
 try{
+// 仅用于用户主动打开歌词页：单次回正当前行
 state.lyricUserScrolled=false;
-// 只回正一次：等布局稳定后执行，避免多次 smooth 叠在一起跳动
 if(state._recenterTimer){try{clearTimeout(state._recenterTimer);}catch(e){}}
-try{ensureLyricCenterPadding();}catch(e){}
 state._recenterTimer=setTimeout(function(){
 state._recenterTimer=null;
 try{ensureLyricCenterPadding();}catch(e){}
-// 清掉防抖，保证这一次一定滚
 try{state._lyricScrollAt=0;state._lyricScrollTarget=null;}catch(e){}
 try{updateLyricScroll(true);}catch(e){}
-},48);
+},40);
 }catch(e){}
 }
 function ensureLyricCenterPadding(){
@@ -477,7 +475,10 @@ if(!hasRoma)state.romaEnabled=false;
 function updateLyricScroll(force){
 if(!state.lyricHasTime)return;
 if(!state.lyricLines.length)return;
-var now=audio.currentTime||0;
+// 尚无播放链接时进度视为 0，只高亮首行并保持在顶部，绝不按旧 audio.currentTime 回正
+var hasSrc=false;
+try{hasSrc=!!(state.audioUrl&&audio&&audio.src&&audio.getAttribute('src'));}catch(e){}
+var now=hasSrc?(audio.currentTime||0):0;
 var cur=-1;
 for(var i=0;i<state.lyricLines.length;i++){
 var lt=state.lyricLines[i].time;
@@ -485,6 +486,7 @@ if(lt===null)continue;
 if(lt<=now)cur=i;
 else break;
 }
+if(cur<0&&state.lyricLines.length)cur=0;
 var lineChanged=(cur!==state.lyricCurrent);
 if(!lineChanged&&!force)return;
 state.lyricCurrent=cur;
@@ -497,10 +499,10 @@ if(i===cur)lines[i].classList.add('current');
 else lines[i].classList.remove('current');
 }
 if(cur<0)return;
-// 切歌后短时间内禁止回正到中央（避免反复跳动），只保持在顶部
-if(state._suppressLyricRecenterUntil&&Date.now()<state._suppressLyricRecenterUntil){
+// 无播放源：只滚顶
+if(!hasSrc){
 var outer0=$('lyricScroll')||$('lyricBox');
-if(outer0&&force){try{outer0.scrollTop=0;}catch(e){}}
+if(outer0){try{outer0.scrollTop=0;}catch(e){}}
 return;
 }
 // 用户手动滚动中：仅更新高亮
@@ -517,11 +519,10 @@ if(target<0)target=0;
 // 防抖：同一目标短时间不重复滚动
 var prevTarget=state._lyricScrollTarget;
 var prevAt=state._lyricScrollAt||0;
-if(typeof prevTarget==='number'&&Math.abs(prevTarget-target)<8&&(Date.now()-prevAt)<400&&!force)return;
-if(Math.abs((outer.scrollTop||0)-target)<10&&!force)return;
+if(typeof prevTarget==='number'&&Math.abs(prevTarget-target)<8&&(Date.now()-prevAt)<450&&!force)return;
+if(Math.abs((outer.scrollTop||0)-target)<12&&!force)return;
 state._lyricScrollTarget=target;
 state._lyricScrollAt=Date.now();
-// 行切换 / 强制回正 都使用平滑动画
 try{outer.scrollTo({top:target,behavior:'smooth'});}
 catch(e){try{outer.scrollTop=target;}catch(e2){}}
 }

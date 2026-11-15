@@ -51,7 +51,10 @@ export const BODY_INNER = String.raw`<div class="app">
 
 <div class="progress-row">
 <span id="curTime">0:00</span>
+<div class="seek-wrap">
+<div class="seek-track" aria-hidden="true"><div class="seek-fill" id="seekFill"></div></div>
 <input type="range" id="seek" min="0" max="1000" value="0" step="1" aria-label="播放进度">
+</div>
 <span id="durTime">0:00</span>
 </div>
 

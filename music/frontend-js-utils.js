@@ -222,14 +222,26 @@ if(lv==='standard'||lv==='128k')return ['128k'];
 return ['320k'];
 }
 function isCorsBrokenHost(url){
-return /zddyr\.top|wwwweb\.top|lxmusicapi\.onrender\.com|gdstudio\.xyz|vkeys\.cn|music-api\.|onrender\.com/i.test(String(url||''));
+// 浏览器直连会 CORS 失败的第三方解析站：一律走 Worker /api/proxyFetch
+return /oiapi\.net|paugram\.com|zddyr\.top|wwwweb\.top|lxmusicapi\.onrender\.com|gdstudio\.xyz|vkeys\.cn|music-api\.|onrender\.com|api\.vkeys\.cn/i.test(String(url||''));
 }
 function localFetchJson(url,options,timeoutMs){
 options=options||{};
 timeoutMs=timeoutMs||12000;
 var u=String(url||'');
-// 已知无 CORS 的域名：直接走 Worker 代理，避免浏览器预检失败刷屏
-if(isCorsBrokenHost(u)&&u.indexOf('/api/proxyFetch')===-1){
+// 第三方域名一律走 Worker 代理，避免 CORS 刷屏（同源 /api 除外）
+var abs=u;
+try{if(u.indexOf('http')!==0&&typeof toAbsoluteApiUrl==='function'){/* keep */}}catch(e){}
+var thirdParty=false;
+try{
+if(/^https?:\/\//i.test(u)){
+var host=u.split('/')[2]||'';
+var selfHost=(typeof location!=='undefined'&&location.host)?location.host:'';
+if(host&&selfHost&&host!==selfHost)thirdParty=true;
+if(isCorsBrokenHost(u))thirdParty=true;
+}
+}catch(e){thirdParty=isCorsBrokenHost(u);}
+if(thirdParty&&u.indexOf('/api/proxyFetch')===-1){
 return fetch(toAbsoluteApiUrl('/api/proxyFetch'),{
 method:'POST',
 headers:{'Content-Type':'application/json'},

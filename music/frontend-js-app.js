@@ -1,4 +1,4 @@
-export const APP_SCRIPT = String.raw`var APP_VERSION='20261115.12';
+export const APP_SCRIPT = String.raw`var APP_VERSION='20261115.13';
 function blurControl(el){
 try{if(el&&el.blur)el.blur();}catch(e){}
 try{if(document.activeElement&&document.activeElement!==document.body)document.activeElement.blur();}catch(e){}
@@ -147,13 +147,22 @@ render();
 
 function setNotificationPlaying(playing){
 if(!('mediaSession' in navigator))return;
-try{navigator.mediaSession.playbackState=playing?'playing':'paused';}catch(e){}
+var next=playing?'playing':'paused';
+try{
+// 相同状态也强制写一次，避免安卓卡在旧图标
+navigator.mediaSession.playbackState=next;
+}catch(e){}
 }
 
 function updateMediaSessionMetadata(){
 if(!('mediaSession' in navigator))return;
 try{
 var song=state.playlist[state.current];
+var key=song?(String(song.id)+'|'+String(song.pic||'')+'|'+String(song.name||'')):'';
+// 防闪：同一首歌短时间不重复写 metadata
+if(key&&key===state._msMetaKey&&(Date.now()-(state._msMetaAt||0))<400)return;
+state._msMetaKey=key;
+state._msMetaAt=Date.now();
 if(!song){
 navigator.mediaSession.metadata=new MediaMetadata({
 title:typeof SITE_TITLE!=='undefined'?SITE_TITLE:'Playlet',
@@ -180,7 +189,6 @@ artwork:art
 }
 
 function updateMediaSessionPlaybackState(){
-// 网页 → 通知：仅同步 playbackState（不改通知点击逻辑）
 setNotificationPlaying(!!state.playing);
 try{
 if(typeof audio!=='undefined'&&audio&&audio.duration&&isFinite(audio.duration)&&audio.duration>0){
@@ -199,7 +207,7 @@ updateMediaSessionPlaybackState();
 
 function bindMediaSessionActions(){
 if(!('mediaSession' in navigator))return;
-// 通知点击逻辑保持：先改通知状态，再走网页按钮逻辑
+// 通知点击逻辑（保持）：先改通知状态，再走网页按钮
 function onNotifPlay(){
 setNotificationPlaying(true);
 try{
@@ -222,8 +230,17 @@ setNotificationPlaying(!!state.playing);
 }
 try{navigator.mediaSession.setActionHandler('play',onNotifPlay);}catch(e){}
 try{navigator.mediaSession.setActionHandler('pause',onNotifPause);}catch(e){}
-try{navigator.mediaSession.setActionHandler('previoustrack',function(){if(typeof prevSong==='function')prevSong();setNotificationPlaying(!!state.playing);});}catch(e){}
-try{navigator.mediaSession.setActionHandler('nexttrack',function(){if(typeof nextSong==='function')nextSong();setNotificationPlaying(!!state.playing);});}catch(e){}
+try{navigator.mediaSession.setActionHandler('previoustrack',function(){
+// 先切歌，再一次性写 metadata，避免封面闪回
+try{if(typeof prevSong==='function')prevSong();}catch(e){}
+try{state._msMetaKey='';updateMediaSessionMetadata();}catch(e){}
+setNotificationPlaying(!!state.playing);
+});}catch(e){}
+try{navigator.mediaSession.setActionHandler('nexttrack',function(){
+try{if(typeof nextSong==='function')nextSong();}catch(e){}
+try{state._msMetaKey='';updateMediaSessionMetadata();}catch(e){}
+setNotificationPlaying(!!state.playing);
+});}catch(e){}
 try{navigator.mediaSession.setActionHandler('stop',function(){
 setNotificationPlaying(false);
 try{if(state.playing&&typeof togglePlay==='function')togglePlay();}catch(e){}
@@ -248,23 +265,24 @@ try{if(audio.duration)audio.currentTime=Math.min(audio.duration,audio.currentTim
 }catch(e){}
 try{updateMediaSessionMetadata();}catch(e){}
 try{updateMediaSessionPlaybackState();}catch(e){}
-// 网页播放状态变化 → 通知：挂到 audio 事件（比仅在 togglePlay 里调更可靠）
 try{
 if(typeof audio!=='undefined'&&audio&&!audio.__msBound){
 audio.__msBound=true;
 audio.addEventListener('play',function(){
 try{state.playing=true;}catch(e){}
 setNotificationPlaying(true);
-try{updateMediaSessionMetadata();}catch(e){}
 });
 audio.addEventListener('playing',function(){
+try{state.playing=true;}catch(e){}
 setNotificationPlaying(true);
 });
 audio.addEventListener('pause',function(){
-// 切歌/重载过程中的 pause 忽略
 try{if(state._ignorePause)return;}catch(e){}
 try{if(state.loadingUrl)return;}catch(e){}
-setNotificationPlaying(false);
+// 与网页 state 对齐，避免通知卡在 playing
+try{if(!state.playing)setNotificationPlaying(false);
+else if(audio.paused){state.playing=false;setNotificationPlaying(false);}
+}catch(e){setNotificationPlaying(false);}
 });
 audio.addEventListener('ended',function(){
 setNotificationPlaying(false);
@@ -941,7 +959,6 @@ audio.play().catch(function(){});
 }
 
 async function togglePlay(){
-try{bindMediaSessionActions();}catch(e){}
 try{if(!state.playlist||!state.playlist.length)restorePlaylist();}catch(e){}
 try{state.playlistLoading=false;}catch(e){}
 if(!state.playlist.length){openAdd();return}
@@ -1059,10 +1076,12 @@ try{updateSeekBg(0);}catch(e){}
 function updateSeekBg(pct){
 if(!isFinite(pct))pct=0;
 pct=Math.max(0,Math.min(100,Number(pct)||0));
+var fill=$('seekFill');
+if(fill){
+fill.style.width=pct+'%';
+}
 var el=$('seek');
-if(!el)return;
-// 经典方案：灰底 + 绿色已播进度（与圆球同一元素，无延迟）
-el.style.background='linear-gradient(to right,var(--primary) 0%,var(--primary) '+pct+'%,var(--outline-variant) '+pct+'%,var(--outline-variant) 100%)';
+if(el)el.style.background='transparent';
 }
 
 function getPlayingUrlExpireAt(){
@@ -1326,7 +1345,7 @@ nextSong(true,true);
 });
 
 // ==================== 事件绑定 ====================
-if($('playBtn'))$('playBtn').addEventListener('click',function(){try{togglePlay();}catch(e){}setTimeout(function(){try{setNotificationPlaying(!!state.playing);}catch(e){}},50);setTimeout(function(){try{setNotificationPlaying(!!state.playing);}catch(e){}},300);});
+if($('playBtn'))$('playBtn').addEventListener('click',function(){try{togglePlay();}catch(e){}try{setNotificationPlaying(!!state.playing);}catch(e){}setTimeout(function(){try{setNotificationPlaying(!!state.playing);}catch(e){}},0);});
 if($('prevBtn'))$('prevBtn').addEventListener('click',prevSong);
 if($('nextBtn'))$('nextBtn').addEventListener('click',nextSong);
 

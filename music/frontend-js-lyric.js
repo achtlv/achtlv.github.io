@@ -131,15 +131,30 @@ return n0*3600+n1*60+n2+ms2/1000;
 
 function repairMojibake(s){
 if(!s||typeof s!=='string')return s||'';
-// 含替换符才尝试修复；正常中日文直接返回
-if(s.indexOf('\ufffd')===-1)return s;
+var out=s;
+// 1) 含替换符：按字节重解 UTF-8
+if(out.indexOf('\ufffd')!==-1){
 try{
-var bytes=new Uint8Array(s.length);
-for(var i=0;i<s.length;i++)bytes[i]=s.charCodeAt(i)&0xff;
+var bytes=new Uint8Array(out.length);
+for(var i=0;i<out.length;i++)bytes[i]=out.charCodeAt(i)&0xff;
 var dec=new TextDecoder('utf-8',{fatal:false}).decode(bytes);
-if(dec&&dec.indexOf('\ufffd')<s.indexOf('\ufffd'))return dec;
+if(dec&&(dec.indexOf('\ufffd')===-1||dec.indexOf('\ufffd')<out.indexOf('\ufffd')))out=dec;
 }catch(e){}
-return s;
+}
+// 2) UTF-8 被当 latin1：Ã/Â/å 等且几乎无 CJK
+try{
+var cjk=(out.match(/[\u4e00-\u9fff\u3040-\u30ff]/g)||[]).join('').length;
+var weird=(out.match(/[\u00c0-\u024f]/g)||[]).join('').length;
+if(weird>=3&&cjk===0){
+var b2=new Uint8Array(out.length);
+for(var j=0;j<out.length;j++)b2[j]=out.charCodeAt(j)&0xff;
+var d2=new TextDecoder('utf-8',{fatal:false}).decode(b2);
+var cjk2=(d2.match(/[\u4e00-\u9fff\u3040-\u30ff]/g)||[]).join('').length;
+if(cjk2>cjk)out=d2;
+}
+}catch(e){}
+if(out.indexOf('\ufffd')!==-1)out=out.replace(/\uFFFD+/g,'');
+return out;
 }
 
 
@@ -260,6 +275,7 @@ if(typeof v==='string'&&v.trim()){main=v;break;}
 if(typeof v==='object'&&typeof v.lyric==='string'&&v.lyric.trim()){main=v.lyric;break;}
 }
 }
+main=repairMojibake(String(main||''));trans=repairMojibake(String(trans||''));roma=repairMojibake(String(roma||''));
 var mainP=parseRichLyric(main),transP=parseRichLyric(trans),romaP=parseRichLyric(roma);
 // 仅时间轴、无有效正文的翻译/音译视为空
 if(transP&&!hasMeaningfulLyricText(transP))transP='';

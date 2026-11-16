@@ -22,7 +22,7 @@ var BS=String.fromCharCode(92);
 
 var DEFAULT_ICON='/icon.png';
 var SITE_TITLE='Playlet';
-var LYRIC_RESUME_DELAY=5000;
+var LYRIC_RESUME_DELAY=4000;
 
 var ICON={
 play:'<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',

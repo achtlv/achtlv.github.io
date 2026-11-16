@@ -295,7 +295,12 @@ return out;
 }
 var _preloadPollTimer=null;
 var _preloadPollForIdx=-1;
+var _preloadTriggerTimer=null;
 function triggerPreloadNeighbors(){
+// 防抖：短时间多次切歌/forceDone 只触发一次
+if(_preloadTriggerTimer)clearTimeout(_preloadTriggerTimer);
+_preloadTriggerTimer=setTimeout(function(){
+_preloadTriggerTimer=null;
 var len=state.playlist.length;
 var curIdx=state.current;
 if(curIdx<0||len<1)return;
@@ -308,15 +313,17 @@ var still=false;
 for(var i=0;i<targets.length;i++){
 var song=targets[i];
 var need=songPreloadNeeds(song);
+// 当前曲优先 url；邻居可后做
 if(need.pic){still=true;try{preloadSongPic(song);}catch(e){}}
 if(need.lyric){still=true;try{preloadSongLyric(song);}catch(e){}}
 if(need.url){still=true;try{preloadSongUrl(song);}catch(e){}}
 }
 if(still){
-_preloadPollTimer=setTimeout(tick,1800);
+_preloadPollTimer=setTimeout(tick,4000);
 }
 }
 tick();
+},120);
 }
 
 

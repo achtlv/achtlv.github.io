@@ -534,16 +534,17 @@ setTimeout(function(){try{state._lyricProgScroll=false;}catch(e){}},120);
 
 function markLyricUserScrolled(){
 if(!state.lyricHasTime)return;
-// 程序滚动（回正/切歌）不记为用户滚动，避免 5s/10s 后反复强制回正
+// 程序滚动（回正/切歌）不记为用户滚动
 if(state._lyricProgScroll)return;
 state.lyricUserScrolled=true;
 if(state._lyricScrollTimer)clearTimeout(state._lyricScrollTimer);
 state._lyricScrollTimer=setTimeout(function(){
 state._lyricScrollTimer=null;
 state.lyricUserScrolled=false;
-// 仅恢复跟随当前行，不 force 动画叠加重心跳动
-try{updateLyricScroll(false);}catch(e){}
-},LYRIC_RESUME_DELAY);
+// 强制回正到当前行（force=true，否则行未变会直接 return）
+try{state._lyricScrollAt=0;state._lyricScrollTarget=null;}catch(e){}
+try{updateLyricScroll(true);}catch(e){}
+},typeof LYRIC_RESUME_DELAY==='number'?LYRIC_RESUME_DELAY:4000);
 }
 
 `;

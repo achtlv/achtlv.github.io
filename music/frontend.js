@@ -75,10 +75,8 @@ if(actions)actions.style.display=has?'none':'flex';
 }
 // 多次尝试，覆盖 boot 抛错 / storage 延迟
 setTimeout(forceDone,0);
-setTimeout(forceDone,100);
 setTimeout(forceDone,300);
-setTimeout(forceDone,800);
-setTimeout(forceDone,1500);
+setTimeout(forceDone,1200);
 })();
 </script>
 

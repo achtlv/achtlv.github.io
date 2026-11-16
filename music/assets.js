@@ -6,7 +6,7 @@ export const MANIFEST_JSON = {
           { src: "/icon.png", sizes: "512x512", type: "image/png", purpose: "any" }]
 };
 export const SW_CODE = [
-  "const CACHE_NAME = 'playlet-shell-v16';",
+  "const CACHE_NAME = 'playlet-shell-v18';",
   "var SHELL = ['/', '/index.html', '/manifest.json', '/icon.png'];",
   "self.addEventListener('install', function(e){",
   "  e.waitUntil(caches.open(CACHE_NAME).then(function(c){ return c.addAll(SHELL).catch(function(){}); }).then(function(){ return self.skipWaiting(); }));",

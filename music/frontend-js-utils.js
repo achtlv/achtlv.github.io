@@ -232,6 +232,17 @@ function isCorsBrokenHost(url){
 // 浏览器直连会 CORS 失败的第三方解析站：一律走 Worker /api/proxyFetch
 return /oiapi\.net|paugram\.com|zddyr\.top|wwwweb\.top|lxmusicapi\.onrender\.com|gdstudio\.xyz|vkeys\.cn|music-api\.|onrender\.com|api\.vkeys\.cn/i.test(String(url||''));
 }
+var _proxyMax=3,_proxyActive=0,_proxyWait=[],_proxyDedupe={};
+function _proxyAcquire(){
+return new Promise(function(resolve){
+if(_proxyActive<_proxyMax){_proxyActive++;resolve();return;}
+_proxyWait.push(resolve);
+});
+}
+function _proxyRelease(){
+_proxyActive=Math.max(0,_proxyActive-1);
+if(_proxyWait.length){var n=_proxyWait.shift();_proxyActive++;n();}
+}
 function localFetchJson(url,options,timeoutMs){
 options=options||{};
 timeoutMs=timeoutMs||12000;
@@ -249,6 +260,9 @@ if(isCorsBrokenHost(u))thirdParty=true;
 }
 }catch(e){thirdParty=isCorsBrokenHost(u);}
 if(thirdParty&&u.indexOf('/api/proxyFetch')===-1){
+var dedupeKey=(options.method||'GET')+' '+u+' '+(options.body||'');
+if(_proxyDedupe[dedupeKey])return _proxyDedupe[dedupeKey];
+var p=_proxyAcquire().then(function(){
 return fetch(toAbsoluteApiUrl('/api/proxyFetch'),{
 method:'POST',
 headers:{'Content-Type':'application/json'},
@@ -257,7 +271,11 @@ body:JSON.stringify({url:u,method:options.method||'GET',headers:options.headers|
 return r.json().then(function(j){
 return {ok:!!(j&&j.ok),status:(j&&j.status)||r.status,data:j&&j.data,text:j&&j.text};
 }).catch(function(){return {ok:false,status:0,data:null};});
-}).catch(function(){return {ok:false,status:0,data:null};});
+}).catch(function(){return {ok:false,status:0,data:null};})
+.finally(function(){_proxyRelease();delete _proxyDedupe[dedupeKey];});
+});
+_proxyDedupe[dedupeKey]=p;
+return p;
 }
 var ctrl=typeof AbortController!=='undefined'?new AbortController():null;
 var timer=null;
@@ -381,53 +399,40 @@ if(typeof isTrialAudioUrl==='function'&&isTrialAudioUrl(uu))throw new Error('oia
 return {url:uu,quality:'128k',expi:0};
 }}
 ];
-// 并发：textdb 缓存 + 各解析接口，先到先得
+// 顺序取链：先 TextDB，再按优先级逐个音源，成功即停（避免并发打爆 proxyFetch）
 for(var qi=0;qi<qualities.length;qi++){
 var q=qualities[qi];
-var tasks=[];
-// textdb 缓存（带过期）
-tasks.push(async function(){
+// 1) TextDB / 本地
 try{
 if(typeof getTextdbAudioUrlOnly==='function'){
 var db=await getTextdbAudioUrlOnly(songId,level,30);
-if(db&&db.url)return {url:ensureHttps(db.url),quality:q,expi:Math.max(1,Math.floor((db.expireAt-Date.now())/1000)),fromCache:true};
+if(db&&db.url){
+return {code:200,data:{url:ensureHttps(db.url),expi:Math.max(1,Math.floor((db.expireAt-Date.now())/1000)),respQuality:q}};
 }
-// 兼容直接读
+}
 if(typeof cacheGetRaw==='function'){
 var key=level+String(songId);
 var text=await cacheGetRaw(key);
 if(text&&typeof cacheDecodeValue==='function'){
 var data=cacheDecodeValue(text);
 if(data&&data.url&&data.expireAt>Date.now()+30000){
-return {url:ensureHttps(data.url),quality:q,expi:Math.max(1,Math.floor((data.expireAt-Date.now())/1000)),fromCache:true};
+return {code:200,data:{url:ensureHttps(data.url),expi:Math.max(1,Math.floor((data.expireAt-Date.now())/1000)),respQuality:q}};
 }
 }
 }
 }catch(e){}
-return null;
-});
-backends.forEach(function(b){
-tasks.push(async function(){
+// 2) 按 backends 顺序逐个请求
+for(var bi=0;bi<backends.length;bi++){
 try{
-var r=await b.run(q);
+var r=await backends[bi].run(q);
 if(r&&r.url){
-r.url=ensureHttps(r.url);
-// 拿到即上传 textdb
-try{if(typeof saveAudioUrlToCache==='function')await saveAudioUrlToCache(songId,level,r.url,r.expi||0);}catch(e){}
-return r;
+var finalUrl=ensureHttps(r.url);
+if(typeof isTrialAudioUrl==='function'&&isTrialAudioUrl(finalUrl))continue;
+try{if(typeof saveAudioUrlToCache==='function')await saveAudioUrlToCache(songId,level,finalUrl,r.expi||0);}catch(e){}
+return {code:200,data:{url:finalUrl,expi:r.expi||0,respQuality:r.quality||q}};
 }
 }catch(e){}
-return null;
-});
-});
-try{
-var hit=await raceFirstOk(tasks);
-if(hit&&hit.url){
-var finalUrl=ensureHttps(hit.url);
-try{if(typeof saveAudioUrlToCache==='function')await saveAudioUrlToCache(songId,level,finalUrl,hit.expi||0);}catch(e){}
-return {code:200,data:{url:finalUrl,expi:hit.expi||0,respQuality:hit.quality||q}};
 }
-}catch(e){}
 }
 return {code:404,msg:'无法获取播放链接'};
 }
@@ -573,47 +578,38 @@ return outL;
 }
 }
 }catch(e){}
-// 2) textdb + API 并发
-var tasks=[];
-tasks.push(async function(){
+// 2) 顺序：本地封面缓存 → GD → paugram
 try{
 if(typeof getCachedCover==='function'){
 var cp=await getCachedCover(songId);
-if(cp)return {code:200,data:{songs:[{id:Number(songId)||songId,name:'',ar:[{name:''}],al:{picUrl:ensureHttps(cp)}}]}};
+if(cp){
+var hit0={code:200,data:{songs:[{id:Number(songId)||songId,name:'',ar:[{name:''}],al:{picUrl:ensureHttps(cp)}}]}};
+_songInfoMem[songId]=hit0;return hit0;
+}
 }
 }catch(e){}
-return null;
-});
-tasks.push(async function(){
 try{
-var r=await localFetchJson('https://api.paugram.com/netease/?id='+encodeURIComponent(songId),{method:'GET'},10000);
-var d=r.data;
-if(d&&(d.title||d.name||d.cover||d.pic)){
-var pic=ensureHttps(d.cover||d.pic||d.picUrl||'');
-var name=d.title||d.name||'';
-var artist=d.artist||d.singer||'';
-if(pic&&typeof saveCoverToCache==='function'){try{await saveCoverToCache(songId,pic);}catch(e){}}
-return {code:200,data:{songs:[{id:Number(songId)||songId,name:name,ar:[{name:artist}],al:{picUrl:pic}}]}};
+var r1=await localFetchJson('https://music-api.gdstudio.xyz/api.php?types=song&source=netease&id='+encodeURIComponent(songId),{method:'GET'});
+var d1=r1.data;
+var item1=(d1&&d1.songs&&d1.songs[0])||d1;
+if(item1&&(item1.name||item1.pic||item1.picUrl)){
+var pic1=ensureHttps((item1.al&&item1.al.picUrl)||item1.picUrl||item1.pic||'');
+if(pic1&&typeof saveCoverToCache==='function'){try{await saveCoverToCache(songId,pic1);}catch(e){}}
+var hit1={code:200,data:{songs:[{id:Number(songId)||songId,name:item1.name||'',ar:item1.ar||[{name:item1.artist||''}],al:{picUrl:pic1}}]}};
+_songInfoMem[songId]=hit1;return hit1;
 }
 }catch(e){}
-return null;
-});
-tasks.push(async function(){
 try{
-var r=await localFetchJson('https://music-api.gdstudio.xyz/api.php?types=song&source=netease&id='+encodeURIComponent(songId),{method:'GET'});
-var d=r.data;
-var item=(d&&d.songs&&d.songs[0])||d;
-if(item&&(item.name||item.pic||item.picUrl)){
-var pic=ensureHttps((item.al&&item.al.picUrl)||item.picUrl||item.pic||'');
-if(pic&&typeof saveCoverToCache==='function'){try{await saveCoverToCache(songId,pic);}catch(e){}}
-return {code:200,data:{songs:[{id:Number(songId)||songId,name:item.name||'',ar:item.ar||[{name:item.artist||''}],al:{picUrl:pic}}]}};
+var r2=await localFetchJson('https://api.paugram.com/netease/?id='+encodeURIComponent(songId),{method:'GET'},10000);
+var d2=r2.data;
+if(d2&&(d2.title||d2.name||d2.cover||d2.pic)){
+var pic2=ensureHttps(d2.cover||d2.pic||d2.picUrl||'');
+var name2=d2.title||d2.name||'';
+var artist2=d2.artist||d2.singer||'';
+if(pic2&&typeof saveCoverToCache==='function'){try{await saveCoverToCache(songId,pic2);}catch(e){}}
+var hit2={code:200,data:{songs:[{id:Number(songId)||songId,name:name2,ar:[{name:artist2}],al:{picUrl:pic2}}]}};
+_songInfoMem[songId]=hit2;return hit2;
 }
-}catch(e){}
-return null;
-});
-try{
-var hit=await raceFirstOk(tasks);
-if(hit){_songInfoMem[songId]=hit;return hit;}
 }catch(e){}
 return {code:404,msg:'无信息'};
 }
